@@ -71,14 +71,39 @@ try {
     Check "activity log" { $a = Api GET "/api/activity?limit=5"; "$($a.Count) entries" }
 
     Start-Sleep 3
-    # Desktop capture for the CI artifact (shows the orb if the desktop shell is running).
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-    $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
-    $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-    $g = [System.Drawing.Graphics]::FromImage($bmp)
-    $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
-    $bmp.Save((Join-Path $OutDir "desktop.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-    $g.Dispose(); $bmp.Dispose()
+    function Capture($name) {
+        $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+        $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+        $g.Dispose()
+        $bmp.Save((Join-Path $OutDir "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+        # Small JPEG copy printed to the log, so the result can be inspected without downloading artifacts.
+        $w = [Math]::Min(1100, $bmp.Width); $h = [int]($bmp.Height * $w / $bmp.Width)
+        $small = New-Object System.Drawing.Bitmap $bmp, $w, $h
+        $ms = New-Object System.IO.MemoryStream
+        $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+        $ep = New-Object System.Drawing.Imaging.EncoderParameters 1
+        $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), 55L
+        $small.Save($ms, $codec, $ep)
+        $b64 = [Convert]::ToBase64String($ms.ToArray())
+        Write-Host "SCREENSHOT-BEGIN $name"
+        for ($i = 0; $i -lt $b64.Length; $i += 8000) { Write-Host ("B64:" + $b64.Substring($i, [Math]::Min(8000, $b64.Length - $i))) }
+        Write-Host "SCREENSHOT-END $name"
+        $small.Dispose(); $bmp.Dispose()
+    }
+    Capture "desktop"
+
+    # Open the dashboard window (WebView2) through the runtime, as a second instance would.
+    Check "dashboard window opens" {
+        Api POST "/api/ui/show" | Out-Null
+        Start-Sleep 8
+        $p = Get-Process JARVIS -ErrorAction SilentlyContinue
+        if (-not $p -and (Test-Path (Join-Path $AppDir "JARVIS.exe"))) { throw "JARVIS.exe not running" }
+        "ok"
+    }
+    Capture "dashboard"
 
     Get-ChildItem (Join-Path ([Environment]::GetFolderPath("MyPictures")) "JARVIS") -ErrorAction SilentlyContinue | Copy-Item -Destination $OutDir
     Check "desktop shell running" { $p = Get-Process JARVIS -ErrorAction SilentlyContinue; if (-not $p -and (Test-Path (Join-Path $AppDir "JARVIS.exe"))) { throw "JARVIS.exe not running" }; "ok" }
