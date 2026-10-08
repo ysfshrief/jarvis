@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Jarvis.Core/Jarvis.Core.csproj" />
+    <Project Path="src/Jarvis.Platform.Windows/Jarvis.Platform.Windows.csproj" />
+    <Project Path="src/Jarvis.Runtime/Jarvis.Runtime.csproj" />
+    <Project Path="src/Jarvis.Voice/Jarvis.Voice.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Jarvis.Core.Tests/Jarvis.Core.Tests.csproj" />
+    <Project Path="tests/Jarvis.Runtime.Tests/Jarvis.Runtime.Tests.csproj" />
+  </Folder>
+</Solution>

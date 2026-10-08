@@ -1,0 +1,18 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Version Condition="'$(Version)' == ''">0.1.0</Version>
+    <Authors>JARVIS</Authors>
+    <Product>JARVIS</Product>
+    <Copyright>JARVIS contributors</Copyright>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1416;NU1701</NoWarn>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- WinRT / Windows APIs target. 19041 = Windows 10 2004, the minimum supported OS. -->
+    <JarvisWindowsTfm>net10.0-windows10.0.19041.0</JarvisWindowsTfm>
+  </PropertyGroup>
+</Project>

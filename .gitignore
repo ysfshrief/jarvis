@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/*
+!.vscode/extensions.json
+TestResults/
+*.trx
+
+# Build output
+/artifacts/
+/publish/
+
+# Frontend
+ui/node_modules/
+ui/dist/
+src/Jarvis.Runtime/wwwroot/
+
+# Local data / secrets
+.env
+*.env.local
+*.db
+*.db-shm
+*.db-wal
+secrets.dat
+runtime.json
+
+# OS
+.DS_Store
+Thumbs.db

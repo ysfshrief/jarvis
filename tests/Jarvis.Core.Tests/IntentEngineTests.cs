@@ -1,0 +1,157 @@
+using Jarvis.Core.Agent;
+using Jarvis.Core.Language;
+using Jarvis.Core.Scheduling;
+
+namespace Jarvis.Core.Tests;
+
+public class IntentEngineTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 5, 10, 10, 0, 0, TimeSpan.FromHours(3));
+
+    [Theory]
+    [InlineData("open calculator", "app_open", "name", "calculator")]
+    [InlineData("Jarvis, open VS Code", "app_open", "name", "VS Code")]
+    [InlineData("Jarvis، افتح VS Code", "app_open", "name", "VS Code")]
+    [InlineData("افتح الآلة الحاسبة", "app_open", "name", "الآلة الحاسبة")]
+    [InlineData("please launch spotify", "app_open", "name", "spotify")]
+    [InlineData("close notepad", "app_close", "name", "notepad")]
+    [InlineData("اقفل الكروم", "app_close", "name", "الكروم")]
+    [InlineData("volume 40", "volume", "action", "set")]
+    [InlineData("علي الصوت", "volume", "action", "up")]
+    [InlineData("وطي الصوت شوية", "volume", "action", "down")]
+    [InlineData("اقفل الصوت", "volume", "action", "mute")]
+    [InlineData("mute", "volume", "action", "mute")]
+    [InlineData("next song", "media_control", "action", "next")]
+    [InlineData("take a screenshot", "screenshot", null, null)]
+    [InlineData("خد سكرين شوت", "screenshot", null, null)]
+    [InlineData("lock the screen", "lock_screen", null, null)]
+    [InlineData("اقفل الشاشة", "lock_screen", null, null)]
+    [InlineData("shut down the computer", "system_power", "action", "shutdown")]
+    [InlineData("اطفي الجهاز", "system_power", "action", "shutdown")]
+    [InlineData("restart", "system_power", "action", "restart")]
+    [InlineData("how's the system", "system_info", null, null)]
+    [InlineData("الجهاز عامل ايه", "system_info", null, null)]
+    [InlineData("add task send the proposal", "task_create", "title", "send the proposal")]
+    [InlineData("ضيف مهمة أراجع العقد", "task_create", "title", "أراجع العقد")]
+    [InlineData("what are my tasks", "task_list", null, null)]
+    [InlineData("مهامي ايه", "task_list", null, null)]
+    [InlineData("remember that Ahmed's birthday is in May", "memory_remember", "content", "Ahmed's birthday is in May")]
+    [InlineData("افتكر إن أحمد بيحب القهوة سادة", "memory_remember", "content", "أحمد بيحب القهوة سادة")]
+    [InlineData("what do you know about CityCrep", "memory_search", "query", "citycrep")]
+    [InlineData("forget my old address", "memory_forget", "query", "my old address")]
+    [InlineData("find file proposal", "file_search", "query", "proposal")]
+    [InlineData("دور على ملف العرض", "file_search", "query", "العرض")]
+    [InlineData("search for best laptops under 30000 EGP", "web_search", "query", "best laptops under 30000 egp")]
+    [InlineData("run git status", "run_command", "command", "git status")]
+    [InlineData("run command npm test", "run_command", "command", "npm test")]
+    public void Recognizes_commands(string text, string tool, string? arg, string? value)
+    {
+        var intent = Assert.IsType<ToolIntent>(IntentEngine.Match(text, Now));
+        Assert.Equal(tool, intent.Tool);
+        if (arg is not null) Assert.Equal(value, intent.Args.GetString(arg));
+    }
+
+    [Theory]
+    [InlineData("open my project and tell me why the build is failing")]
+    [InlineData("Jarvis, prepare me for my CityCrep meeting")]
+    [InlineData("افتح المشروع وقولي ليه البيلد بيفشل")]
+    [InlineData("why is the sky blue")]
+    [InlineData("draft a reply to Ahmed about pricing")]
+    [InlineData("remind me later")]
+    public void Leaves_complex_requests_to_the_ai(string text)
+    {
+        Assert.Null(IntentEngine.Match(text, Now));
+    }
+
+    [Theory]
+    [InlineData("what time is it", "time")]
+    [InlineData("الساعة كام؟", "time")]
+    [InlineData("what's the date", "date")]
+    [InlineData("النهارده كام", "date")]
+    [InlineData("hello", "greeting")]
+    [InlineData("صباح الخير", "greeting")]
+    [InlineData("what can you do", "help")]
+    [InlineData("بتعرف تعمل ايه", "help")]
+    public void Answers_simple_questions_without_tools(string text, string kind)
+    {
+        var intent = Assert.IsType<ReplyIntent>(IntentEngine.Match(text, Now));
+        Assert.Equal(kind, intent.Kind);
+    }
+
+    [Theory]
+    [InlineData("speak english", Lang.En)]
+    [InlineData("كلمني انجليزي", Lang.En)]
+    [InlineData("talk to me in arabic", Lang.Ar)]
+    [InlineData("كلمني عربي", Lang.Ar)]
+    public void Switches_language(string text, Lang lang)
+    {
+        Assert.Equal(lang, Assert.IsType<LanguageIntent>(IntentEngine.Match(text, Now)).Lang);
+    }
+
+    [Theory]
+    [InlineData("yes", true)]
+    [InlineData("go ahead", true)]
+    [InlineData("أيوه", true)]
+    [InlineData("تمام", true)]
+    [InlineData("no", false)]
+    [InlineData("لأ", false)]
+    [InlineData("بلاش", false)]
+    public void Approval_answers_only_when_something_is_pending(string text, bool approve)
+    {
+        Assert.Equal(approve, Assert.IsType<ApprovalAnswerIntent>(IntentEngine.Match(text, Now, approvalPending: true)).Approve);
+        Assert.IsNotType<ApprovalAnswerIntent>(IntentEngine.Match(text, Now, approvalPending: false));
+    }
+
+    [Theory]
+    [InlineData("remind me in 10 minutes to call Ahmed", "call Ahmed", 10)]
+    [InlineData("remind me to stretch in 2 hours", "stretch", 120)]
+    [InlineData("فكرني بعد ربع ساعة اكلم احمد", "اكلم احمد", 15)]
+    [InlineData("فكرني بعد 5 دقايق بالاجتماع", "الاجتماع", 5)]
+    [InlineData("فكرني بعد دقيقتين اشرب مية", "اشرب مية", 2)]
+    public void Parses_relative_reminders(string text, string what, int minutes)
+    {
+        var intent = Assert.IsType<ToolIntent>(IntentEngine.Match(text, Now));
+        Assert.Equal("reminder_create", intent.Tool);
+        Assert.Equal(what, intent.Args.GetString("text"));
+        var due = DateTimeOffset.Parse(intent.Args.GetString("due")!);
+        Assert.Equal(Now.AddMinutes(minutes), due);
+    }
+
+    [Fact]
+    public void Parses_clock_reminders()
+    {
+        var expr = TimeExpressionParser.Find("call mom at 5pm", Now);
+        Assert.NotNull(expr);
+        Assert.Equal(17, expr.When.ToLocalTime().Hour);
+        Assert.True(expr.When > Now);
+    }
+
+    [Fact]
+    public void Clock_time_without_ampm_picks_the_next_occurrence()
+    {
+        var local = new DateTimeOffset(2026, 5, 10, 14, 0, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 5, 10, 14, 0, 0)));
+        var expr = TimeExpressionParser.Find("الساعه 5", local);
+        Assert.NotNull(expr);
+        Assert.True(expr.When > local);
+        Assert.True(expr.When - local <= TimeSpan.FromHours(12));
+    }
+}
+
+public class LanguageTests
+{
+    [Theory]
+    [InlineData("open calculator", Lang.En)]
+    [InlineData("افتح الحاسبة", Lang.Ar)]
+    [InlineData("Jarvis، افتح VS Code", Lang.Ar)]
+    [InlineData("12345", Lang.En)]
+    public void Detects_language(string text, Lang expected) => Assert.Equal(expected, LanguageDetector.Detect(text));
+
+    [Fact]
+    public void Normalizes_arabic_spelling_variants()
+    {
+        Assert.Equal(TextNormalizer.Normalize("الآلة الحاسبة"), TextNormalizer.Normalize("الاله الحاسبه"));
+        Assert.Equal(TextNormalizer.Normalize("إحنا"), TextNormalizer.Normalize("احنا"));
+        Assert.Equal("10", TextNormalizer.Normalize("١٠"));
+        Assert.Equal("مرحبا", TextNormalizer.Normalize("مَرْحَبًا"));
+    }
+}
