@@ -121,6 +121,8 @@ public sealed class SettingsStore : ISettingsStore
         s.Permissions.ToolOverrides ??= new();
         s.Files ??= new();
         s.Files.AllowedRoots ??= [];
+        s.Files.IndexRoots ??= [];
+        s.Files.IndexMaxFileMb = Math.Clamp(s.Files.IndexMaxFileMb, 1, 500);
         s.Memory ??= new();
         s.Memory.AllowedKinds ??= [];
         s.Notifications ??= new();

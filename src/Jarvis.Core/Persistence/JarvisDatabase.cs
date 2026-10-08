@@ -300,4 +300,52 @@ public sealed class JarvisDatabase
         );
         CREATE INDEX ix_workflow_events_wf ON workflow_events(workflow_id, id);
         """,
-    ];}
+        // v4: file knowledge index.
+        """
+        CREATE TABLE files (
+            id TEXT PRIMARY KEY,
+            path TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            ext TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            modified_at TEXT NOT NULL,
+            created_at TEXT,
+            indexed_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            note TEXT,
+            title TEXT,
+            author TEXT,
+            pages INTEGER,
+            project TEXT,
+            text_chars INTEGER NOT NULL DEFAULT 0,
+            metadata TEXT,
+            name_search TEXT NOT NULL
+        );
+        CREATE INDEX ix_files_modified ON files(modified_at);
+
+        CREATE TABLE file_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id TEXT NOT NULL,
+            ord INTEGER NOT NULL,
+            text TEXT NOT NULL,
+            search_text TEXT NOT NULL
+        );
+        CREATE INDEX ix_file_chunks_file ON file_chunks(file_id, ord);
+        CREATE VIRTUAL TABLE file_chunks_fts USING fts5(search_text, content='file_chunks', content_rowid='id');
+        CREATE TRIGGER file_chunks_ai AFTER INSERT ON file_chunks BEGIN
+            INSERT INTO file_chunks_fts(rowid, search_text) VALUES (new.id, new.search_text);
+        END;
+        CREATE TRIGGER file_chunks_ad AFTER DELETE ON file_chunks BEGIN
+            INSERT INTO file_chunks_fts(file_chunks_fts, rowid, search_text) VALUES ('delete', old.id, old.search_text);
+        END;
+
+        CREATE TABLE file_entities (
+            file_id TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            PRIMARY KEY (file_id, entity_id)
+        );
+        CREATE INDEX ix_file_entities_entity ON file_entities(entity_id);
+        """,
+    ];
+}

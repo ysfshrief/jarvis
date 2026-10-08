@@ -76,6 +76,7 @@ try
     builder.Services.AddHostedService<KnowledgeIndexService>();
     builder.Services.AddHostedService<PatternLearnerService>();
     builder.Services.AddHostedService<WorkflowMonitorService>();
+    builder.Services.AddHostedService<FileIndexService>();
 
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     {

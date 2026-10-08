@@ -159,8 +159,23 @@ public static partial class IntentEngine
             return new ToolIntent("run_command", ToolArgs.From(new { command = Original(rawText, m.Groups["x"].Value) }));
 
         // Files and web search.
+        if ((m = LatestFile().Match(t)).Success)
+        {
+            var folder = m.Groups["f"].Success ? m.Groups["f"].Value.Trim() : null;
+            var kind = m.Groups["k"].Success ? KindWord(m.Groups["k"].Value) : null;
+            return new ToolIntent("file_latest", folder is null && kind is null ? new ToolArgs()
+                : folder is null ? ToolArgs.From(new { kind }) : kind is null ? ToolArgs.From(new { folder }) : ToolArgs.From(new { folder, kind }));
+        }
+        if ((m = FindDocsAbout().Match(t)).Success)
+            return new ToolIntent("file_find", ToolArgs.From(new { query = Original(rawText, m.Groups["x"].Value) }));
         if ((m = FindFile().Match(t)).Success)
             return new ToolIntent("file_search", ToolArgs.From(new { query = m.Groups["x"].Value.Trim() }));
+        if ((m = Summarize().Match(t)).Success)
+            return new ToolIntent("file_summarize", ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value) }), PreferAi: true);
+        if ((m = CompareFiles().Match(t)).Success)
+            return new ToolIntent("file_compare", m.Groups["y"].Success
+                ? ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value), other = Original(rawText, m.Groups["y"].Value) })
+                : ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value) }), FallBackToAiOnFailure: true);
         if ((m = WebSearch().Match(t)).Success)
             return new ToolIntent("web_search", ToolArgs.From(new { query = m.Groups["x"].Value.Trim() }), FallBackToAiOnFailure: true);
 
@@ -370,6 +385,30 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:(?:run|execute)(?: the)? command|(?:شغل|نفذ)(?: ال)?(?:امر|كوماند))\s+(?<x>.+)$|^(?:run|execute)\s+(?<x>(?:git|npm|npx|pnpm|yarn|dotnet|python|py|pip|node|ipconfig|ping|winget|choco|docker|kubectl|cargo|go|java|mvn|gradle)\b.*)$")]
     private static partial Regex RunCommand();
+
+    // "latest file in downloads", "what's the last pdf I downloaded", "آخر ملف في التنزيلات"
+    [GeneratedRegex(@"^(?:what(?:'s| is| are) )?(?:show (?:me )?)?(?:the |my )?(?:latest|newest|most recent|last)(?: \d+)? (?<k>files?|documents?|docs?|pdfs?|spreadsheets?|excel(?: files?)?|presentations?|slides?|images?|photos?|pictures?|screenshots?|downloads?)(?: i (?:downloaded|saved|worked on|got))?(?: (?:in|on|from) (?:the |my )?(?<f>[\p{L}\p{N} :\\/._\-]+))?$|^(?:اخر|احدث) (?<k>ملف|ملفات|بي دي اف|اكسيل|صوره|صور|سكرين شوت)(?: (?:في|ف|على|علي) (?<f>.+))?$")]
+    private static partial Regex LatestFile();
+
+    [GeneratedRegex(@"^(?:find|search|look for|show me)(?: for)?(?: the| my| any)? (?:documents?|docs|files|papers|contracts?|proposals?|invoices?|reports?) (?:about|on|regarding|mentioning|for|with) (?<x>.+)$|^(?:find|search for|look for) (?:the |my )?(?!files? |folder )(?<x>.+? (?:contract|proposal|invoice|report|presentation|deck|spreadsheet|budget|offer|agreement|nda|cv|resume))$|^(?:دور|دورلي|ابحث|شوفلي)(?: لي)? (?:علي|عن) (?:ملفات|مستندات|ورق|عقود|عقد|عروض|عرض|فواتير|فاتوره) (?:عن|بتاع|بتاعه|بتاعت|ل|لـ)? ?(?<x>.+)$")]
+    private static partial Regex FindDocsAbout();
+
+    [GeneratedRegex(@"^(?:summari[sz]e|give me (?:a |the )?summary of|what(?:'s| is) in) (?:the |my |this )?(?:file |document |pdf |doc )?(?<x>.+\.[a-z0-9]{2,5}|.+? (?:file|document|pdf|doc|contract|proposal|report|presentation|deck|spreadsheet))$|^(?:لخص|لخصلي|لخص لي) (?:ال)?(?:ملف|مستند|عقد|عرض|تقرير)? ?(?<x>.+)$")]
+    private static partial Regex Summarize();
+
+    [GeneratedRegex(@"^(?:compare|diff) (?<x>.+?)(?: (?:with|to|and|against) (?<y>.+))?$|^what changed in (?<x>.+?)(?: since (?<y>.+))?$|^(?:قارن|قارنلي) (?<x>.+?)(?: (?:ب|مع|و) ?(?<y>.+))?$")]
+    private static partial Regex CompareFiles();
+
+    private static string? KindWord(string w)
+    {
+        w = w.Trim();
+        if (w.StartsWith("pdf") || w == "بي دي اف") return "pdf";
+        if (w.StartsWith("spreadsheet") || w.StartsWith("excel") || w == "اكسيل") return "spreadsheet";
+        if (w.StartsWith("presentation") || w.StartsWith("slide")) return "presentation";
+        if (w.StartsWith("image") || w.StartsWith("photo") || w.StartsWith("picture") || w.StartsWith("screenshot") || w.StartsWith("صور") || w == "سكرين شوت") return "image";
+        if (w.StartsWith("doc")) return "document";
+        return null;
+    }
 
     [GeneratedRegex(@"^(?:find|search for|locate|where is|look for)(?: the| a| my)? files? (?:named |called )?(?<x>.+)$|^(?:دور|ابحث|دورلي|شوفلي)(?: لي)? (?:علي|عن) (?:ال)?ملف(?: اسمه)? (?<x>.+)$")]
     private static partial Regex FindFile();

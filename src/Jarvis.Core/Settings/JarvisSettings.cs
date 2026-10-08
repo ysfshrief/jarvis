@@ -213,6 +213,12 @@ public sealed class FileSettings
     /// <summary>Folders JARVIS may read/search without extra confirmation. Empty = your user profile.</summary>
     public List<string> AllowedRoots { get; set; } = [];
     public int MaxReadBytes { get; set; } = 200_000;
+    /// <summary>Build a local, searchable index of document contents. Off until the user turns it on.</summary>
+    public bool IndexEnabled { get; set; }
+    /// <summary>Folders to index. Empty = Documents, Desktop and Downloads.</summary>
+    public List<string> IndexRoots { get; set; } = [];
+    /// <summary>Files larger than this are indexed by name only.</summary>
+    public int IndexMaxFileMb { get; set; } = 25;
 }
 
 public sealed class MemorySettings

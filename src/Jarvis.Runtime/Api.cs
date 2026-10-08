@@ -227,6 +227,46 @@ public static class Api
         api.MapPost("/workflows/{id}/cancel", (string id, WorkflowStore store) => store.Cancel(id) ? Results.Ok() : Results.NotFound());
         api.MapDelete("/workflows/{id}", (string id, WorkflowStore store) => store.Delete(id) ? Results.Ok() : Results.NotFound());
 
+        // ---- File knowledge ----
+        api.MapGet("/files/status", async (Jarvis.Core.Files.FileIndex index, Jarvis.Core.Files.FileIndexer indexer, Jarvis.Core.Files.IOcrEngine ocr, KnowledgeService knowledge, ISettingsStore settings, CancellationToken ct) =>
+        {
+            var (files, withText, chars, lastIndexed) = index.Stats();
+            return Results.Ok(new
+            {
+                enabled = settings.Current.Files.IndexEnabled, roots = indexer.Roots(), files, withText, chars, lastIndexed,
+                kinds = index.CountsByKind(), progress = indexer.Progress, ocr = new { ocr.IsAvailable, ocr.Name },
+                semantic = await knowledge.Semantic.StatusAsync(Jarvis.Core.Files.FileIndex.ChunkOwner, 0, ct),
+            });
+        });
+        api.MapGet("/files/search", async (Jarvis.Core.Files.FileIndex index, string q, string? kind, int? limit, CancellationToken ct) =>
+            Results.Ok((await index.SearchAsync(q, limit ?? 25, kind, ct)).Select(h => new { file = h.File, h.Snippet, h.Score, h.Semantic })));
+        api.MapGet("/files/latest", (Jarvis.Core.Files.FileIndex index, string? kind, string? entity, int? limit) =>
+            Results.Ok(index.Latest(limit ?? 20, kind, entityId: entity)));
+        api.MapGet("/files/{id}", (string id, Jarvis.Core.Files.FileIndex index) =>
+        {
+            var f = index.Get(id);
+            if (f is null) return Results.NotFound();
+            var text = index.Text(id);
+            return Results.Ok(new
+            {
+                file = f, entities = index.EntitiesOf(id), keyPoints = Jarvis.Core.Files.TextAnalysis.KeySentences(text, 6),
+                preview = text.Length > 4000 ? text[..4000] + "…" : text,
+                previous = File.Exists(f.Path) ? Jarvis.Core.Tools.Builtin.FileCompareTool.PreviousVersion(f.Path) : null,
+            });
+        });
+        api.MapPost("/files/scan", (Jarvis.Core.Files.FileIndexer indexer, ISettingsStore settings, IHostApplicationLifetime life) =>
+        {
+            if (!settings.Current.Files.IndexEnabled) return Results.BadRequest(new { error = "Turn on file knowledge first (Settings → Files)." });
+            _ = Task.Run(() => indexer.ScanAsync(life.ApplicationStopping));
+            return Results.Accepted();
+        });
+        api.MapDelete("/files/index", (Jarvis.Core.Files.FileIndex index, ActivityLog log) =>
+        {
+            index.ClearAll();
+            log.Record(ActivityKinds.System, "File index cleared", status: "ok");
+            return Results.Ok();
+        });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>

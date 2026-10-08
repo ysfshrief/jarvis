@@ -62,7 +62,7 @@ public sealed class FileSearchTool(FilePolicy policy) : ToolBase
                                    $"لقيت {results.Count}، الأحدث الأول:\n{top}"), data);
     }
 
-    private static void Walk(DirectoryInfo dir, string[] terms, List<FileSystemInfo> found, DateTime deadline, int depth, CancellationToken ct)
+    internal static void Walk(DirectoryInfo dir, string[] terms, List<FileSystemInfo> found, DateTime deadline, int depth, CancellationToken ct)
     {
         if (depth > 12 || found.Count >= 2000 || DateTime.UtcNow > deadline || ct.IsCancellationRequested) return;
         IEnumerable<FileSystemInfo> entries;

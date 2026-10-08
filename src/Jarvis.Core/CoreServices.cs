@@ -52,6 +52,11 @@ public static class CoreServices
         services.AddSingleton<Workflows.WorkflowStore>();
         services.AddSingleton<Workflows.WorkflowService>();
         services.AddSingleton<Workflows.WorkflowRunner>();
+        services.TryAddSingleton<Files.IOcrEngine, Files.NullOcrEngine>();
+        services.AddSingleton<Files.DocumentExtractor>();
+        services.AddSingleton<Files.FileIndex>();
+        services.AddSingleton<Files.FileIndexer>();
+        services.AddSingleton<FileFinder>();
         services.AddSingleton<TaskStore>();
         services.AddSingleton<ReminderStore>();
         services.AddSingleton<ConversationStore>();
@@ -106,6 +111,11 @@ public static class CoreServices
         AddTool<FileWriteTool>(services);
         AddTool<FileMoveTool>(services);
         AddTool<FileDeleteTool>(services);
+        AddTool<FileFindTool>(services);
+        AddTool<FileLatestTool>(services);
+        AddTool<FileExtractTool>(services);
+        AddTool<FileSummarizeTool>(services);
+        AddTool<FileCompareTool>(services);
         AddTool<RunCommandTool>(services);
         AddTool<ProjectFindTool>(services);
         AddTool<ProjectOpenTool>(services);

@@ -173,6 +173,7 @@ public static class WindowsPlatform
         services.AddSingleton<INotificationSink, ToastNotificationSink>();
         services.AddSingleton<AppCatalog>();
         services.AddSingleton<Jarvis.Core.Monitoring.IMetricsSource, WindowsMetricsSource>();
+        services.AddSingleton<Jarvis.Core.Files.IOcrEngine, WindowsOcrEngine>();
         services.AddHostedService<StartupRegistration>();
         services.AddHostedService<DesktopShellLauncher>();
         services.AddHostedService<AppCatalogWarmup>();

@@ -50,6 +50,34 @@ public sealed class WindowsPlatformTests : IDisposable
         _sp.GetRequiredService<ToolExecutor>().ExecuteAsync(tool, ToolArgs.From(args), Ctx);
 
     [Fact]
+    public async Task Windows_ocr_reads_text_in_an_image_and_documents_are_indexed()
+    {
+        var ocr = _sp.GetRequiredService<Jarvis.Core.Files.IOcrEngine>();
+        _out.WriteLine($"OCR: {ocr.Name}, available={ocr.IsAvailable}");
+        if (!ocr.IsAvailable) return; // no OCR language installed on this image: nothing to verify
+        var png = Path.Combine(_dataDir, "ocr-test.png");
+        using (var bmp = new System.Drawing.Bitmap(900, 220))
+        using (var g = System.Drawing.Graphics.FromImage(bmp))
+        using (var font = new System.Drawing.Font("Segoe UI", 44, System.Drawing.FontStyle.Bold))
+        {
+            g.Clear(System.Drawing.Color.White);
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            g.DrawString("Invoice CityCrep 2026", font, System.Drawing.Brushes.Black, 20, 60);
+            bmp.Save(png, System.Drawing.Imaging.ImageFormat.Png);
+        }
+        var text = await ocr.RecognizeAsync(png, default);
+        _out.WriteLine($"OCR text: {text}");
+        Assert.Contains("CityCrep", text ?? "", StringComparison.OrdinalIgnoreCase);
+
+        // The same image becomes findable by its text through the file index.
+        _sp.GetRequiredService<ISettingsStore>().Update(s => { s.Files.IndexEnabled = true; s.Files.IndexRoots = [_dataDir]; });
+        var indexer = _sp.GetRequiredService<Jarvis.Core.Files.FileIndexer>();
+        await indexer.ScanAsync(default);
+        var hits = await _sp.GetRequiredService<Jarvis.Core.Files.FileIndex>().SearchAsync("citycrep invoice", 5, null, default);
+        Assert.Contains(hits, h => h.File.Name == "ocr-test.png");
+    }
+
+    [Fact]
     public void Windows_tools_are_registered_and_replace_generic_ones()
     {
         var registry = _sp.GetRequiredService<IToolRegistry>();

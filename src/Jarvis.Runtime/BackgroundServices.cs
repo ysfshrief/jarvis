@@ -181,3 +181,50 @@ public sealed class WorkflowMonitorService(Jarvis.Core.Workflows.WorkflowService
         }
     }
 }
+
+/// <summary>
+/// Runs the file knowledge index when the user enabled it: a gentle scan shortly after start and every
+/// six hours, plus live updates from file-system notifications. Stops when it's turned off.
+/// </summary>
+public sealed class FileIndexService(Jarvis.Core.Files.FileIndexer indexer, ISettingsStore settings, ILogger<FileIndexService> logger) : BackgroundService
+{
+    private volatile bool _rescan = true;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var last = (Enabled: false, Roots: "");
+        settings.Changed += s =>
+        {
+            var now = (s.Files.IndexEnabled, string.Join("|", s.Files.IndexRoots));
+            if (now != last) _rescan = true;
+        };
+        await Task.Delay(TimeSpan.FromSeconds(45), stoppingToken);
+        var nextScan = DateTimeOffset.MinValue;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var s = settings.Current.Files;
+                var current = (s.IndexEnabled, string.Join("|", s.IndexRoots));
+                if (_rescan || current != last)
+                {
+                    _rescan = false;
+                    last = current;
+                    indexer.Watch();
+                    nextScan = s.IndexEnabled ? DateTimeOffset.Now : DateTimeOffset.MaxValue;
+                }
+                if (s.IndexEnabled && DateTimeOffset.Now >= nextScan)
+                {
+                    await indexer.ScanAsync(stoppingToken);
+                    nextScan = DateTimeOffset.Now.AddHours(6);
+                }
+                if (s.IndexEnabled) await indexer.ProcessChangesAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "File indexing failed");
+            }
+            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+        }
+    }
+}

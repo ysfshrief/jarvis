@@ -73,8 +73,10 @@ public sealed class TestHost : IDisposable
 
     public void Dispose()
     {
+        var db = Get<Jarvis.Core.Persistence.JarvisDatabase>();
         Services.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        // Release only this host's pooled connections (ClearAllPools would disturb parallel tests).
+        using (var c = db.Open()) Microsoft.Data.Sqlite.SqliteConnection.ClearPool(c);
         try { Directory.Delete(DataDir, recursive: true); } catch { }
     }
 }

@@ -78,6 +78,8 @@ public static class EventTypes
     public const string MemoryChanged = "memory.changed";
     public const string TasksChanged = "tasks.changed";
     public const string WorkflowsChanged = "workflows.changed";
+    /// <summary>File index progress and changes.</summary>
+    public const string FilesIndexChanged = "files.index";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";
