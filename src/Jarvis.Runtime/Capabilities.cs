@@ -28,6 +28,7 @@ public static class Capabilities
         new("Computer", "Keyboard input and shortcuts, clipboard", windows ? CapabilityStatus.Working : CapabilityStatus.Planned, "Need approval because keystrokes go to the focused app.", 2),
         new("Computer", "Run PowerShell/cmd commands", CapabilityStatus.Working, "Read-only commands run freely; others need approval; destructive ones are critical.", 2),
         new("Computer", "UI Automation (click buttons in other apps)", CapabilityStatus.Planned, "Windows UI Automation layer.", 2),
+        new("Developer", "Find, open and build code projects; extract build errors", CapabilityStatus.Working, "npm/pnpm/yarn, dotnet, cargo, go, python, gradle, maven, cmake, make. Builds need approval.", 2),
         new("Files", "Search, read, write, move, delete (Recycle Bin)", CapabilityStatus.Working, "Name search over your folders; protected locations require approval.", 2),
         new("Files", "Document understanding (PDF, Office) and semantic search", CapabilityStatus.Planned, "Content index + embeddings.", 6),
         new("Memory", "Local memory: add, search, edit, delete, clear", CapabilityStatus.Working, "SQLite full-text search with Arabic normalization; kinds and sources tracked.", 3),

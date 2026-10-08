@@ -34,6 +34,7 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    - `remember that the CityCrep meeting is on Sunday` · `what do you know about CityCrep`
    - `volume 40` · `mute` · `next song` · `take a screenshot` · `how's the system`
    - `run git status` (read-only commands run; anything else asks you first)
+   - `open my project citycrep` · `build citycrep` · `why is the build failing?` (uses the project open in your editor)
 3. **Enable conversation (free, private):** install [Ollama](https://ollama.com), then in a terminal run
    `ollama pull qwen2.5:7b`. JARVIS detects it automatically (Settings → AI). Now you can ask open
    questions and multi-step requests such as *“open my project folder and tell me why the build is failing”*.

@@ -123,6 +123,7 @@ public static class Persona
         • Reminders and tasks — "remind me in 20 minutes to call Ahmed", "add task send the proposal"
         • Memory — "remember that the CityCrep meeting is on Sunday", "what do you know about CityCrep"
         • Files and web — "find file proposal", "search for laptop prices"
+        • Projects — "open my project citycrep", "build citycrep", "why is the build failing?"
         • Run commands and work with files, with your approval for anything risky
         With a local AI model connected (Ollama), I can also hold a real conversation and plan multi-step tasks.
         """,
@@ -134,6 +135,7 @@ public static class Persona
         • التذكير والمهام — "فكرني بعد 20 دقيقة أكلم أحمد"، "ضيف مهمة أبعت العرض"
         • الذاكرة — "افتكر إن اجتماع CityCrep يوم الحد"، "تعرف إيه عن CityCrep"
         • الملفات والنت — "دور على ملف proposal"، "دور على أسعار لابتوبات"
+        • المشاريع — "افتح مشروع citycrep"، "ليه البيلد بيفشل في citycrep"
         • أشغل أوامر وأتعامل مع الملفات، وبستأذنك في أي حاجة فيها خطورة
         ولو فيه موديل AI محلي متوصل (Ollama)، أقدر أتكلم معاك عادي وأخطط لمهام كبيرة.
         """);

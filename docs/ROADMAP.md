@@ -41,7 +41,8 @@ The same matrix is visible in the app under **System → What this build can do*
 | PowerShell/cmd/bash commands with risk grading | Working |
 | Files: search, list, read, write, move/copy, delete to Recycle Bin | Working |
 | Permission system (Safe/Sensitive/Critical, per-tool policies, approvals, audit) | Working |
-| **Next:** UI Automation (click buttons/read controls in other apps), mouse control, project awareness ("my project" → folder, build system detection) | Planned |
+| Project awareness: find projects by name (or from the editor window), open in VS Code, build/test with the project's own build system, extract errors | Working |
+| **Next:** UI Automation (click buttons/read controls in other apps), mouse control | Planned |
 
 ## Phase 3 — Memory ✅ (core)
 
