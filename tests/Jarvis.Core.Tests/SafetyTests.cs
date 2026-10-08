@@ -66,6 +66,8 @@ public class CommandRiskTests
     [InlineData("Get-Process")]
     [InlineData("dotnet --info")]
     [InlineData("ipconfig")]
+    [InlineData("git --version")]
+    [InlineData("node -v")]
     public void Read_only_commands_are_safe(string cmd) => Assert.Equal(RiskLevel.Safe, Risk(cmd));
 
     [Theory]

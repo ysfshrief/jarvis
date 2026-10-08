@@ -15,7 +15,13 @@
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     <TieredPGO>true</TieredPGO>
+    <!-- The dashboard (built from ui/ into wwwroot) is served from next to the exe, in dev and installed builds alike. -->
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
     <OutputType>WinExe</OutputType>

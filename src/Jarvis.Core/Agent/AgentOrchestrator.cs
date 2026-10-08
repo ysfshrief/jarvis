@@ -121,7 +121,7 @@ public sealed class AgentOrchestrator(
         conv.LastActivity = DateTimeOffset.Now;
         if (s.Memory.StoreConversations)
         {
-            var meta = result.Steps.Count > 0 ? JsonSerializer.Serialize(new { result.Route, result.Model, result.Steps }) : JsonSerializer.Serialize(new { result.Route, result.Model });
+            var meta = JsonSerializer.Serialize(new { result.Route, result.Model, Steps = result.Steps.Select(s => s with { Data = null }) }, JsonOpts);
             conversations.Append(conv.Id, "assistant", result.Reply, result.Lang, input.Source.ToString().ToLowerInvariant(), meta);
         }
         activity.Record(ActivityKinds.Request, Trim(text, 200), status: result.Success ? "ok" : "failed",
