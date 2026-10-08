@@ -135,6 +135,23 @@ public sealed class WindowsPlatformTests : IDisposable
     }
 
     [Fact]
+    public async Task Failing_project_build_reports_errors_through_powershell()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "jarvis-win-proj-" + Guid.NewGuid().ToString("n")[..8]);
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "package.json"),
+            "{\"scripts\":{\"build\":\"node -e \\\"console.error('src/app.ts(3,5): error TS2304: Cannot find name foo.'); process.exit(2)\\\"\"}}");
+        try
+        {
+            var (result, _) = await Run("project_build", new { name = dir });
+            _out.WriteLine(result.Message);
+            Assert.False(result.Success);
+            Assert.Contains("TS2304", result.Message);
+        }
+        finally { try { Directory.Delete(dir, true); } catch { } }
+    }
+
+    [Fact]
     public async Task System_info_reads_real_values()
     {
         var (result, _) = await Run("system_info", new { });
