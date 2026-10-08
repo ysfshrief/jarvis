@@ -64,6 +64,14 @@ public sealed partial class VoiceService : BackgroundService
         _segmenter = NewSegmenter(settings.Current.Voice);
         _audio.FrameCaptured += OnFrame;
         _settings.Changed += _ => ApplySettings();
+        // Typed requests are spoken too when the user turned off "only speak for voice input".
+        _events.Subscribe(e =>
+        {
+            if (e.Type != EventTypes.TurnCompleted || e.Data is not AgentTurnResult r || r.Source == InputSource.Voice) return;
+            var v = _settings.Current.Voice;
+            if (v.TtsEnabled && !v.SpeakOnlyForVoiceInput)
+                _ = SpeakAsync(r.Reply, r.Lang == "ar" ? Lang.Ar : Lang.En, CancellationToken.None);
+        });
     }
 
     public VoiceStatus Status => new(

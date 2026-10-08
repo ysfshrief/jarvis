@@ -4,7 +4,7 @@ using Jarvis.Core.Notifications;
 namespace Jarvis.Core.Scheduling;
 
 /// <summary>Turns due reminders into notifications. Called by the runtime's scheduler loop.</summary>
-public sealed class ReminderDispatcher(ReminderStore reminders, NotificationCenter notifications, ActivityLog activity)
+public sealed class ReminderDispatcher(ReminderStore reminders, NotificationCenter notifications, ActivityLog activity, Settings.ISettingsStore settings)
 {
     public async Task<int> FireDueAsync(DateTimeOffset now, CancellationToken ct = default)
     {
@@ -19,7 +19,10 @@ public sealed class ReminderDispatcher(ReminderStore reminders, NotificationCent
             var body = late
                 ? (ar ? $"كان المفروض {r.DueAt.LocalDateTime:h:mm} (الجهاز كان مقفول)" : $"Was due at {r.DueAt.LocalDateTime:h:mm tt} (JARVIS wasn't running)")
                 : null;
-            var speech = ar ? $"يا فندم، بفكرك: {r.Text}" : $"Sir, a reminder: {r.Text}";
+            var g = settings.Current.General;
+            var speech = ar
+                ? (string.IsNullOrWhiteSpace(g.HonorificAr) ? $"بفكرك: {r.Text}" : $"{g.HonorificAr}، بفكرك: {r.Text}")
+                : (string.IsNullOrWhiteSpace(g.Honorific) ? $"A reminder: {r.Text}" : $"{g.Honorific}, a reminder: {r.Text}");
             await notifications.PostAsync(new Notification
             {
                 Title = title, Body = body, Speech = speech, Priority = NotificationPriority.High,

@@ -230,6 +230,25 @@ public sealed class App : Application
                 _pendingApprovals = s.Int("pendingApprovals");
                 ApplyStatus(s?["voice"]?.Str("state") ?? "Idle");
             });
+            await ApplyOrbSettingAsync();
+        }
+        catch { }
+    }
+
+    /// <summary>Honours Settings → General → "Show the floating orb".</summary>
+    private async Task ApplyOrbSettingAsync()
+    {
+        try
+        {
+            var settings = await _core.GetAsync("/settings");
+            var show = settings?["general"]?["showOrb"]?.GetValue<bool>() ?? true;
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_orb is null) return;
+                if (show && !_orb.IsVisible) _orb.Show();
+                if (!show && _orb.IsVisible) _orb.Hide();
+                if (_orbItem is not null) _orbItem.Checked = _orb.IsVisible;
+            });
         }
         catch { }
     }
@@ -284,6 +303,9 @@ public sealed class App : Application
                 break;
             case "ui.show":
                 _ = ShowDashboard();
+                break;
+            case "settings.changed":
+                _ = ApplyOrbSettingAsync();
                 break;
         }
     }

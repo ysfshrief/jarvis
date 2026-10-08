@@ -1,0 +1,88 @@
+# JARVIS
+
+A Windows-native personal AI executive assistant: always on, local-first, free-first, bilingual
+(English and Egyptian Arabic). JARVIS understands what you're trying to do, acts on your computer
+through permission-checked tools, remembers what matters, and tells you what it did.
+
+> **Status: Phase 1–2 foundation (v0.1).** What works today, what is partial and what is planned is
+> listed honestly in [docs/ROADMAP.md](docs/ROADMAP.md) and inside the app (System → “What this
+> build can do”).
+
+## Download and run
+
+**Latest build:** open the repository's **Releases** page and download from the **“JARVIS latest
+build”** pre-release:
+
+| File | What it is |
+| --- | --- |
+| `JARVIS-Setup-x64.exe` | Installer. Per-user, no admin rights needed. Recommended. |
+| `JARVIS-Portable-x64.zip` | Unzip anywhere and run `JARVIS.exe`. Nothing is installed. |
+
+Every push also produces these files as an artifact on the **Actions** tab (run → *Artifacts*).
+
+Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is needed — it's bundled.
+
+> Windows SmartScreen may warn because the build is not code-signed yet. Choose *More info → Run anyway*.
+
+## First run (5 minutes)
+
+1. Install and start JARVIS. A glowing **orb** appears at the bottom-right and a **tray icon** next to the clock.
+2. Click the orb (or press **Ctrl+Alt+J**) and type a command — no AI needed for these:
+   - `open calculator` · `افتح VS Code` · `close notepad`
+   - `remind me in 20 minutes to call Ahmed` · `فكرني بعد ربع ساعة أكلم أحمد`
+   - `add task send the CityCrep proposal` · `what are my tasks`
+   - `remember that the CityCrep meeting is on Sunday` · `what do you know about CityCrep`
+   - `volume 40` · `mute` · `next song` · `take a screenshot` · `how's the system`
+   - `run git status` (read-only commands run; anything else asks you first)
+3. **Enable conversation (free, private):** install [Ollama](https://ollama.com), then in a terminal run
+   `ollama pull qwen2.5:7b`. JARVIS detects it automatically (Settings → AI). Now you can ask open
+   questions and multi-step requests such as *“open my project folder and tell me why the build is failing”*.
+4. **Enable voice (optional):** Settings → Voice → download a speech model (`base`, or `small` for better
+   Arabic). Then press **Ctrl+Alt+Space** to talk, or turn on the **“Jarvis” wake word**.
+5. Double-click the orb for the **dashboard**: tasks, memory, activity log, permissions and settings.
+
+## What makes it different
+
+- **Real actions, verified.** Opening an app waits for its window to appear; commands report real exit
+  codes; nothing claims success it didn't observe.
+- **You stay in control.** Every action is graded Safe / Sensitive / Critical. Sensitive actions ask
+  (unless you allow them), critical ones — deleting, power, destructive commands, sending — *always* ask.
+  Everything is in the Activity log.
+- **Local-first and free-first.** Memory, tasks and history live in a local SQLite database. Speech
+  recognition (Whisper) and AI (Ollama) run on your PC. Cloud AI is optional, off by default, and uses
+  your own key.
+- **Works offline.** Local commands keep working; internet actions are queued and wait for your OK.
+- **Knows when not to interrupt.** Notifications are prioritised, deduplicated, and held during meetings
+  and fullscreen presentations, then summarised.
+
+## Architecture in one picture
+
+```
+ JARVIS.exe (desktop shell)          jarvis-core.exe (always-on runtime, 127.0.0.1 only)
+ ┌──────────────────────┐   HTTP +   ┌───────────────────────────────────────────────────┐
+ │ orb · tray · hotkeys │ WebSocket  │ Agent loop ─ intents (EN/AR) ─ AI router ─ tools    │
+ │ quick bar            │ ─────────▶ │ permissions · approvals · activity log             │
+ │ dashboard (WebView2) │            │ memory · tasks · reminders · notifications         │
+ └──────────────────────┘            │ voice (Whisper, Windows TTS) · presence · offline  │
+                                     │ Windows platform layer (Win32, Core Audio, DPAPI…) │
+                                     └───────────────────────────────────────────────────┘
+```
+
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Build it yourself
+
+```powershell
+# Windows, with .NET 10 SDK, Node 22 and (for the installer) Inno Setup 6
+./build/package.ps1            # → artifacts/JARVIS-Setup-x64.exe and JARVIS-Portable-x64.zip
+./build/smoke-test.ps1         # drives the packaged app end to end
+```
+
+Development setup, tests and conventions: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Releases: [docs/RELEASING.md](docs/RELEASING.md). Security model: [docs/SECURITY.md](docs/SECURITY.md).
+
+## Your data
+
+Everything lives in `%LOCALAPPDATA%\JARVIS` — database, settings, encrypted secrets (Windows DPAPI),
+logs and downloaded speech models. Uninstalling JARVIS keeps this folder so reinstalling doesn't lose your
+memory; delete it to wipe everything.

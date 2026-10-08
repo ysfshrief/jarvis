@@ -341,7 +341,10 @@ function MemorySettings({ s, set }: P) {
           </label>
         ))}
       </div>
-      <Toggle label="Learn my patterns (experimental)" hint="Learned items are stored as unconfirmed, low-confidence hints you can review and delete." checked={s.memory.learnPatterns} onChange={(v) => set((x) => { x.memory.learnPatterns = v; })} />
+      <p className="muted small">
+        Learning your patterns automatically is not active in this version (planned for Phase 8). When it arrives, learned items will be
+        stored as unconfirmed, low-confidence hints that you can review and delete.
+      </p>
       <div className="row">
         <ConfirmButton prompt="Delete all conversation history?" onConfirm={() => void del("/conversations")}><Trash2 size={14} /> Delete conversation history</ConfirmButton>
       </div>
