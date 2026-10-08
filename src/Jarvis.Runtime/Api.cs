@@ -348,6 +348,7 @@ public static class Api
                 upcomingReminders = reminders.List().Count,
             },
             activeConversation = agent.ActiveConversationId,
+            eventClients = sp.GetRequiredService<EventHub>().ClientCount,
             dataDir = paths.DataDir,
             secretsProtection = secrets.ProtectionName,
             honorific = settings.General.Honorific,

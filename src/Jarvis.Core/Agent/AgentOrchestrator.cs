@@ -168,6 +168,15 @@ public sealed class AgentOrchestrator(
                 };
                 return Remember(conv, text, Result(conv, lang, reply, "deterministic", input.Source));
             }
+            case ToolIntent { PreferAi: true } preferAi:
+            {
+                var aiRoute = await router.RouteAsync(text, ct).ConfigureAwait(false);
+                if (aiRoute.HasModel)
+                    return await RunAiAsync(text, input, conv, lang, phr, toolCtx, s, aiRoute, ct).ConfigureAwait(false);
+                var (r, st) = await executor.ExecuteAsync(preferAi.Tool, preferAi.Args, toolCtx).ConfigureAwait(false);
+                // The build failing is the answer to "why is it failing", not an error of JARVIS.
+                return Remember(conv, text, Result(conv, lang, r.Message, "deterministic", input.Source, [st], r.Status is not (ToolStatus.NotFound or ToolStatus.Denied)));
+            }
             case ToolIntent ti:
             {
                 var (res, step) = await executor.ExecuteAsync(ti.Tool, ti.Args, toolCtx).ConfigureAwait(false);

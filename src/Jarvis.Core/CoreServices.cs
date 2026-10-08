@@ -73,6 +73,7 @@ public static class CoreServices
         services.TryAddSingleton(new PlatformInfo("generic", Environment.OSVersion.ToString()));
 
         services.AddSingleton<FilePolicy>();
+        services.AddSingleton<ProjectLocator>();
         AddTool<MemoryRememberTool>(services);
         AddTool<MemorySearchTool>(services);
         AddTool<MemoryForgetTool>(services);
@@ -90,6 +91,9 @@ public static class CoreServices
         AddTool<FileMoveTool>(services);
         AddTool<FileDeleteTool>(services);
         AddTool<RunCommandTool>(services);
+        AddTool<ProjectFindTool>(services);
+        AddTool<ProjectOpenTool>(services);
+        AddTool<ProjectBuildTool>(services);
         AddTool<SystemInfoTool>(services);
         AddTool<OpenUrlTool>(services);
         AddTool<WebSearchTool>(services);

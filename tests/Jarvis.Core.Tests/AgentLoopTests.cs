@@ -40,7 +40,7 @@ public class AgentLoopTests
     public async Task Without_a_model_open_questions_fail_honestly()
     {
         using var host = new TestHost();
-        var result = await host.Say("why is my build failing?");
+        var result = await host.Say("summarize my week for me");
         Assert.Equal("none", result.Route);
         Assert.False(result.Success);
         Assert.Contains("no language model", result.Reply);

@@ -9,7 +9,8 @@ namespace Jarvis.Core.Agent;
 public abstract record Intent;
 
 /// <summary>Run one tool. If it fails and an AI model is available, the request may be handed to the AI instead.</summary>
-public sealed record ToolIntent(string Tool, ToolArgs Args, bool FallBackToAiOnFailure = false) : Intent;
+/// <param name="PreferAi">Use the AI when one is available (the request needs reasoning); run the tool directly otherwise.</param>
+public sealed record ToolIntent(string Tool, ToolArgs Args, bool FallBackToAiOnFailure = false, bool PreferAi = false) : Intent;
 
 /// <summary>Answer directly without any tool (greetings, help, time).</summary>
 public sealed record ReplyIntent(string Kind, string? Value = null) : Intent;
@@ -110,6 +111,15 @@ public static partial class IntentEngine
         if (Restart().IsMatch(t)) return new ToolIntent("system_power", ToolArgs.From(new { action = "restart" }));
         if (SleepPc().IsMatch(t)) return new ToolIntent("system_power", ToolArgs.From(new { action = "sleep" }));
         if (SystemStatus().IsMatch(t)) return new ToolIntent("system_info", new ToolArgs());
+
+        // Projects ("open my project jarvis", "build jarvis", "why is the build failing in jarvis").
+        if ((m = WhyBuildFails().Match(t)).Success && (!m.Groups["x"].Success || IsSimpleTarget(m.Groups["x"].Value)))
+            return new ToolIntent("project_build", m.Groups["x"].Success ? ToolArgs.From(new { name = Original(rawText, m.Groups["x"].Value) }) : new ToolArgs(), PreferAi: true);
+        if ((m = OpenProject().Match(t)).Success && IsSimpleTarget(m.Groups["x"].Value))
+            return new ToolIntent("project_open", ToolArgs.From(new { name = Original(rawText, m.Groups["x"].Value) }), FallBackToAiOnFailure: true);
+        if ((m = BuildProject().Match(t)).Success && IsSimpleTarget(m.Groups["x"].Value))
+            return new ToolIntent("project_build", ToolArgs.From(new { name = Original(rawText, m.Groups["x"].Value), action = m.Groups["test"].Success ? "test" : "build" }));
+        if (ListProjects().IsMatch(t)) return new ToolIntent("project_find", new ToolArgs());
 
         // Shell commands ("run git status", "شغل الأمر npm test").
         if ((m = RunCommand().Match(t)).Success)
@@ -263,6 +273,18 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:(?:system|computer|pc|laptop) (?:status|info|information|health)|how(?:'s| is) (?:the|my) (?:system|computer|pc|laptop)(?: doing)?|battery(?: level| status)?|how much battery(?: is left)?|(?:حاله|حالة) (?:ال)?جهاز|(?:ال)?جهاز عامل (?:ايه|اي)|(?:ال)?بطاريه(?: كام| فيها كام)?)$")]
     private static partial Regex SystemStatus();
+
+    [GeneratedRegex(@"^(?:why (?:is|does) (?:the |my )?build (?:failing|fail|broken)|why (?:is|does) (?<x>.+?) (?:fail(?:ing)? to build|not build)|what(?:'s| is) wrong with the build)(?: (?:in|for|of) (?:the |my )?(?:project )?(?<x>[\w .\-]+?))?$|^(?:ليه|ليش) (?:ال)?(?:بيلد|build) (?:بيفشل|فاشل|واقع)(?: في| ف)?(?: مشروع)? (?<x>.+)$")]
+    private static partial Regex WhyBuildFails();
+
+    [GeneratedRegex(@"^(?:open|launch)(?: up)?(?: the| my)? project (?<x>.+)$|^open my (?<x>[\w.\-]+) project$|^(?:افتح|افتحلي|افتح لي) (?:ال)?مشروع (?<x>.+)$")]
+    private static partial Regex OpenProject();
+
+    [GeneratedRegex(@"^(?:build|compile)(?: the| my)?(?: project)? (?<x>[\w.\-]+(?: [\w.\-]+)?)(?: project)?$|^(?<test>run(?: the)? tests|test)(?: (?:in|for|of))?(?: the| my)?(?: project)? (?<x>[\w.\-]+)$|^(?:اعمل|شغل) (?:بيلد|build) (?:ل|لل)?(?:مشروع )?(?<x>.+)$")]
+    private static partial Regex BuildProject();
+
+    [GeneratedRegex(@"^(?:list|show)(?: me)? my projects$|^(?:what|which) projects do i have$|^مشاريعي(?: ايه)?$|^(?:ايه|اي) المشاريع(?: اللي عندي)?$")]
+    private static partial Regex ListProjects();
 
     [GeneratedRegex(@"^(?:(?:run|execute)(?: the)? command|(?:شغل|نفذ)(?: ال)?(?:امر|كوماند))\s+(?<x>.+)$|^(?:run|execute)\s+(?<x>(?:git|npm|npx|pnpm|yarn|dotnet|python|py|pip|node|ipconfig|ping|winget|choco|docker|kubectl|cargo|go|java|mvn|gradle)\b.*)$")]
     private static partial Regex RunCommand();
