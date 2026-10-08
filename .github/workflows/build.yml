@@ -1,0 +1,125 @@
+name: Build, test and package
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  linux-tests:
+    name: Core tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Test core and runtime
+        run: |
+          dotnet test tests/Jarvis.Core.Tests -c Release --logger "console;verbosity=normal"
+          dotnet test tests/Jarvis.Runtime.Tests -c Release --logger "console;verbosity=normal"
+
+  windows:
+    name: Windows build, tests, package, smoke test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+        if: hashFiles('ui/package-lock.json') != ''
+
+      - name: Compute version
+        id: version
+        shell: pwsh
+        run: |
+          $props = [xml](Get-Content Directory.Build.props)
+          $base = ($props.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).'#text'
+          if ("${{ github.ref }}" -like "refs/tags/v*") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "$base.${{ github.run_number }}" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $v"
+
+      - name: Build dashboard UI
+        if: hashFiles('ui/package.json') != ''
+        working-directory: ui
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Build solution
+        run: dotnet build Jarvis.slnx -c Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test (core, runtime, Windows integration)
+        run: dotnet test Jarvis.slnx -c Release --no-build --logger "console;verbosity=normal" --logger "trx;LogFilePrefix=results"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+
+      - name: Package
+        shell: pwsh
+        run: ./build/package.ps1 -Version ${{ steps.version.outputs.version }} -SkipUi
+
+      - name: Smoke test the packaged app
+        shell: pwsh
+        run: ./build/smoke-test.ps1
+
+      - name: Upload installer and portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-${{ steps.version.outputs.version }}-windows-x64
+          path: |
+            artifacts/JARVIS-Setup-x64.exe
+            artifacts/JARVIS-Portable-x64.zip
+          if-no-files-found: error
+
+      - name: Upload smoke-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-${{ steps.version.outputs.version }}
+          path: |
+            artifacts/smoke/
+            **/TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Publish "latest build" pre-release
+        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-build --yes --cleanup-tag 2>$null
+          $notes = "Automatic build of ${{ github.sha }} (version ${{ steps.version.outputs.version }}).`n`nDownload **JARVIS-Setup-x64.exe** to install, or **JARVIS-Portable-x64.zip** to run without installing. See README for first-run steps."
+          gh release create latest-build artifacts/JARVIS-Setup-x64.exe artifacts/JARVIS-Portable-x64.zip --prerelease --target ${{ github.sha }} --title "JARVIS latest build (${{ steps.version.outputs.version }})" --notes $notes
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create ${{ github.ref_name }} artifacts/JARVIS-Setup-x64.exe artifacts/JARVIS-Portable-x64.zip --title "JARVIS ${{ steps.version.outputs.version }}" --generate-notes

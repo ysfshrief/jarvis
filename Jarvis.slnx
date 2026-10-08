@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Jarvis.Core.Tests/Jarvis.Core.Tests.csproj" />
+    <Project Path="tests/Jarvis.Platform.Windows.Tests/Jarvis.Platform.Windows.Tests.csproj" />
     <Project Path="tests/Jarvis.Runtime.Tests/Jarvis.Runtime.Tests.csproj" />
   </Folder>
 </Solution>
