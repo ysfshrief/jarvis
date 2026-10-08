@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    JARVIS.exe: the desktop presence (tray icon, floating orb, quick command bar) and the
+    dashboard window (WebView2). It is a client of jarvis-core: if it closes or crashes the
+    runtime keeps working, and it restarts the runtime if that ever dies.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(JarvisWindowsTfm)</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>JARVIS</AssemblyName>
+    <RootNamespace>Jarvis.Desktop</RootNamespace>
+    <ApplicationIcon>..\..\assets\jarvis.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupObject>Jarvis.Desktop.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jarvis.Core\Jarvis.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\jarvis.ico" Link="jarvis.ico" />
+  </ItemGroup>
+
+</Project>

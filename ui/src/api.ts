@@ -4,13 +4,16 @@
 const TOKEN_KEY = "jarvis.token";
 
 export function initToken(): string | null {
-  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const fromHash = hash.get("token");
-  if (fromHash) {
-    sessionStorage.setItem(TOKEN_KEY, fromHash);
-    hash.delete("token");
-    const rest = hash.toString();
-    history.replaceState(null, "", window.location.pathname + window.location.search + (rest ? "#" + rest : ""));
+  // The desktop shell opens "#token=...&page=assistant"; keep the token, then route to the page.
+  const raw = window.location.hash.replace(/^#/, "");
+  if (!raw.startsWith("/")) {
+    const params = new URLSearchParams(raw);
+    const fromHash = params.get("token");
+    if (fromHash) {
+      sessionStorage.setItem(TOKEN_KEY, fromHash);
+      const page = params.get("page");
+      history.replaceState(null, "", window.location.pathname + window.location.search + (page ? `#/${page}` : ""));
+    }
   }
   return sessionStorage.getItem(TOKEN_KEY);
 }
