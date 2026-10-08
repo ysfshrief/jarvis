@@ -251,4 +251,53 @@ public sealed class JarvisDatabase
             updated_at TEXT NOT NULL
         );
         """,
+        // v3: workflows (multi-step tracked goals) and recurring tasks.
+        """
+        ALTER TABLE tasks ADD COLUMN recurrence TEXT;
+
+        CREATE TABLE workflows (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            goal TEXT,
+            template TEXT NOT NULL,
+            status TEXT NOT NULL,
+            entity_id TEXT,
+            entity_name TEXT,
+            due_at TEXT,
+            recurrence TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+
+        CREATE TABLE workflow_steps (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            ord INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            depends_on TEXT,
+            due_at TEXT,
+            waiting_for TEXT,
+            follow_up_at TEXT,
+            requires_approval INTEGER NOT NULL DEFAULT 0,
+            action TEXT,
+            notes TEXT,
+            notified TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT
+        );
+        CREATE INDEX ix_workflow_steps_wf ON workflow_steps(workflow_id, ord);
+
+        CREATE TABLE workflow_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workflow_id TEXT NOT NULL,
+            step_id TEXT,
+            ts TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            text TEXT NOT NULL
+        );
+        CREATE INDEX ix_workflow_events_wf ON workflow_events(workflow_id, id);
+        """,
     ];}

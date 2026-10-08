@@ -49,6 +49,9 @@ public static class CoreServices
         services.AddSingleton<SemanticIndex>();
         services.AddSingleton<KnowledgeService>();
         services.AddSingleton<PatternLearner>();
+        services.AddSingleton<Workflows.WorkflowStore>();
+        services.AddSingleton<Workflows.WorkflowService>();
+        services.AddSingleton<Workflows.WorkflowRunner>();
         services.AddSingleton<TaskStore>();
         services.AddSingleton<ReminderStore>();
         services.AddSingleton<ConversationStore>();
@@ -89,6 +92,11 @@ public static class CoreServices
         AddTool<TaskCompleteTool>(services);
         AddTool<TaskUpdateTool>(services);
         AddTool<BriefingTool>(services);
+        AddTool<WorkflowCreateTool>(services);
+        AddTool<WorkflowStatusTool>(services);
+        AddTool<WorkflowStepTool>(services);
+        AddTool<WorkflowAddStepTool>(services);
+        AddTool<WorkflowCancelTool>(services);
         AddTool<ReminderCreateTool>(services);
         AddTool<ReminderListTool>(services);
         AddTool<ReminderCancelTool>(services);

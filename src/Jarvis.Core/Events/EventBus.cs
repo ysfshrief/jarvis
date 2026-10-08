@@ -77,7 +77,10 @@ public static class EventTypes
     public const string SettingsChanged = "settings.changed";
     public const string MemoryChanged = "memory.changed";
     public const string TasksChanged = "tasks.changed";
+    public const string WorkflowsChanged = "workflows.changed";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";
+    /// <summary>Ask the desktop shell to open the command console.</summary>
+    public const string UiConsole = "ui.console";
 }

@@ -569,3 +569,10 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 }
 :root[lang="ar"] h2, :root[lang="ar"] .nav-item, :root[lang="ar"] .btn, :root[lang="ar"] .settings-nav button { font-family: var(--font-ui); }
 .accent { color: var(--accent); }
+/* ---------- workflows ---------- */
+.wf-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; position: relative; }
+.wf-step { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); position: relative; }
+.wf-step:last-child { border-bottom: none; }
+.wf-step > svg { margin-top: 3px; flex: none; }
+.wf-step.wf-ready:not(.wf-done):not(.wf-skipped) { background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.07), transparent 70%); }
+.clickable-card:hover { border-color: var(--line-2); }

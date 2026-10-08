@@ -192,6 +192,7 @@ public sealed class App : Application
         Bind(console, ToggleConsole, "Command console");
         Bind(talk, PushToTalk, "Push to talk");
         Bind(dashboard, () => _ = ShowDashboard(), "Dashboard");
+        Program.Log(_paths, $"Shortcuts: console={console} talk={talk} dashboard={dashboard}{(problems.Count == 0 ? " registered" : "")}");
         if (_askItem is not null) _askItem.Text = string.IsNullOrWhiteSpace(console) ? "Command console" : $"Command console   {console}";
         if (_talkItem is not null) _talkItem.Text = string.IsNullOrWhiteSpace(talk) ? "Push to talk" : $"Push to talk   {talk}";
         foreach (var p in problems) Program.Log(_paths, p);
@@ -210,7 +211,15 @@ public sealed class App : Application
     {
         if (_console is { IsVisible: true }) { _console.Hide(); return; }
         if (_quick is { IsVisible: true }) { _quick.Hide(); return; }
-        if (_console is not null && await _console.ShowConsoleAsync()) return;
+        try
+        {
+            if (_console is not null && await _console.ShowConsoleAsync()) return;
+        }
+        catch (Exception ex)
+        {
+            Program.Log(_paths, "Command console failed: " + ex);
+            _console?.Hide();
+        }
         // No WebView2: the native quick bar does the same job, more plainly.
         if (_quick is not null && _orb is not null) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
     }
@@ -379,6 +388,9 @@ public sealed class App : Application
                 break;
             case "ui.show":
                 _ = ShowDashboard();
+                break;
+            case "ui.console":
+                if (_console?.IsVisible != true) ToggleConsole();
                 break;
             case "settings.changed":
                 _ = ApplySettingsAsync();

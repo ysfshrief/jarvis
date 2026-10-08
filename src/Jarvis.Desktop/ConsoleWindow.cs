@@ -83,6 +83,11 @@ public sealed class ConsoleWindow : Window
     {
         if (!Available) return false;
         if (_core.Info is null && !await _core.EnsureRuntimeAsync(TimeSpan.FromSeconds(10))) return false;
+
+        // WebView2 only initializes once its window exists, so show first (dark background), then load.
+        PlaceOnActiveScreen();
+        Show();
+        Activate();
         try
         {
             if (!_initialized)
@@ -109,12 +114,10 @@ public sealed class ConsoleWindow : Window
         catch (WebView2RuntimeNotFoundException)
         {
             Available = false;
+            Hide();
             return false;
         }
 
-        PlaceOnActiveScreen();
-        Show();
-        Activate();
         _web.Focus();
         try { await _web.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new Event('focus'))"); } catch { }
         return true;

@@ -33,9 +33,13 @@ public sealed record TaskItem(
     DateTimeOffset? DueAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? CompletedAt);
+    DateTimeOffset? CompletedAt)
+{
+    /// <summary>Repeat rule (see Workflows.Recurrence); a completed recurring task schedules its next occurrence.</summary>
+    public string? Recurrence { get; init; }
+}
 
-public sealed record NewTask(string Title, string? Notes = null, string Priority = "normal", string? Project = null, DateTimeOffset? DueAt = null);
+public sealed record NewTask(string Title, string? Notes = null, string Priority = "normal", string? Project = null, DateTimeOffset? DueAt = null, string? Recurrence = null);
 
 public sealed record TaskUpdate(string? Title = null, string? Notes = null, string? State = null, string? Priority = null, string? Project = null, DateTimeOffset? DueAt = null, bool ClearDue = false);
 
@@ -45,14 +49,15 @@ public sealed class TaskStore(JarvisDatabase db, IEventBus events)
     {
         if (string.IsNullOrWhiteSpace(t.Title)) throw new ArgumentException("Task title is empty.");
         if (!TaskPriorities.All.Contains(t.Priority)) throw new ArgumentException($"Unknown priority '{t.Priority}'.");
+        if (t.Recurrence is not null && !Workflows.Recurrence.IsValid(t.Recurrence)) throw new ArgumentException($"Unknown repeat rule '{t.Recurrence}'.");
         var id = Guid.NewGuid().ToString("n");
         var now = JarvisDatabase.Now();
         using (var conn = db.Open())
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-                INSERT INTO tasks (id, title, notes, state, priority, project, due_at, created_at, updated_at)
-                VALUES ($id, $title, $notes, 'pending', $prio, $project, $due, $now, $now);
+                INSERT INTO tasks (id, title, notes, state, priority, project, due_at, created_at, updated_at, recurrence)
+                VALUES ($id, $title, $notes, 'pending', $prio, $project, $due, $now, $now, $rec);
                 """;
             cmd.Parameters.AddWithValue("$id", id);
             cmd.Parameters.AddWithValue("$title", t.Title.Trim());
@@ -61,6 +66,7 @@ public sealed class TaskStore(JarvisDatabase db, IEventBus events)
             cmd.Parameters.AddWithValue("$project", (object?)t.Project ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$due", t.DueAt is { } d ? JarvisDatabase.Format(d) : DBNull.Value);
             cmd.Parameters.AddWithValue("$now", now);
+            cmd.Parameters.AddWithValue("$rec", (object?)t.Recurrence ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
         events.Publish(EventTypes.TasksChanged, new { action = "created", id });
@@ -107,6 +113,15 @@ public sealed class TaskStore(JarvisDatabase db, IEventBus events)
             cmd.ExecuteNonQuery();
         }
         events.Publish(EventTypes.TasksChanged, new { action = "updated", id });
+        // Completing a recurring task schedules the next one (once).
+        if (state == TaskStates.Completed && cur.State != TaskStates.Completed && cur.Recurrence is { } rule)
+        {
+            var anchor = cur.DueAt ?? DateTimeOffset.Now;
+            var next = Workflows.Recurrence.Next(rule, anchor);
+            while (next is { } n && n < DateTimeOffset.Now) next = Workflows.Recurrence.Next(rule, n); // skip missed occurrences
+            if (next is not null)
+                Create(new NewTask(cur.Title, cur.Notes, cur.Priority, cur.Project, cur.DueAt is null ? null : next, rule));
+        }
         return Get(id);
     }
 
@@ -146,11 +161,14 @@ public sealed class TaskStore(JarvisDatabase db, IEventBus events)
         return List().Where(t => Language.TextNormalizer.Normalize(t.Title).Contains(needle)).ToList();
     }
 
-    private const string Columns = "id, title, notes, state, priority, project, due_at, created_at, updated_at, completed_at";
+    private const string Columns = "id, title, notes, state, priority, project, due_at, created_at, updated_at, completed_at, recurrence";
 
     private static TaskItem Read(SqliteDataReader r) => new(
         r.GetString(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), r.GetString(3), r.GetString(4),
         r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : JarvisDatabase.Parse(r.GetString(6)),
         JarvisDatabase.Parse(r.GetString(7)), JarvisDatabase.Parse(r.GetString(8)),
-        r.IsDBNull(9) ? null : JarvisDatabase.Parse(r.GetString(9)));
+        r.IsDBNull(9) ? null : JarvisDatabase.Parse(r.GetString(9)))
+    {
+        Recurrence = r.IsDBNull(10) ? null : r.GetString(10),
+    };
 }

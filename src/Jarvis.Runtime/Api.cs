@@ -17,6 +17,7 @@ using Jarvis.Core.Settings;
 using Jarvis.Core.Tasks;
 using Jarvis.Core.Tools;
 using Jarvis.Core.Voice;
+using Jarvis.Core.Workflows;
 using Jarvis.Voice;
 
 namespace Jarvis.Runtime;
@@ -24,9 +25,13 @@ namespace Jarvis.Runtime;
 public sealed record ChatRequestDto(string Text, string? ConversationId, string? Source);
 public sealed record ApprovalDecisionDto(bool Approve, bool Remember = false);
 public sealed record MemoryDto(string Content, string? Kind, string? Subject, string? Source, double? Confidence, string? Tags);
+public sealed record WorkflowStepDto(string Title, List<int>? DependsOn, DateTimeOffset? Due, string? WaitingFor, bool? RequiresApproval);
+public sealed record WorkflowDto(string Title, string? Template, string? About, string? Goal, List<WorkflowStepDto>? Steps, DateTimeOffset? Due, string? Repeat);
+public sealed record StepDto(string? Title, string? Status, string? Notes, string? Note, string? WaitingFor, double? FollowUpDays, DateTimeOffset? Due, bool? ClearFollowUp, bool? RequiresApproval);
+public sealed record NoteDto(string Text, string? StepId);
 public sealed record EntityDto(string? Name, string? Type, List<string>? Aliases, string? Notes);
 public sealed record RelationDto(string From, string? FromType, string Relation, string To, string? ToType);
-public sealed record TaskDto(string? Title, string? Notes, string? State, string? Priority, string? Project, DateTimeOffset? DueAt, bool ClearDue = false);
+public sealed record TaskDto(string? Title, string? Notes, string? State, string? Priority, string? Project, DateTimeOffset? DueAt, bool ClearDue = false, string? Recurrence = null);
 public sealed record ReminderDto(string Text, DateTimeOffset? DueAt, double? InMinutes);
 public sealed record SecretDto(string Value);
 public sealed record PinDto(string? CurrentPin, string? NewPin);
@@ -191,10 +196,43 @@ public static class Api
         api.MapDelete("/relations/{id}", (string id, EntityStore entities) =>
             entities.DeleteRelation(id) ? Results.Ok(new { deleted = id }) : Results.NotFound());
 
+        // ---- Workflows ----
+        api.MapGet("/workflows", (WorkflowStore store, bool? all) => Results.Ok(store.List(all ?? false)));
+        api.MapGet("/workflows/templates", () => Results.Ok(WorkflowTemplates.All.Select(t => new { t.Id, t.Name, t.Description, steps = t.Steps.Select(x => x.Title), t.EntityType })));
+        api.MapGet("/workflows/{id}", (string id, WorkflowStore store) =>
+            store.Get(id) is { } wf ? Results.Ok(new { workflow = wf, history = store.History(id) }) : Results.NotFound());
+        api.MapPost("/workflows", (WorkflowDto dto, WorkflowService workflows) => Guard(() =>
+            workflows.Start(dto.Title, dto.Template ?? (dto.Steps is { Count: > 0 } ? "custom" : "deal"), dto.About, dto.Goal,
+                dto.Steps?.Select(x => new NewStep(x.Title, x.DependsOn, x.Due, x.WaitingFor, x.RequiresApproval ?? false)).ToList(),
+                dto.Due, string.IsNullOrWhiteSpace(dto.Repeat) ? null : dto.Repeat)));
+        api.MapPut("/workflows/{id}/steps/{stepId}", (string id, string stepId, StepDto dto, WorkflowStore store) => Guard(() =>
+            store.UpdateStep(stepId, new StepChange(dto.Status, dto.Notes, dto.WaitingFor,
+                dto.FollowUpDays is { } days ? DateTimeOffset.Now.AddDays(days) : dto.Status == StepStatus.Waiting ? DateTimeOffset.Now + WorkflowService.DefaultFollowUp : null,
+                dto.Due, dto.ClearFollowUp ?? false, dto.Title), dto.Note)));
+        api.MapPost("/workflows/{id}/steps", (string id, StepDto dto, WorkflowStore store) => Guard(() =>
+            store.AddStep(id, new NewStep(dto.Title ?? "", DueAt: dto.Due, WaitingFor: dto.WaitingFor, RequiresApproval: dto.RequiresApproval ?? false))));
+        api.MapPost("/workflows/{id}/steps/{stepId}/run", async (string id, string stepId, WorkflowRunner runner, ISettingsStore settings, CancellationToken ct) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "workflow-" + id, Via = "dashboard", CancellationToken = ct };
+            var (ok, message) = await runner.RunStepAsync(stepId, ctx);
+            return Results.Ok(new { ok, message });
+        });
+        api.MapPost("/workflows/{id}/notes", (string id, NoteDto dto, WorkflowStore store) =>
+        {
+            if (store.Get(id) is null) return Results.NotFound();
+            if (string.IsNullOrWhiteSpace(dto.Text)) return Results.BadRequest(new { error = "Note is empty." });
+            store.Note(id, dto.Text.Trim(), dto.StepId);
+            return Results.Ok();
+        });
+        api.MapPost("/workflows/{id}/cancel", (string id, WorkflowStore store) => store.Cancel(id) ? Results.Ok() : Results.NotFound());
+        api.MapDelete("/workflows/{id}", (string id, WorkflowStore store) => store.Delete(id) ? Results.Ok() : Results.NotFound());
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>
-            Guard(() => store.Create(new NewTask(dto.Title ?? "", dto.Notes, dto.Priority ?? "normal", dto.Project, dto.DueAt))));
+            Guard(() => store.Create(new NewTask(dto.Title ?? "", dto.Notes, dto.Priority ?? "normal", dto.Project,
+                dto.DueAt ?? (string.IsNullOrWhiteSpace(dto.Recurrence) ? null : new DateTimeOffset(DateTime.Today.AddHours(9))),
+                string.IsNullOrWhiteSpace(dto.Recurrence) ? null : dto.Recurrence))));
         api.MapPut("/tasks/{id}", (string id, TaskDto dto, TaskStore store) =>
             Guard(() => store.Update(id, new TaskUpdate(dto.Title, dto.Notes, dto.State, dto.Priority, dto.Project, dto.DueAt, dto.ClearDue))));
         api.MapDelete("/tasks/{id}", (string id, TaskStore store) => store.Delete(id) ? Results.Ok(new { deleted = id }) : Results.NotFound());
@@ -366,6 +404,7 @@ public static class Api
             return Results.Ok(new { stopping = true });
         });
         api.MapPost("/ui/show", (IEventBus events) => { events.Publish(EventTypes.UiShow, new { reason = "request" }); return Results.Ok(); });
+        api.MapPost("/ui/console", (IEventBus events) => { events.Publish(EventTypes.UiConsole, new { reason = "request" }); return Results.Ok(); });
 
         api.MapGet("/presence", (PresenceTracker presence) => Results.Ok(new { supported = presence.IsSupported, snapshot = presence.Current }));
         api.MapPost("/connectivity/simulate", (SimulateDto dto, ConnectivityMonitor monitor) =>

@@ -12,13 +12,13 @@ namespace Jarvis.Core.Tools.Builtin;
 /// "What's happening today?" / "Check my priorities": a chief-of-staff summary built only from what
 /// JARVIS actually knows (reminders, tasks, approvals, queued work, held notifications). No AI needed.
 /// </summary>
-public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, ApprovalBroker approvals, OfflineQueue queue, NotificationCenter notifications) : ToolBase
+public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, ApprovalBroker approvals, OfflineQueue queue, NotificationCenter notifications, Workflows.WorkflowStore workflows) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
     {
         Name = "daily_briefing",
         Category = "tasks",
-        Description = "Summarise the user's day: reminders due today, priority and overdue tasks, approvals waiting, queued actions and held notifications.",
+        Description = "Summarise the user's day: reminders due today, priority and overdue tasks, tracked workflows (deals, projects), approvals waiting, queued actions and held notifications.",
         Parameters = [new("focus", "string", "\"today\" for the whole day or \"priorities\" for tasks only.", false, ["today", "priorities"])],
     };
 
@@ -39,7 +39,11 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
         int Approvals,
         int Queued,
         int HeldNotifications,
-        bool PrioritiesOnly);
+        bool PrioritiesOnly)
+    {
+        /// <summary>Tracked workflows that need attention (waiting, overdue or with a ready next step).</summary>
+        public IReadOnlyList<Workflows.Workflow> Workflows { get; init; } = [];
+    }
 
     public Briefing Build(DateTimeOffset now, bool prioritiesOnly)
     {
@@ -52,7 +56,10 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
         var todays = reminders.List().Where(r => r.DueAt < endOfDay).OrderBy(r => r.DueAt).ToList();
         int held;
         try { held = notifications.Recent(100, "held").Count; } catch { held = 0; }
-        return new Briefing(todays, overdue, priority, dueToday, open.Count, approvals.Pending.Count, queue.List().Count, held, prioritiesOnly);
+        return new Briefing(todays, overdue, priority, dueToday, open.Count, approvals.Pending.Count, queue.List().Count, held, prioritiesOnly)
+        {
+            Workflows = workflows.List().Where(w => w.Steps.Any(st => st.Ready)).Take(5).ToList(),
+        };
     }
 
     public static string Render(Briefing b, ToolContext ctx)
@@ -69,6 +76,8 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
             sb.AppendLine(ctx.T($"• Top priorities: {List(b.Priority, 3)}.", $"• أهم الأولويات: {List(b.Priority, 3)}."));
         if (b.DueToday.Count > 0)
             sb.AppendLine(ctx.T($"• Due today: {List(b.DueToday, 3)}.", $"• مطلوب النهارده: {List(b.DueToday, 3)}."));
+        foreach (var wf in b.Workflows)
+            sb.AppendLine("• " + Workflows.WorkflowService.Summary(wf, ctx.Lang));
         if (!b.PrioritiesOnly)
         {
             if (b.RemindersToday.Count > 0)

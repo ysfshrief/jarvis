@@ -220,6 +220,7 @@ export interface MemoryStatus {
 }
 
 export interface TaskItem {
+  recurrence?: string | null;
   id: string;
   title: string;
   notes?: string | null;
@@ -428,3 +429,16 @@ export interface ProviderStatus {
   models: string[];
   checkedAt: string;
 }
+
+export interface WorkflowStep {
+  id: string; workflowId: string; order: number; title: string; status: string; dependsOn: string[];
+  dueAt?: string | null; waitingFor?: string | null; followUpAt?: string | null; requiresApproval: boolean;
+  action?: { tool: string; args?: unknown } | null; notes?: string | null; createdAt: string; updatedAt: string; completedAt?: string | null; ready: boolean;
+}
+export interface Workflow {
+  id: string; title: string; goal?: string | null; template: string; status: string; entityId?: string | null; entityName?: string | null;
+  dueAt?: string | null; recurrence?: string | null; createdAt: string; updatedAt: string; completedAt?: string | null;
+  steps: WorkflowStep[]; doneCount: number; progress: number; next?: WorkflowStep | null; isOpen: boolean;
+}
+export interface WorkflowEvent { id: number; workflowId: string; stepId?: string | null; timestamp: string; kind: string; text: string }
+export interface WorkflowTemplate { id: string; name: string; description: string; steps: string[]; entityType: string }

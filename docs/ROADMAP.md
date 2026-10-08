@@ -87,7 +87,9 @@ The same matrix is visible in the app under **System → What this build can do*
 | Tasks (6 states, priorities, due dates) and reminders | Working |
 | Daily briefing / priorities ("what's happening today?", "check my priorities") from real data | Working |
 | Notification intelligence (priority, dedupe, meeting/fullscreen holding, digest, quiet hours) | Working |
-| Long-running workflows ("track the CityCrep deal"), proactive suggestions, daily briefing | Planned |
+| Workflows: "track the CityCrep deal" — templates (deal, project, hiring, follow-up, custom), ordered steps with dependencies, deadlines, waiting-for with follow-up nudges, approval-gated business steps, recurring cycles, history, links to people/organisations | Working |
+| Recurring tasks ("water the plants every monday", "كل جمعة") | Working |
+| Proactive suggestions beyond follow-ups and deadlines | Planned |
 | Calendar integration | Planned (Phase 7 with meetings) |
 
 ## Phase 6 — Knowledge & communication

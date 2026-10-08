@@ -214,6 +214,29 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task Workflows_can_be_created_updated_and_inspected()
+    {
+        var c = _f.Authed();
+        var templates = await c.GetFromJsonAsync<JsonElement>("/api/workflows/templates");
+        Assert.Contains(templates.EnumerateArray(), t => t.GetProperty("id").GetString() == "deal");
+
+        var created = await (await c.PostAsJsonAsync("/api/workflows", new { title = "Office move", template = "custom", steps = new[] { new { title = "Find a space" }, new { title = "Sign the lease" } } }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var first = created.GetProperty("steps")[0].GetProperty("id").GetString();
+        var upd = await c.PutAsJsonAsync($"/api/workflows/{id}/steps/{first}", new { status = "waiting", waitingFor = "the agent", followUpDays = 2 });
+        Assert.Equal(HttpStatusCode.OK, upd.StatusCode);
+        await c.PostAsJsonAsync($"/api/workflows/{id}/notes", new { text = "Two options in Maadi" });
+
+        var detail = await c.GetFromJsonAsync<JsonElement>($"/api/workflows/{id}");
+        Assert.Equal("waiting", detail.GetProperty("workflow").GetProperty("status").GetString());
+        Assert.Contains(detail.GetProperty("history").EnumerateArray(), h => h.GetProperty("text").GetString() == "Two options in Maadi");
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/workflows/{id}/cancel", null)).StatusCode);
+        var open = await c.GetFromJsonAsync<JsonElement>("/api/workflows");
+        Assert.DoesNotContain(open.EnumerateArray(), w => w.GetProperty("id").GetString() == id);
+    }
+
+    [Fact]
     public async Task Tools_capabilities_and_status_are_exposed()
     {
         var c = _f.Authed();

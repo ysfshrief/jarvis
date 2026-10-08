@@ -145,6 +145,18 @@ Knowledge around memories (`KnowledgeService`):
   times, start of day, repeated requests) and preferences (language, brevity), with the evidence
   attached to each proposal.
 
+## Workflows
+
+`WorkflowStore` keeps long-running goals as ordered steps with dependencies (by default each step
+follows the previous one). A step is *ready* when its dependencies are done or skipped. The workflow's
+status is derived — `waiting` when every ready step waits on someone, `blocked`, `active`, `completed` —
+never set by hand except to cancel. Steps can wait on an external party with a follow-up date;
+`WorkflowService.CheckDueAsync` (every minute) sends one nudge per follow-up, near deadline and overdue
+step, through the notification centre (so meetings/quiet hours still hold them). Steps flagged as business
+actions run their tool action only after an explicit approval, recorded in the history. A completed
+recurring workflow clones itself for the next cycle. Workflows link to the person/organisation entity
+they're about, and appear in the daily briefing.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;

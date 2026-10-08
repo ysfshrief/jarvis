@@ -166,3 +166,18 @@ public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner lear
         }
     }
 }
+
+/// <summary>Checks tracked workflows once a minute for follow-ups and deadlines.</summary>
+public sealed class WorkflowMonitorService(Jarvis.Core.Workflows.WorkflowService workflows, ILogger<WorkflowMonitorService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try { await workflows.CheckDueAsync(DateTimeOffset.Now, stoppingToken); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "Workflow check failed"); }
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        }
+    }
+}

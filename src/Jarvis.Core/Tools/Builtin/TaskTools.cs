@@ -18,6 +18,7 @@ public sealed class TaskCreateTool(TaskStore store) : ToolBase
             new("priority", "string", "Priority.", false, TaskPriorities.All),
             new("project", "string", "Project the task belongs to."),
             new("due", "string", "Due date/time in ISO 8601, if any."),
+            new("repeat", "string", "Repeat rule for recurring tasks: daily, weekdays, weekly, weekly:mon,thu, monthly, every:3d."),
         ],
     };
 
@@ -28,8 +29,19 @@ public sealed class TaskCreateTool(TaskStore store) : ToolBase
         var due = DateTimeOffset.TryParse(args.GetString("due"), CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var d) ? d : (DateTimeOffset?)null;
         var prio = args.GetString("priority") ?? "normal";
         if (!TaskPriorities.All.Contains(prio)) prio = "normal";
-        var t = store.Create(new NewTask(args.RequireString("title"), args.GetString("notes"), prio, args.GetString("project"), due));
-        return Task.FromResult(ToolResult.Ok(ctx.T($"Added to your tasks: {t.Title}.", $"ضفتها للمهام: {t.Title}."), t));
+        var title = args.RequireString("title");
+        var repeat = args.GetString("repeat");
+        if (repeat is null)
+        {
+            var (rule, rest) = Workflows.Recurrence.Extract(title);
+            if (rule is not null && rest.Length > 0) { repeat = rule; title = rest; }
+        }
+        if (repeat is not null && !Workflows.Recurrence.IsValid(repeat)) repeat = null;
+        // A recurring task without a date starts today at 9:00 so "next occurrence" has an anchor.
+        if (repeat is not null && due is null) due = new DateTimeOffset(DateTime.Today.AddHours(9));
+        var t = store.Create(new NewTask(title, args.GetString("notes"), prio, args.GetString("project"), due, repeat));
+        var every = repeat is null ? "" : ctx.T($" (repeats {Workflows.Recurrence.Describe(repeat)})", $" (بتتكرر {Workflows.Recurrence.Describe(repeat, true)})");
+        return Task.FromResult(ToolResult.Ok(ctx.T($"Added to your tasks: {t.Title}{every}.", $"ضفتها للمهام: {t.Title}{every}."), t));
     }
 }
 

@@ -75,6 +75,7 @@ try {
     Check "read-only command" { Say "run git --version" }
     Check "no-AI question explains how to enable AI" { $r = Say "summarize my week for me"; if ($r -notmatch "Ollama") { throw $r }; "ok" }
     Check "activity log" { $a = Api GET "/api/activity?limit=5"; "$($a.Count) entries" }
+    Check "workflow" { $r = Say "track the CityCrep deal"; if ($r -notmatch "Tracking") { throw $r }; Say "what am I tracking" }
     Check "daily briefing" { $r = Say "what's happening today"; if ($r -notmatch "deterministic") { throw $r }; $r }
     Check "system metrics" {
         Api GET "/api/system/metrics" | Out-Null; Start-Sleep 1.2
@@ -130,7 +131,11 @@ try {
             [System.Windows.Forms.SendKeys]::SendWait("^%j")
             $deadline = (Get-Date).AddSeconds(20)
             do { Start-Sleep 1; $now = (Api GET "/api/status").eventClients } while ($now -le $before -and (Get-Date) -lt $deadline)
-            if ($now -le $before) { throw "the console page did not connect (event clients stayed at $before)" }
+            if ($now -le $before) {
+                $log = Join-Path $data "logs\desktop.log"
+                $tail = if (Test-Path $log) { (Get-Content $log -Tail 15) -join " | " } else { "(no desktop.log)" }
+                throw "the console page did not connect (event clients stayed at $before). desktop.log: $tail"
+            }
             "event clients $before -> $now"
         }
         Start-Sleep 2

@@ -91,6 +91,26 @@ public static partial class IntentEngine
         if ((m = CompleteTask().Match(t)).Success)
             return new ToolIntent("task_complete", ToolArgs.From(new { title = m.Groups["x"].Value.Trim() }));
 
+        // Workflows ("track the CityCrep deal", "how's the CityCrep deal going", "proposal is done for CityCrep").
+        if ((m = TrackDeal().Match(t)).Success)
+        {
+            var who = Original(rawText, m.Groups["x"].Value);
+            return new ToolIntent("workflow_create", ToolArgs.From(new { title = $"{who} deal", template = "deal", about = who }));
+        }
+        if ((m = TrackProject().Match(t)).Success)
+        {
+            var what = Original(rawText, m.Groups["x"].Value);
+            return new ToolIntent("workflow_create", ToolArgs.From(new { title = $"{what} project", template = "project", about = what }));
+        }
+        if (ListWorkflows().IsMatch(t)) return new ToolIntent("workflow_status", new ToolArgs());
+        if ((m = WorkflowStatusQ().Match(t)).Success)
+            return new ToolIntent("workflow_status", ToolArgs.From(new { name = Original(rawText, m.Groups["x"].Value) }), FallBackToAiOnFailure: true);
+        if ((m = StepDone().Match(t)).Success)
+            return new ToolIntent("workflow_update_step", ToolArgs.From(new
+            {
+                workflow = Original(rawText, m.Groups["w"].Value), step = Original(rawText, m.Groups["s"].Value), status = "done",
+            }), FallBackToAiOnFailure: true);
+
         // Memory.
         if ((m = WorksAt().Match(t)).Success && !IsSelf(m.Groups["a"].Value))
             return new ToolIntent("memory_relate", ToolArgs.From(new
@@ -266,6 +286,21 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:what do you (?:know|remember) about|what did i tell you about|do you remember)\s+(?<x>.+)$|^(?:تعرف|فاكر|تفتكر) (?:ايه|اي حاجه) عن\s+(?<x>.+)$")]
     private static partial Regex Recall();
+
+    [GeneratedRegex(@"^(?:(?:start )?track(?:ing)?|follow|keep track of) (?:the |my |our )?(?:deal with |deal for )?(?<x>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{0,40}?) (?:deal|opportunity|sale)$|^(?:(?:start )?track(?:ing)?|follow) (?:the |my |our )?(?:deal|opportunity) (?:with|for) (?<x>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{0,40})$|^(?:تابع|تابعلي|خليك متابع) (?:صفقه|صفقة|ديل) (?<x>.{2,40})$")]
+    private static partial Regex TrackDeal();
+
+    [GeneratedRegex(@"^(?:(?:start )?track(?:ing)?|follow) (?:the |my |our )?(?:project (?<x>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{0,40})|(?<x>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{0,40}?) project)$|^(?:تابع|تابعلي) (?:مشروع) (?<x>.{2,40})$")]
+    private static partial Regex TrackProject();
+
+    [GeneratedRegex(@"^(?:what am i tracking|(?:show|list)(?: me)? (?:my )?(?:workflows|deals|what you'?re tracking)|my workflows|workflows|انت متابع ايه|متابع ايه|ايه اللي انت متابعه)$")]
+    private static partial Regex ListWorkflows();
+
+    [GeneratedRegex(@"^(?:what(?:'s| is) the status of|status of|where are we (?:with|on)|update (?:me )?on) (?:the |my |our )?(?<x>.+?)(?: deal| project)?$|^how(?:'s| is) (?:the |my |our )?(?!it\b|everything\b|things\b|life\b|your\b)(?<x>.+?) (?:deal|project)(?: going)?$|^how(?:'s| is) (?:the |my |our )?(?!it\b|everything\b|things\b|life\b|your\b)(?<x>.+?) going$|^(?:وصلنا لفين في|ايه الاخبار في|ايه اخبار) (?<x>.+)$")]
+    private static partial Regex WorkflowStatusQ();
+
+    [GeneratedRegex(@"^(?:mark |i'?ve |i |we'?ve |we )?(?:finished |done with |completed? )?(?<s>.+?) (?:is |as )?(?:done|finished|complete|completed) (?:for|in|on) (?:the )?(?<w>.+)$|^(?:خلصت|خلصنا) (?<s>.+?) (?:في|بتاع|بتاعه) (?<w>.+)$")]
+    private static partial Regex StepDone();
 
     // "Ahmed works at CityCrep", "remember that Sara works for Atlas", "أحمد شغال في سيتي كريب".
     [GeneratedRegex(@"^(?:(?:remember|note) (?:that )?)?(?<a>[\p{L}][\p{L}'\-]*(?: [\p{L}][\p{L}'\-]*){0,2}) (?:works|is working) (?:at|for) (?<b>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{1,50})$|^(?:افتكر (?:ان |إن )?)?(?<a>[\p{L}]+(?: [\p{L}]+)?) (?:شغال|بيشتغل|يشتغل|بتشتغل|شغاله) (?:في|ف|عند) (?<b>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{1,50})$")]

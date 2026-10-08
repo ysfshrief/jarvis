@@ -3,6 +3,7 @@ import { Bell, Plus, Trash2, X } from "lucide-react";
 import { del, get, post, put, type Reminder, type TaskItem } from "../api";
 import { useEvents } from "../events";
 import { Badge, Card, Empty, ErrorNote, formatTime, timeAgo, useLoad } from "../components/ui";
+import { tr } from "../lib/i18n";
 
 const STATES = ["pending", "in_progress", "waiting", "blocked", "completed", "cancelled"];
 const PRIORITIES = ["low", "normal", "high", "urgent"];
@@ -14,6 +15,7 @@ export function Tasks() {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState("normal");
   const [due, setDue] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [error, setError] = useState<unknown>(null);
   useEvents(["tasks"], () => void tasks.reload());
   useEvents(["reminders"], () => void reminders.reload());
@@ -21,9 +23,10 @@ export function Tasks() {
   const add = async () => {
     if (!title.trim()) return;
     try {
-      await post("/tasks", { title, priority, dueAt: due ? new Date(due).toISOString() : null });
+      await post("/tasks", { title, priority, dueAt: due ? new Date(due).toISOString() : null, recurrence: repeat || null });
       setTitle("");
       setDue("");
+      setRepeat("");
       setError(null);
     } catch (e) {
       setError(e);
@@ -36,7 +39,7 @@ export function Tasks() {
 
   return (
     <div className="stack">
-      <h2>Tasks</h2>
+      <h2>{tr("Tasks")}</h2>
       <Card>
         <form className="row wrap" onSubmit={(e) => { e.preventDefault(); void add(); }}>
           <input className="input grow" dir="auto" placeholder="New task…" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -44,6 +47,13 @@ export function Tasks() {
             {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
           </select>
           <input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due" />
+          <select className="input" value={repeat} onChange={(e) => setRepeat(e.target.value)} aria-label="Repeat">
+            <option value="">Doesn't repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekdays">Every working day</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+          </select>
           <button className="btn btn-primary" type="submit" disabled={!title.trim()}><Plus size={16} /> Add</button>
         </form>
         <ErrorNote error={error ?? tasks.error} />
@@ -65,6 +75,7 @@ export function Tasks() {
                   <div className="muted small">
                     {t.dueAt ? `Due ${formatTime(t.dueAt)} · ` : ""}created {timeAgo(t.createdAt)}
                     {t.project ? ` · ${t.project}` : ""}
+                    {t.recurrence ? ` · repeats ${t.recurrence}` : ""}
                   </div>
                 </div>
                 <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{t.priority}</Badge>
