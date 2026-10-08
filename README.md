@@ -36,6 +36,9 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    - `volume 40` · `mute` · `next song` · `take a screenshot` · `how's the system`
    - `run git status` (read-only commands run; anything else asks you first)
    - `open my project citycrep` · `build citycrep` · `why is the build failing?` (uses the project open in your editor)
+   - `track the CityCrep deal` · `where are we with CityCrep?` · `what am I tracking` (workflows with steps, follow-ups and deadlines)
+   - after turning on **Settings → Files**: `find documents about the renewal fee` · `what's my latest PDF` ·
+     `summarize the CityCrep proposal.docx` · `compare Proposal v2.docx with the previous version` · `دور على ملفات عن سيتي كريب`
 3. **Enable conversation (free, private):** install [Ollama](https://ollama.com), then download a model from
    **Settings → AI** (one click; `qwen2.5:7b` recommended) — or run `ollama pull qwen2.5:7b`. JARVIS detects
    it, reads what each model can do (tools, vision, embeddings) and streams replies as they're written. Now
@@ -45,7 +48,7 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    Arabic). Then press **Ctrl+Alt+Space** to talk, or turn on the **“Jarvis” wake word**.
 5. Double-click the orb for the **dashboard**: a HUD-style home with live system health, your priorities and
    upcoming reminders, the assistant (with live progress: understanding → analyzing → selecting tool →
-   executing → completed), tasks, memory, system monitor, activity log and a settings control center
+   executing → completed), tasks, workflows, memory, files, system monitor, activity log and a settings control center
    (appearance, sounds, shortcuts, privacy…). The interface is available in English and Arabic (right-to-left).
 
 ## What makes it different

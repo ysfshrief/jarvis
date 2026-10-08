@@ -309,7 +309,7 @@ function Profile({ id, onClose, onError }: { id: string; onClose: () => void; on
   const [rel, setRel] = useState({ relation: "works_at", to: "", toType: "organization" });
   const [aliases, setAliases] = useState<string | null>(null);
   if (!p.data) return <Card><ErrorNote error={p.error} /></Card>;
-  const { entity, memories, relations, tasks, reminders } = p.data;
+  const { entity, memories, relations, tasks, reminders, files } = p.data;
   return (
     <Card title={<span dir="auto">{entity.name}</span>} actions={
       <>
@@ -363,6 +363,20 @@ function Profile({ id, onClose, onError }: { id: string; onClose: () => void; on
             </li>
           ))}
         </ul>
+      )}
+
+      {files.length > 0 && (
+        <>
+          <div className="hud-label">Documents</div>
+          <ul className="list">
+            {files.map((f) => (
+              <li key={f.id}>
+                <a className="small grow ellipsis" href={`#/files/${f.id}`} dir="auto">{f.name}</a>
+                <span className="meta nowrap">{timeAgo(f.modifiedAt)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {(tasks.length > 0 || reminders.length > 0) && (

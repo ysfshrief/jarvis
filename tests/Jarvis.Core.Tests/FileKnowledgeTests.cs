@@ -1,8 +1,10 @@
 using System.IO.Compression;
 using System.Text;
+using Jarvis.Core.AI;
 using Jarvis.Core.Files;
 using Jarvis.Core.Memory;
 using Jarvis.Core.Settings;
+using Jarvis.Core.Tools;
 using UglyToad.PdfPig.Writer;
 
 namespace Jarvis.Core.Tests;
@@ -187,6 +189,21 @@ public class FileKnowledgeTests : IDisposable
         Assert.Contains("Key points", sum.Reply);
         Assert.Contains("renewal fee", sum.Reply);
         Assert.Contains("by Mona Adel", sum.Reply);
+    }
+
+    [Fact]
+    public async Task Ai_summary_is_grounded_in_the_real_document()
+    {
+        using var host = new TestHost(s => { s.Files.AllowedRoots = [_dir]; }, withModel: true);
+        host.Model.Reply("The contract renews yearly with a renewal fee.");
+        var turn = await host.Say($"summarize {Path.Combine(_dir, "CityCrep contract.docx")}");
+
+        Assert.Equal("ai", turn.Route);
+        Assert.Equal("The contract renews yearly with a renewal fee.", turn.Reply);
+        // The document was really read before the model answered, and the model saw its text.
+        Assert.Contains(turn.Steps, st => st.Tool == "file_summarize" && st.Status == ToolStatus.Ok);
+        var request = Assert.Single(host.Model.Requests);
+        Assert.Contains(request.Messages, m => (m.Role == ChatRole.Tool || m.Role == ChatRole.System) && m.Content?.Contains("renewal fee") == true);
     }
 
     [Fact]

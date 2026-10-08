@@ -283,4 +283,44 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
         } while (!r.EndOfMessage);
         return JsonDocument.Parse(ms.ToArray()).RootElement;
     }
+
+    [Fact]
+    public async Task Files_api_reports_status_and_serves_indexed_documents()
+    {
+        var c = _f.Authed();
+        var status = await c.GetFromJsonAsync<JsonElement>("/api/files/status");
+        Assert.False(status.GetProperty("enabled").GetBoolean()); // off until the user turns it on
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/files/scan", new { })).StatusCode);
+
+        // Outside the data folder: JARVIS never indexes its own data.
+        var dir = Path.Combine(Path.GetTempPath(), "jarvis-runtime-docs", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        var v1 = Path.Combine(dir, "Offer v1.txt");
+        var v2 = Path.Combine(dir, "Offer v2.txt");
+        File.WriteAllText(v1, "Delivery in six weeks.\nPrice is 80,000 EGP.");
+        File.SetLastWriteTime(v1, DateTime.Now.AddDays(-1));
+        File.WriteAllText(v2, "Delivery in six weeks.\nPrice is 95,000 EGP.");
+        var indexer = _f.Services.GetRequiredService<Jarvis.Core.Files.FileIndexer>();
+        Assert.True(await indexer.IndexFileAsync(v1, default));
+        Assert.True(await indexer.IndexFileAsync(v2, default));
+
+        var hits = await c.GetFromJsonAsync<JsonElement>("/api/files/search?q=delivery");
+        Assert.Equal(2, hits.GetArrayLength());
+        var latest = await c.GetFromJsonAsync<JsonElement>("/api/files/latest?limit=1");
+        var id = latest[0].GetProperty("id").GetString();
+        Assert.Equal("Offer v2.txt", latest[0].GetProperty("name").GetString());
+
+        var detail = await c.GetFromJsonAsync<JsonElement>($"/api/files/{id}");
+        var previous = detail.GetProperty("previous");
+        Assert.Equal("Offer v1.txt", previous.GetProperty("name").GetString());
+        var cmp = await c.GetFromJsonAsync<JsonElement>($"/api/files/{id}/compare/{previous.GetProperty("id").GetString()}");
+        Assert.Equal(1, cmp.GetProperty("added").GetInt32());
+        Assert.Equal("Price is 95,000 EGP.", cmp.GetProperty("addedLines")[0].GetString());
+
+        Assert.Equal(HttpStatusCode.NotFound, (await c.GetAsync("/api/files/nope")).StatusCode);
+        (await c.DeleteAsync("/api/files/index")).EnsureSuccessStatusCode();
+        Assert.Equal(0, (await c.GetFromJsonAsync<JsonElement>("/api/files/status")).GetProperty("files").GetInt32());
+        Assert.False(await indexer.IndexFileAsync(Path.Combine(_f.DataDir, "jarvis.db"), default));
+        try { Directory.Delete(dir, true); } catch { }
+    }
 }

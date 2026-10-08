@@ -91,6 +91,10 @@ completed/failed) so the UI can show progress without exposing any model reasoni
 stored locally and restored from the database after a restart.
 
 Deterministic commands that fail (e.g. an unknown app) are handed to the AI when one is available.
+Requests that need reasoning over something real ("summarize the CityCrep proposal", "why is the build
+failing") run their tool first; the model then answers from that tool result, presented as if it had
+called the tool itself (or as context for models without tool support), so it never summarises a file
+it hasn't been shown.
 Without any model, JARVIS still answers direct commands and explains how to enable conversation.
 
 ## User interface
@@ -156,6 +160,18 @@ step, through the notification centre (so meetings/quiet hours still hold them).
 actions run their tool action only after an explicit approval, recorded in the history. A completed
 recurring workflow clones itself for the next cycle. Workflows link to the person/organisation entity
 they're about, and appear in the daily briefing.
+
+## File knowledge
+
+Opt-in (Settings → Files). `FileIndexer` scans the chosen folders gently (one file at a time), then
+follows file-system notifications; protected locations from `FilePolicy` are never read.
+`DocumentExtractor` turns PDF (PdfPig), OOXML/OpenDocument (ZIP + `XmlReader` with DTDs prohibited —
+nothing embedded is ever executed), RTF, text/code and ZIP listings into text plus metadata; images go
+through `IOcrEngine` (Windows.Media.Ocr on Windows). `FileIndex` (schema v4) stores one row per file and
+its text in 1,200-character chunks with an Arabic-normalised FTS index; chunks are embedded by the same
+`SemanticIndex` as memories (owner `file_chunk`), so search is hybrid words + meaning. Files mentioning
+known entities are linked to them. `TextAnalysis` provides extractive key points (labelled as extracted)
+and line-level version comparison; versions are found by name stem (`v2`, `final`, dates, `- Copy`).
 
 ## Notification intelligence
 

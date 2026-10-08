@@ -173,7 +173,7 @@ public static partial class IntentEngine
         if ((m = Summarize().Match(t)).Success)
             return new ToolIntent("file_summarize", ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value) }), PreferAi: true);
         if ((m = CompareFiles().Match(t)).Success)
-            return new ToolIntent("file_compare", m.Groups["y"].Success
+            return new ToolIntent("file_compare", m.Groups["y"].Success && !PreviousVersionWords().IsMatch(m.Groups["y"].Value)
                 ? ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value), other = Original(rawText, m.Groups["y"].Value) })
                 : ToolArgs.From(new { file = Original(rawText, m.Groups["x"].Value) }), FallBackToAiOnFailure: true);
         if ((m = WebSearch().Match(t)).Success)
@@ -390,7 +390,7 @@ public static partial class IntentEngine
     [GeneratedRegex(@"^(?:what(?:'s| is| are) )?(?:show (?:me )?)?(?:the |my )?(?:latest|newest|most recent|last)(?: \d+)? (?<k>files?|documents?|docs?|pdfs?|spreadsheets?|excel(?: files?)?|presentations?|slides?|images?|photos?|pictures?|screenshots?|downloads?)(?: i (?:downloaded|saved|worked on|got))?(?: (?:in|on|from) (?:the |my )?(?<f>[\p{L}\p{N} :\\/._\-]+))?$|^(?:اخر|احدث) (?<k>ملف|ملفات|بي دي اف|اكسيل|صوره|صور|سكرين شوت)(?: (?:في|ف|على|علي) (?<f>.+))?$")]
     private static partial Regex LatestFile();
 
-    [GeneratedRegex(@"^(?:find|search|look for|show me)(?: for)?(?: the| my| any)? (?:documents?|docs|files|papers|contracts?|proposals?|invoices?|reports?) (?:about|on|regarding|mentioning|for|with) (?<x>.+)$|^(?:find|search for|look for) (?:the |my )?(?!files? |folder )(?<x>.+? (?:contract|proposal|invoice|report|presentation|deck|spreadsheet|budget|offer|agreement|nda|cv|resume))$|^(?:دور|دورلي|ابحث|شوفلي)(?: لي)? (?:علي|عن) (?:ملفات|مستندات|ورق|عقود|عقد|عروض|عرض|فواتير|فاتوره) (?:عن|بتاع|بتاعه|بتاعت|ل|لـ)? ?(?<x>.+)$")]
+    [GeneratedRegex(@"^(?:find|search|look for|show me)(?: for)?(?: the| my| any)? (?:documents?|docs|files|papers|contracts?|proposals?|invoices?|reports?) (?:about|on|regarding|mentioning|for|with) (?<x>.+)$|^(?:which|what|any) (?:files|documents|docs|papers) (?:mention|talk about|are about|contain|have|say anything about) (?<x>.+)$|^(?:find|search for|look for) (?:the |my )?(?!files? |folder )(?<x>.+? (?:contract|proposal|invoice|report|presentation|deck|spreadsheet|budget|offer|agreement|nda|cv|resume))$|^(?:دور|دورلي|ابحث|شوفلي)(?: لي)? (?:علي|عن) (?:ملفات|مستندات|ورق|عقود|عقد|عروض|عرض|فواتير|فاتوره) (?:عن|بتاع|بتاعه|بتاعت|ل|لـ)? ?(?<x>.+)$")]
     private static partial Regex FindDocsAbout();
 
     [GeneratedRegex(@"^(?:summari[sz]e|give me (?:a |the )?summary of|what(?:'s| is) in) (?:the |my |this )?(?:file |document |pdf |doc )?(?<x>.+\.[a-z0-9]{2,5}|.+? (?:file|document|pdf|doc|contract|proposal|report|presentation|deck|spreadsheet))$|^(?:لخص|لخصلي|لخص لي) (?:ال)?(?:ملف|مستند|عقد|عرض|تقرير)? ?(?<x>.+)$")]
@@ -398,6 +398,9 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:compare|diff) (?<x>.+?)(?: (?:with|to|and|against) (?<y>.+))?$|^what changed in (?<x>.+?)(?: since (?<y>.+))?$|^(?:قارن|قارنلي) (?<x>.+?)(?: (?:ب|مع|و) ?(?<y>.+))?$")]
     private static partial Regex CompareFiles();
+
+    [GeneratedRegex(@"^(?:the |its |my )?(?:previous|earlier|older|last|old|prior)(?: one| version| draft| copy)?$|^(?:the )?(?:one|version) before$|^(?:ال)?(?:نسخه|نسخة) (?:ال)?(?:قديمه|قديمة|اللي قبلها|السابقه|السابقة)$|^اللي قبله(?:ا)?$")]
+    private static partial Regex PreviousVersionWords();
 
     private static string? KindWord(string w)
     {

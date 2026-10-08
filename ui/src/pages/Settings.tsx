@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Bell, Brain, Check, Cpu, Download, Eye, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
+  Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
 } from "lucide-react";
 import { del, get, post, put, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
@@ -9,12 +9,14 @@ import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segm
 import { applyAppearance, settingsStore } from "../lib/settings";
 import { playCue, type SoundKind } from "../lib/sounds";
 import { tr } from "../lib/i18n";
+import { ClearIndexButton, FilesIndexHint } from "./Files";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
   { id: "voice", label: "Voice", icon: Mic },
   { id: "ai", label: "AI", icon: Cpu },
   { id: "memory", label: "Memory", icon: Brain },
+  { id: "files", label: "Files", icon: FolderSearch },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -98,6 +100,7 @@ export function SettingsPage() {
           {section === "voice" && <Voice {...p} />}
           {section === "ai" && <Ai {...p} />}
           {section === "memory" && <MemorySettings {...p} />}
+          {section === "files" && <FilesSettings {...p} />}
           {section === "security" && <Security {...p} />}
           {section === "notifications" && <Notifications {...p} />}
           {section === "appearance" && <AppearanceSection {...p} />}
@@ -782,6 +785,25 @@ function SystemSection({ s, set }: P) {
             <input className="input mono" value={s.runtime.connectivityProbeUrl} onChange={(e) => set((x) => { x.runtime.connectivityProbeUrl = e.target.value; })} />
           </Field>
         </div>
+      </Card>
+    </>
+  );
+}
+
+function FilesSettings({ s, set }: P) {
+  return (
+    <>
+      <Card title="File knowledge">
+        <Toggle label="Read and index my documents" hint="Builds a private index on this PC so JARVIS can find, summarise and compare your files. Off by default."
+          checked={s.files.indexEnabled} onChange={(v) => set((x) => { x.files.indexEnabled = v; })} />
+        <Field label="Folders to index" hint="One per line. Empty = Documents, Desktop and Downloads. Protected places (credential stores, system folders) are always skipped.">
+          <textarea className="input mono" rows={3} value={s.files.indexRoots.join("\n")} onChange={(e) => set((x) => { x.files.indexRoots = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean); })} />
+        </Field>
+        <Field label="Largest file to read (MB)" hint="Bigger files are indexed by name only.">
+          <input className="input" type="number" min={1} max={500} value={s.files.indexMaxFileMb} onChange={(e) => set((x) => { x.files.indexMaxFileMb = Number(e.target.value); })} />
+        </Field>
+        <FilesIndexHint />
+        <div className="row"><ClearIndexButton /></div>
       </Card>
     </>
   );

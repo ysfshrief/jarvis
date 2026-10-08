@@ -202,10 +202,12 @@ public sealed class AgentOrchestrator(
             {
                 Phase(toolCtx, TurnPhases.Analyzing);
                 var aiRoute = await router.RouteAsync(text, ct).ConfigureAwait(false);
-                if (aiRoute.HasModel)
-                    return await RunAiAsync(text, input, conv, lang, phr, toolCtx, s, aiRoute, ct).ConfigureAwait(false);
+                // The tool runs first either way, so the model answers from what was really read or
+                // observed (a small model asked to "summarise X" would otherwise happily invent it).
                 Phase(toolCtx, TurnPhases.Executing, preferAi.Tool);
                 var (r, st) = await executor.ExecuteAsync(preferAi.Tool, preferAi.Args, toolCtx).ConfigureAwait(false);
+                if (aiRoute.HasModel && r.Status is not (ToolStatus.NotFound or ToolStatus.Denied))
+                    return await RunAiAsync(text, input, conv, lang, phr, toolCtx, s, aiRoute, ct, new Grounding(preferAi.Tool, preferAi.Args, r, st)).ConfigureAwait(false);
                 // The build failing is the answer to "why is it failing", not an error of JARVIS.
                 return Remember(conv, text, Result(conv, lang, r.Message, "deterministic", input.Source, [st], r.Status is not (ToolStatus.NotFound or ToolStatus.Denied)));
             }
@@ -235,7 +237,7 @@ public sealed class AgentOrchestrator(
     }
 
     private async Task<AgentTurnResult> RunAiAsync(string text, UserInput input, ConversationContext conv, Lang lang,
-        ToolCtx phr, ToolContext toolCtx, JarvisSettings s, RouteDecision route, CancellationToken ct)
+        ToolCtx phr, ToolContext toolCtx, JarvisSettings s, RouteDecision route, CancellationToken ct, Grounding? grounding = null)
     {
         var relevant = s.Memory.Enabled ? await RelevantMemoriesAsync(text, ct).ConfigureAwait(false) : [];
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
@@ -255,6 +257,17 @@ public sealed class AgentOrchestrator(
 
         var steps = new List<ToolStep>();
         var added = new List<ChatMessage>();
+        List<ChatMessage> grounded = [];
+        string? groundingNote = null;
+        if (grounding is not null)
+        {
+            // Tool-capable models see it exactly as if they had called the tool; others get it as context.
+            var call = new ToolCall($"call_{Guid.NewGuid():n}", grounding.Tool, grounding.Args.ToString());
+            var content = SerializeForModel(grounding.Result);
+            grounded = [ChatMessage.Assistant(null, [call]), ChatMessage.ToolResult(call.Id, call.Name, content, !grounding.Result.Success)];
+            groundingNote = $"Already done for this request — {grounding.Tool} returned (answer from this, do not invent anything else):\n{content}";
+            steps.Add(grounding.Step);
+        }
         var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string? fallbackFrom = null;
         var trimmedAny = false;
@@ -268,12 +281,12 @@ public sealed class AgentOrchestrator(
             var model = route.Model!;
             // Models that can't call tools still converse; deterministic commands cover the actions.
             var available = route.SupportsTools ? ToolSelector.Select(text, tools.AvailableFor(s), compact: provider.IsLocal) : [];
-            var sys = route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote;
+            var sys = route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote + (groundingNote is null ? "" : "\n\n" + groundingNote);
             var contextTokens = provider.IsLocal
                 ? Math.Min(s.Ai.LocalContextTokens, route.Info?.ContextLength ?? int.MaxValue)
                 : CloudContextTokens;
             var maxTokens = provider.IsLocal ? (spoken ? 512 : 2048) : (spoken ? 1024 : 4096);
-            var fitted = ContextBudget.Fit(sys, [.. history, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
+            var fitted = ContextBudget.Fit(sys, route.SupportsTools ? [.. history, .. grounded, .. added] : [.. history, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
             trimmedAny |= fitted.Trimmed;
 
             var stream = s.Ai.StreamResponses ? new DeltaStream(events, toolCtx, rounds) : null;
@@ -373,6 +386,9 @@ public sealed class AgentOrchestrator(
             UsedMemories = used,
         };
     }
+
+    /// <summary>A tool already run for this request, whose result the model must answer from.</summary>
+    private sealed record Grounding(string Tool, ToolArgs Args, ToolResult Result, ToolStep Step);
 
     private void Phase(ToolContext ctx, string phase, string? detail = null) =>
         events.Publish(EventTypes.TurnPhase, new { conversationId = ctx.ConversationId, turnId = ctx.TurnId, phase, detail });

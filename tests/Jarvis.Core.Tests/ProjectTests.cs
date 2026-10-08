@@ -125,12 +125,19 @@ public sealed class ProjectTests : IDisposable
     }
 
     [Fact]
-    public async Task Why_questions_go_to_the_ai_when_available()
+    public async Task Why_questions_go_to_the_ai_with_the_real_build_output()
     {
-        using var host = new TestHost(withModel: true);
-        host.Model.Reply("Let me check the build.");
+        if (OperatingSystem.IsWindows()) return; // POSIX shell build script, as above
+        MakeProject("citycrep", ("package.json", """
+            {"scripts":{"build":"node -e \"console.error('src/app.ts(3,5): error TS2304: Cannot find name foo.'); process.exit(2)\""}}
+            """));
+        using var host = new TestHost(s => { s.Files.AllowedRoots = [_root]; s.Permissions.AutoApproveSensitive = true; }, withModel: true);
+        host.Model.Reply("`foo` isn't declared in src/app.ts line 3.");
         var result = await host.Say("why is the build failing in citycrep");
         Assert.Equal("ai", result.Route);
+        Assert.Contains(result.Steps, st => st.Tool == "project_build");
+        // The model explained the build it was shown, not one it imagined.
+        Assert.Contains(host.Model.Requests[0].Messages, m => m.Content?.Contains("TS2304") == true);
     }
 
     public void Dispose()

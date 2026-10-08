@@ -7,7 +7,7 @@ import { settingsStore } from "./settings";
 const AR: Record<string, string> = {
   // navigation
   Command: "القيادة", Work: "الشغل", Knowledge: "المعرفة", System: "النظام",
-  Overview: "الرئيسية", Assistant: "المساعد", Tasks: "المهام", Workflows: "المتابعات", Memory: "الذاكرة", Activity: "النشاط", Settings: "الإعدادات",
+  Overview: "الرئيسية", Assistant: "المساعد", Tasks: "المهام", Workflows: "المتابعات", Memory: "الذاكرة", Files: "الملفات", Activity: "النشاط", Settings: "الإعدادات",
   Console: "الكونسول",
   // top bar
   "Core link": "متصل بالنواة", Reconnecting: "بيعيد الاتصال", Online: "أونلاين", Offline: "أوفلاين", "AI ready": "الذكاء جاهز",

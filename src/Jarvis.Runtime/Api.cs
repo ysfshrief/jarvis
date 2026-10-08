@@ -174,8 +174,8 @@ public static class Api
 
         api.MapGet("/entities", (EntityStore entities, string? type, string? q) =>
             Results.Ok(entities.List(type, q).Select(e => new { e.Id, e.Type, e.Name, e.Aliases, e.Notes, e.Source, e.UpdatedAt, memories = entities.MemoryIdsOf(e.Id).Count })));
-        api.MapGet("/entities/{id}", (string id, KnowledgeService knowledge) =>
-            knowledge.Entities.Get(id) is { } e ? Results.Ok(ProfileView(knowledge.Profile(e), knowledge)) : Results.NotFound());
+        api.MapGet("/entities/{id}", (string id, KnowledgeService knowledge, Jarvis.Core.Files.FileIndex files) =>
+            knowledge.Entities.Get(id) is { } e ? Results.Ok(ProfileView(knowledge.Profile(e), knowledge, files)) : Results.NotFound());
         api.MapPost("/entities", (EntityDto dto, KnowledgeService knowledge) => Guard(() =>
         {
             var e = knowledge.Entities.Upsert(dto.Type ?? EntityTypes.Topic, dto.Name ?? "", MemorySources.UserExplicit);
@@ -251,7 +251,20 @@ public static class Api
             {
                 file = f, entities = index.EntitiesOf(id), keyPoints = Jarvis.Core.Files.TextAnalysis.KeySentences(text, 6),
                 preview = text.Length > 4000 ? text[..4000] + "…" : text,
-                previous = File.Exists(f.Path) ? Jarvis.Core.Tools.Builtin.FileCompareTool.PreviousVersion(f.Path) : null,
+                previous = File.Exists(f.Path) && Jarvis.Core.Tools.Builtin.FileCompareTool.PreviousVersion(f.Path) is { } prev ? index.GetByPath(prev) : null,
+            });
+        });
+        // Compares two indexed versions using their indexed text (nothing is re-read from disk).
+        api.MapGet("/files/{id}/compare/{otherId}", (string id, string otherId, Jarvis.Core.Files.FileIndex index) =>
+        {
+            var (a, b) = (index.Get(id), index.Get(otherId));
+            if (a is null || b is null) return Results.NotFound();
+            var (older, newer) = a.ModifiedAt <= b.ModifiedAt ? (a, b) : (b, a);
+            var diff = Jarvis.Core.Files.TextAnalysis.Compare(index.Text(older.Id), index.Text(newer.Id));
+            return Results.Ok(new
+            {
+                older, newer, diff.Added, diff.Removed, diff.Unchanged, diff.Identical,
+                addedLines = diff.AddedLines.Take(60), removedLines = diff.RemovedLines.Take(60),
             });
         });
         api.MapPost("/files/scan", (Jarvis.Core.Files.FileIndexer indexer, ISettingsStore settings, IHostApplicationLifetime life) =>
@@ -535,8 +548,9 @@ public static class Api
         entities = knowledge.Entities.EntitiesOf(m.Id).Select(e => new { e.Id, e.Name, e.Type }),
     };
 
-    private static object ProfileView(EntityProfile p, KnowledgeService knowledge) => new
+    private static object ProfileView(EntityProfile p, KnowledgeService knowledge, Jarvis.Core.Files.FileIndex files) => new
     {
+        files = files.AboutEntity(p.Entity.Id, 12),
         entity = p.Entity,
         memories = p.Memories.Select(m => MemoryView(m, knowledge, null, null)),
         relations = p.Relations,

@@ -189,6 +189,7 @@ public sealed class WorkflowMonitorService(Jarvis.Core.Workflows.WorkflowService
 public sealed class FileIndexService(Jarvis.Core.Files.FileIndexer indexer, ISettingsStore settings, ILogger<FileIndexService> logger) : BackgroundService
 {
     private volatile bool _rescan = true;
+    private readonly SemaphoreSlim _wake = new(0);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -196,9 +197,10 @@ public sealed class FileIndexService(Jarvis.Core.Files.FileIndexer indexer, ISet
         settings.Changed += s =>
         {
             var now = (s.Files.IndexEnabled, string.Join("|", s.Files.IndexRoots));
-            if (now != last) _rescan = true;
+            if (now != last) { _rescan = true; _wake.Release(); }
         };
-        await Task.Delay(TimeSpan.FromSeconds(45), stoppingToken);
+        // Let the PC finish starting up first, unless the user just changed the index settings.
+        await _wake.WaitAsync(TimeSpan.FromSeconds(45), stoppingToken);
         var nextScan = DateTimeOffset.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -224,7 +226,7 @@ public sealed class FileIndexService(Jarvis.Core.Files.FileIndexer indexer, ISet
             {
                 logger.LogWarning(ex, "File indexing failed");
             }
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            await _wake.WaitAsync(TimeSpan.FromSeconds(5), stoppingToken);
         }
     }
 }

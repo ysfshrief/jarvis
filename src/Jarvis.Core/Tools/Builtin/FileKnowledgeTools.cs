@@ -273,7 +273,7 @@ public sealed class FileCompareTool(DocumentExtractor extractor, FileFinder find
             (diff.Added > 0 ? $"\nAdded:\n{Sample(diff.AddedLines)}" : "") + (diff.Removed > 0 ? $"\nRemoved:\n{Sample(diff.RemovedLines)}" : ""),
             $"{newName} مقارنة بـ{oldName} الأقدم: {diff.Added} سطر جديد، {diff.Removed} اتشال، {diff.Unchanged} زي ما هو." +
             (diff.Added > 0 ? $"\nالجديد:\n{Sample(diff.AddedLines)}" : "") + (diff.Removed > 0 ? $"\nاللي اتشال:\n{Sample(diff.RemovedLines)}" : ""));
-        return ToolResult.Ok(msg, new { newer = newPath, older = oldPath, diff.Added, diff.Removed, diff.Unchanged, added = diff.AddedLines.Take(50), removed = diff.RemovedLines.Take(50) });
+        return ToolResult.Ok(msg, new { newer = newPath, older = oldPath, diff.Added, diff.Removed, diff.Unchanged, addedLines = diff.AddedLines.Take(50), removedLines = diff.RemovedLines.Take(50) });
     }
 
     /// <summary>The newest other file in the same folder with the same name stem and type, older than this one.</summary>

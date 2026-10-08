@@ -213,7 +213,7 @@ export interface MemoryItem {
 
 export interface Entity { id: string; type: string; name: string; aliases: string[]; notes?: string | null; source: string; updatedAt: string; memories?: number }
 export interface Relation { id: string; fromId: string; fromName: string; type: string; toId: string; toName: string; source: string; confidence: number; createdAt: string }
-export interface EntityProfile { entity: Entity; memories: MemoryItem[]; relations: Relation[]; tasks: TaskItem[]; reminders: Reminder[] }
+export interface EntityProfile { entity: Entity; memories: MemoryItem[]; relations: Relation[]; tasks: TaskItem[]; reminders: Reminder[]; files: IndexedFile[] }
 export interface MemoryStatus {
   total: number; confirmed: number; inferred: number; entities: number; learning: boolean; enabled: boolean;
   semantic: { available: boolean; model?: string | null; provider?: string | null; indexed: number; total: number; message: string };
@@ -336,7 +336,7 @@ export interface Settings {
     inputDeviceIndex: number;
   };
   permissions: { autoApproveSensitive: boolean; toolOverrides: Record<string, string>; approvalTimeoutSeconds: number };
-  files: { allowedRoots: string[]; maxReadBytes: number };
+  files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
   memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean };
   notifications: {
     toastsEnabled: boolean;
@@ -442,3 +442,20 @@ export interface Workflow {
 }
 export interface WorkflowEvent { id: number; workflowId: string; stepId?: string | null; timestamp: string; kind: string; text: string }
 export interface WorkflowTemplate { id: string; name: string; description: string; steps: string[]; entityType: string }
+
+export interface IndexedFile {
+  id: string; path: string; name: string; ext: string; kind: string; size: number; modifiedAt: string; createdAt?: string | null; indexedAt: string;
+  status: string; note?: string | null; title?: string | null; author?: string | null; pages?: number | null; project?: string | null; textChars: number;
+  metadata: Record<string, string>;
+}
+export interface FileHit { file: IndexedFile; snippet?: string | null; score: number; semantic: boolean }
+export interface IndexProgress { running: boolean; root?: string | null; scanned: number; indexed: number; skipped: number; errors: number; current?: string | null; startedAt?: string | null; finishedAt?: string | null }
+export interface SemanticStatus { available: boolean; model?: string | null; provider?: string | null; indexed: number; total: number; message: string }
+export interface FilesStatus {
+  enabled: boolean; roots: string[]; files: number; withText: number; chars: number; lastIndexed?: string | null;
+  kinds: Record<string, number>; progress: IndexProgress; ocr: { isAvailable: boolean; name: string }; semantic: SemanticStatus;
+}
+export interface FileDetail { file: IndexedFile; entities: Entity[]; keyPoints: string[]; preview: string; previous?: IndexedFile | null }
+export interface FileComparison {
+  older: IndexedFile; newer: IndexedFile; added: number; removed: number; unchanged: number; identical: boolean; addedLines: string[]; removedLines: string[];
+}

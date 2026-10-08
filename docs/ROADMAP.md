@@ -71,7 +71,8 @@ The same matrix is visible in the app under **System → What this build can do*
 | Confirmed vs inferred: AI-initiated and learned items stay unconfirmed until you confirm or reject them | Working |
 | People, organisations, projects and relationships ("Ahmed works at CityCrep"), entity profiles with related tasks | Working |
 | Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real Ollama embedding model |
-| **Next:** conversation summarisation into memory, file entities (with the file index) | Planned |
+| Documents linked to people and organisations (from the file index) | Working |
+| **Next:** conversation summarisation into memory | Planned |
 
 ## Phase 4 — Web agent
 
@@ -94,9 +95,18 @@ The same matrix is visible in the app under **System → What this build can do*
 
 ## Phase 6 — Knowledge & communication
 
-File content index (PDF/DOCX/XLSX/PPTX), semantic search, version comparison; Gmail and Outlook via
-official APIs (OAuth), unified inbox classification, drafting, approval-based sending. Integrations will be
-labelled *supported / partial / official API required / browser automation / not possible*. **Planned.**
+| Capability | Status |
+| --- | --- |
+| Opt-in local file index (Settings → Files): PDF (PdfPig), DOCX/XLSX/PPTX and OpenDocument (safe XML parsing, no macros run), RTF, text and code, ZIP listings, metadata (title, author, pages) | Working |
+| Image text via Windows OCR (Windows.Media.Ocr, offline) | Working on Windows — covered by the Windows CI test |
+| Scanned PDFs (no text layer) | Planned — indexed by name and metadata only for now |
+| Live updates from file-system changes; gentle background scan; protected folders never read | Working |
+| Search by words (Arabic-normalised full text) and by meaning (local embeddings over 1,200-character passages) | Working |
+| "Latest PDF/spreadsheet/file in Downloads", "find documents about X", "summarize X", "compare X with the previous version" (EN/AR) | Working |
+| Key points (extracted sentences, labelled as such); AI summaries written from the document's real text when a model is available | Working |
+| Version detection by name stem (v2, final, dates, "- Copy") and line-level comparison | Working |
+| Files dashboard: index status, search with snippets, latest files, detail with key points, linked people/organisations, compare with earlier version | Working |
+| Gmail and Outlook via official APIs (OAuth), unified inbox classification, drafting, approval-based sending | Planned |
 
 ## Phase 7 — Vision & meeting intelligence
 
