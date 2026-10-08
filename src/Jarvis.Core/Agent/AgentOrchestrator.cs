@@ -39,7 +39,11 @@ public sealed record AgentTurnResult
     public string? FallbackFrom { get; init; }
     /// <summary>True when older turns were condensed to fit the model's context window.</summary>
     public bool ContextTrimmed { get; init; }
+    /// <summary>Memories given to the model for this answer, so the UI can show why it knew something.</summary>
+    public IReadOnlyList<UsedMemory> UsedMemories { get; init; } = [];
 }
+
+public sealed record UsedMemory(string Id, string Kind, string Source, string Content);
 
 public static class TurnPhases
 {
@@ -142,7 +146,7 @@ public sealed class AgentOrchestrator(
         conv.LastActivity = DateTimeOffset.Now;
         if (s.Memory.StoreConversations)
         {
-            var meta = JsonSerializer.Serialize(new { result.Route, result.Model, Steps = result.Steps.Select(s => s with { Data = null }) }, JsonOpts);
+            var meta = JsonSerializer.Serialize(new { result.Route, result.Model, Steps = result.Steps.Select(s => s with { Data = null }), result.UsedMemories, result.FallbackFrom }, JsonOpts);
             conversations.Append(conv.Id, "assistant", result.Reply, result.Lang, input.Source.ToString().ToLowerInvariant(), meta);
         }
         activity.Record(ActivityKinds.Request, Trim(text, 200), status: result.Success ? "ok" : "failed",
@@ -230,6 +234,7 @@ public sealed class AgentOrchestrator(
     {
         var relevant = s.Memory.Enabled ? RelevantMemories(text) : [];
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
+        var used = relevant.Select(m => new UsedMemory(m.Id, m.Kind, m.Source, m.Content.Length > 160 ? m.Content[..159] + "…" : m.Content)).ToList();
         var system = Persona.SystemPrompt(s, lang, input.Source == InputSource.Voice, connectivity.IsOnline,
             presence.Current, relevant, tasks.List().Take(8).ToList(), platform.Description);
 
@@ -308,6 +313,7 @@ public sealed class AgentOrchestrator(
                 {
                     FallbackFrom = fallbackFrom,
                     ContextTrimmed = trimmedAny,
+                    UsedMemories = used,
                 };
             }
 
@@ -328,6 +334,7 @@ public sealed class AgentOrchestrator(
                 {
                     FallbackFrom = fallbackFrom,
                     ContextTrimmed = trimmedAny,
+                    UsedMemories = used,
                 };
             }
 
@@ -358,6 +365,7 @@ public sealed class AgentOrchestrator(
         {
             FallbackFrom = fallbackFrom,
             ContextTrimmed = trimmedAny,
+            UsedMemories = used,
         };
     }
 

@@ -14,11 +14,13 @@ public sealed class ProviderRegistry
     private readonly ISecretStore _secrets;
     private readonly HttpClient _http;
     private readonly ILogger<ProviderRegistry> _logger;
+    private readonly Events.IEventBus? _events;
     private readonly ConcurrentDictionary<string, ProviderStatus> _status = new();
     private IReadOnlyDictionary<string, IChatProvider> _providers = new Dictionary<string, IChatProvider>();
 
-    public ProviderRegistry(ISettingsStore settings, ISecretStore secrets, HttpClient http, ILogger<ProviderRegistry> logger)
+    public ProviderRegistry(ISettingsStore settings, ISecretStore secrets, HttpClient http, ILogger<ProviderRegistry> logger, Events.IEventBus? events = null)
     {
+        _events = events;
         _settings = settings;
         _secrets = secrets;
         _http = http;
@@ -47,7 +49,11 @@ public sealed class ProviderRegistry
             _logger.LogWarning(ex, "Provider check failed for {Provider}", id);
             status = new ProviderStatus(id, false, ex.Message, [], DateTimeOffset.Now);
         }
+        var previous = _status.GetValueOrDefault(id);
         _status[id] = status;
+        // Let the UI refresh its "AI ready" indicators when a provider comes or goes.
+        if (previous is null || previous.Available != status.Available || previous.Models.Count != status.Models.Count)
+            _events?.Publish(Events.EventTypes.AiStatusChanged, new { provider = id, status.Available, models = status.Models.Count, status.Message });
         return status;
     }
 

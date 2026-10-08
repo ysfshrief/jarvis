@@ -38,14 +38,24 @@ public sealed class DashboardWindow : Window
         MinWidth = 720;
         MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(0x07, 0x0B, 0x12));
+        Background = new SolidColorBrush(Color.FromRgb(0x02, 0x06, 0x0C));
         try { Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/jarvis.ico")); } catch { }
 
-        _web = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(0x07, 0x0B, 0x12) };
+        _web = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(0x02, 0x06, 0x0C) };
         _status = new TextBlock
         {
             Text = "Connecting to JARVIS…", Foreground = Brushes.LightGray, FontSize = 16,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        SourceInitialized += (_, _) =>
+        {
+            // Dark title bar to match the HUD (Windows 10 20H1+ / 11).
+            try
+            {
+                var dark = 1;
+                DwmSetWindowAttribute(new System.Windows.Interop.WindowInteropHelper(this).Handle, 20, ref dark, sizeof(int));
+            }
+            catch { }
         };
         var grid = new Grid();
         grid.Children.Add(_status);
@@ -76,26 +86,9 @@ public sealed class DashboardWindow : Window
         {
             if (!_initialized)
             {
-                var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(_paths.DataDir, "webview"));
+                var env = await WebViewHost.EnvironmentAsync(_paths);
                 await _web.EnsureCoreWebView2Async(env);
-                _web.CoreWebView2.Settings.AreDevToolsEnabled = Debugger.IsAttached;
-                _web.CoreWebView2.Settings.IsStatusBarEnabled = false;
-                _web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
-                // External links open in the real browser, never inside JARVIS.
-                _web.CoreWebView2.NewWindowRequested += (_, e) =>
-                {
-                    e.Handled = true;
-                    if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var u) && u.Scheme is "http" or "https")
-                        Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
-                };
-                _web.CoreWebView2.NavigationStarting += (_, e) =>
-                {
-                    if (!e.Uri.StartsWith($"http://127.0.0.1:{_core.Info?.Port}/", StringComparison.OrdinalIgnoreCase) && !e.Uri.StartsWith("about:"))
-                    {
-                        e.Cancel = true;
-                        if (e.Uri.StartsWith("http")) Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
-                    }
-                };
+                WebViewHost.Harden(_web.CoreWebView2, () => _core.Info?.Port);
                 _initialized = true;
             }
             _web.Visibility = Visibility.Visible;
@@ -109,6 +102,9 @@ public sealed class DashboardWindow : Window
             OpenInBrowser(page);
         }
     }
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private void OpenInBrowser(string page) =>
         Process.Start(new ProcessStartInfo(_core.DashboardUrl(page)) { UseShellExecute = true });

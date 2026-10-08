@@ -75,6 +75,13 @@ try {
     Check "read-only command" { Say "run git --version" }
     Check "no-AI question explains how to enable AI" { $r = Say "summarize my week for me"; if ($r -notmatch "Ollama") { throw $r }; "ok" }
     Check "activity log" { $a = Api GET "/api/activity?limit=5"; "$($a.Count) entries" }
+    Check "daily briefing" { $r = Say "what's happening today"; if ($r -notmatch "deterministic") { throw $r }; $r }
+    Check "system metrics" {
+        Api GET "/api/system/metrics" | Out-Null; Start-Sleep 1.2
+        $m = Api GET "/api/system/metrics"
+        if ($null -eq $m.current.cpuPercent -or $null -eq $m.current.memoryPercent) { throw "cpu/memory not reported" }
+        "cpu=$($m.current.cpuPercent)% mem=$($m.current.memoryPercent)% gpu=$($m.current.gpuPercent) source=$($m.source)"
+    }
 
     Start-Sleep 3
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -116,6 +123,19 @@ try {
         }
     }
     Capture "dashboard"
+
+    if (Test-Path (Join-Path $AppDir "JARVIS.exe")) {
+        Check "command console opens with Ctrl+Alt+J" {
+            $before = (Api GET "/api/status").eventClients
+            [System.Windows.Forms.SendKeys]::SendWait("^%j")
+            $deadline = (Get-Date).AddSeconds(20)
+            do { Start-Sleep 1; $now = (Api GET "/api/status").eventClients } while ($now -le $before -and (Get-Date) -lt $deadline)
+            if ($now -le $before) { throw "the console page did not connect (event clients stayed at $before)" }
+            "event clients $before -> $now"
+        }
+        Start-Sleep 2
+        Capture "console"
+    }
 
     Get-ChildItem (Join-Path ([Environment]::GetFolderPath("MyPictures")) "JARVIS") -ErrorAction SilentlyContinue | Copy-Item -Destination $OutDir
     Check "desktop shell running" { $p = Get-Process JARVIS -ErrorAction SilentlyContinue; if (-not $p -and (Test-Path (Join-Path $AppDir "JARVIS.exe"))) { throw "JARVIS.exe not running" }; "ok" }

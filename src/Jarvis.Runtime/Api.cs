@@ -373,6 +373,7 @@ public static class Api
             dataDir = paths.DataDir,
             secretsProtection = secrets.ProtectionName,
             honorific = settings.General.Honorific,
+            honorificAr = settings.General.HonorificAr,
             userName = settings.General.UserName,
         };
     }

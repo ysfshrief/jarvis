@@ -41,6 +41,8 @@ public sealed class AppearanceSettings
     public int OrbSize { get; set; } = 72;
     /// <summary>Show the right-hand context panel on wide screens.</summary>
     public bool ContextPanel { get; set; } = true;
+    /// <summary>Interface language: "en" or "ar" (right-to-left).</summary>
+    public string Language { get; set; } = "en";
 }
 
 public sealed class SoundSettings

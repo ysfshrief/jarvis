@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Risk } from "../api";
 
-export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string }) {
   return (
     <section className={`card ${className}`}>
       {(title || actions) && (
@@ -117,4 +117,85 @@ export function ConfirmButton({ onConfirm, children, prompt, className = "btn bt
       {children}
     </button>
   );
+}
+
+/** Circular HUD gauge with tick ring. value is 0..100 (null = not reported). */
+export function Gauge({ value, label, size = 112, unit = "%", display }: { value: number | null | undefined; label: string; size?: number; unit?: string; display?: string }) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const v = value == null ? 0 : Math.max(0, Math.min(100, value));
+  const tone = value == null ? "" : v >= 90 ? "bad" : v >= 75 ? "warn" : "";
+  return (
+    <div className={`gauge ${tone}`} style={{ width: size, height: size }} title={value == null ? `${label}: not reported by this system` : `${label}: ${Math.round(v)}${unit}`}>
+      <svg viewBox="0 0 100 100" width={size} height={size}>
+        <circle className="g-ticks" cx="50" cy="50" r="48" strokeWidth="2" strokeDasharray="0.6 3.2" />
+        <circle className="g-track" cx="50" cy="50" r={r} strokeWidth="5" />
+        <circle className="g-val" cx="50" cy="50" r={r} strokeWidth="5" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} />
+      </svg>
+      <div className="gauge-center">
+        <div>
+          <div className="gauge-value">{display ?? (value == null ? "—" : Math.round(v))}{value != null && !display && <small>{unit}</small>}</div>
+          <div className="gauge-label">{label}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Minimal SVG sparkline; values are plotted against max (or the data's own max). */
+export function Sparkline({ values, max, height = 56 }: { values: (number | null | undefined)[]; max?: number; height?: number }) {
+  const pts = values.map((v) => v ?? 0);
+  const top = max ?? Math.max(1, ...pts);
+  const n = Math.max(2, pts.length);
+  const coords = pts.map((v, i) => `${(i / (n - 1)) * 100},${40 - (Math.min(v, top) / top) * 38}`);
+  const line = coords.join(" ");
+  return (
+    <svg className="spark" viewBox="0 0 100 40" preserveAspectRatio="none" style={{ height }} aria-hidden>
+      <defs>
+        <linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgb(var(--accent-rgb))" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="rgb(var(--accent-rgb))" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[10, 20, 30].map((y) => <line key={y} className="s-grid" x1="0" x2="100" y1={y} y2={y} />)}
+      {pts.length > 1 && <polygon className="s-fill" points={`0,40 ${line} 100,40`} />}
+      {pts.length > 1 && <polyline className="s-line" points={line} />}
+    </svg>
+  );
+}
+
+export function Meter({ value, tone }: { value: number; tone?: "warn" | "bad" }) {
+  return <div className={`bar ${tone ?? ""}`}><i style={{ width: `${Math.max(0, Math.min(100, value))}%` }} /></div>;
+}
+
+/** Segmented control for small enumerations. */
+export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="seg" role="radiogroup" aria-label={label}>
+      {options.map(([v, text]) => (
+        <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>{text}</button>
+      ))}
+    </div>
+  );
+}
+
+export function PageHead({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className="page-head">
+      <div>
+        <h2>{title}</h2>
+        {sub && <div className="sub">{sub}</div>}
+      </div>
+      {actions && <div className="row wrap">{actions}</div>}
+    </div>
+  );
+}
+
+export function fmtBytes(n: number | null | undefined, perSec = false): string {
+  if (n == null) return "—";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}${perSec ? "/s" : ""}`;
 }

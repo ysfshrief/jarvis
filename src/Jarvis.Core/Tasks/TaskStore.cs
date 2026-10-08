@@ -19,7 +19,8 @@ public static class TaskStates
 
 public static class TaskPriorities
 {
-    public static readonly string[] All = ["low", "normal", "high", "urgent"];
+    public const string Low = "low", Normal = "normal", High = "high", Urgent = "urgent";
+    public static readonly string[] All = [Low, Normal, High, Urgent];
 }
 
 public sealed record TaskItem(

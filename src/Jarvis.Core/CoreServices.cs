@@ -83,6 +83,7 @@ public static class CoreServices
         AddTool<TaskListTool>(services);
         AddTool<TaskCompleteTool>(services);
         AddTool<TaskUpdateTool>(services);
+        AddTool<BriefingTool>(services);
         AddTool<ReminderCreateTool>(services);
         AddTool<ReminderListTool>(services);
         AddTool<ReminderCancelTool>(services);

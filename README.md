@@ -27,20 +27,26 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
 ## First run (5 minutes)
 
 1. Install and start JARVIS. A glowing **orb** appears at the bottom-right and a **tray icon** next to the clock.
-2. Click the orb (or press **Ctrl+Alt+J**) and type a command — no AI needed for these:
+2. Click the orb (or press **Ctrl+Alt+J**) to open the **command console** and type a command — no AI needed for these:
    - `open calculator` · `افتح VS Code` · `close notepad`
    - `remind me in 20 minutes to call Ahmed` · `فكرني بعد ربع ساعة أكلم أحمد`
-   - `add task send the CityCrep proposal` · `what are my tasks`
+   - `add task send the CityCrep proposal with high priority` · `what are my tasks`
+   - `what's happening today?` · `check my priorities` · `إيه اللي ورايا النهارده؟` (a briefing from your real tasks and reminders)
    - `remember that the CityCrep meeting is on Sunday` · `what do you know about CityCrep`
    - `volume 40` · `mute` · `next song` · `take a screenshot` · `how's the system`
    - `run git status` (read-only commands run; anything else asks you first)
    - `open my project citycrep` · `build citycrep` · `why is the build failing?` (uses the project open in your editor)
-3. **Enable conversation (free, private):** install [Ollama](https://ollama.com), then in a terminal run
-   `ollama pull qwen2.5:7b`. JARVIS detects it automatically (Settings → AI). Now you can ask open
-   questions and multi-step requests such as *“open my project folder and tell me why the build is failing”*.
+3. **Enable conversation (free, private):** install [Ollama](https://ollama.com), then download a model from
+   **Settings → AI** (one click; `qwen2.5:7b` recommended) — or run `ollama pull qwen2.5:7b`. JARVIS detects
+   it, reads what each model can do (tools, vision, embeddings) and streams replies as they're written. Now
+   you can ask open questions and multi-step requests such as *“open my project folder and tell me why the
+   build is failing”*.
 4. **Enable voice (optional):** Settings → Voice → download a speech model (`base`, or `small` for better
    Arabic). Then press **Ctrl+Alt+Space** to talk, or turn on the **“Jarvis” wake word**.
-5. Double-click the orb for the **dashboard**: tasks, memory, activity log, permissions and settings.
+5. Double-click the orb for the **dashboard**: a HUD-style home with live system health, your priorities and
+   upcoming reminders, the assistant (with live progress: understanding → analyzing → selecting tool →
+   executing → completed), tasks, memory, system monitor, activity log and a settings control center
+   (appearance, sounds, shortcuts, privacy…). The interface is available in English and Arabic (right-to-left).
 
 ## What makes it different
 

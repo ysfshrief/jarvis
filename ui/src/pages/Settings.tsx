@@ -1,15 +1,37 @@
-import { useEffect, useState } from "react";
-import { Check, Download, KeyRound, RefreshCw, Save, Trash2 } from "lucide-react";
-import { del, get, post, put, type ProviderStatus, type Settings } from "../api";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  Bell, Brain, Check, Cpu, Download, Eye, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
+} from "lucide-react";
+import { del, get, post, put, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
-import { Badge, Card, ConfirmButton, ErrorNote, Field, Toggle, useLoad } from "../components/ui";
+import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, useLoad } from "../components/ui";
+import { applyAppearance, settingsStore } from "../lib/settings";
+import { playCue, type SoundKind } from "../lib/sounds";
+import { tr } from "../lib/i18n";
 
-const TABS = ["General", "AI", "Voice", "Permissions", "Memory", "Notifications", "Security"] as const;
-type Tab = (typeof TABS)[number];
+const SECTIONS = [
+  { id: "general", label: "General", icon: SlidersHorizontal },
+  { id: "voice", label: "Voice", icon: Mic },
+  { id: "ai", label: "AI", icon: Cpu },
+  { id: "memory", label: "Memory", icon: Brain },
+  { id: "security", label: "Security", icon: Shield },
+  { id: "notifications", label: "Notifications", icon: Bell },
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
+  { id: "plugins", label: "Tools & plugins", icon: Plug },
+  { id: "privacy", label: "Privacy", icon: Eye },
+  { id: "system", label: "System", icon: Cpu },
+] as const;
+type SectionId = (typeof SECTIONS)[number]["id"];
+
+function sectionFromHash(): SectionId {
+  const sub = location.hash.replace(/^#\/?settings\/?/, "").split(/[?&/]/)[0];
+  return (SECTIONS.find((s) => s.id === sub)?.id ?? "general") as SectionId;
+}
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<Tab>("General");
+  const [section, setSection] = useState<SectionId>(sectionFromHash);
   const loaded = useLoad(() => get<Settings>("/settings"));
   const [draft, setDraft] = useState<Settings | null>(null);
   const [saved, setSaved] = useState(false);
@@ -17,8 +39,18 @@ export function SettingsPage() {
   const { refresh } = useStatus();
 
   useEffect(() => {
+    const onHash = () => setSection(sectionFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
     if (loaded.data) setDraft(structuredClone(loaded.data));
   }, [loaded.data]);
+  // Appearance previews live; leaving without saving restores the saved look.
+  useEffect(() => {
+    if (draft) applyAppearance(draft.appearance);
+  }, [draft?.appearance]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => applyAppearance(settingsStore.getSnapshot()?.appearance), []);
 
   if (!draft) return <ErrorNote error={loaded.error} />;
   const dirty = JSON.stringify(draft) !== JSON.stringify(loaded.data);
@@ -37,6 +69,7 @@ export function SettingsPage() {
       const result = await put<Settings>("/settings", draft);
       loaded.setData(result);
       setDraft(structuredClone(result));
+      settingsStore.set(result);
       setSaved(true);
       setError(null);
       await refresh();
@@ -45,28 +78,42 @@ export function SettingsPage() {
     }
   };
 
+  const go = (id: SectionId) => { location.hash = `#/settings/${id}`; };
+  const p = { s: draft, set };
+
   return (
     <div className="stack">
-      <div className="row between">
-        <h2>Settings</h2>
-        <div className="row">
-          {saved && !dirty && <span className="muted row"><Check size={14} /> Saved</span>}
-          <button className="btn btn-primary" disabled={!dirty} onClick={save}><Save size={16} /> Save changes</button>
+      <PageHead title={tr("Settings")} sub={tr("Every switch here changes how JARVIS behaves right away once saved.")} actions={saved && !dirty ? <span className="row muted small"><Check size={14} /> {tr("Saved")}</span> : null} />
+      <ErrorNote error={error} />
+      <div className="settings">
+        <nav className="settings-nav" aria-label="Settings sections">
+          {SECTIONS.map((x) => (
+            <button key={x.id} className={section === x.id ? "on" : ""} onClick={() => go(x.id)} aria-current={section === x.id ? "page" : undefined}>
+              <x.icon size={15} /> {tr(x.label)}
+            </button>
+          ))}
+        </nav>
+        <div className="stack">
+          {section === "general" && <General {...p} />}
+          {section === "voice" && <Voice {...p} />}
+          {section === "ai" && <Ai {...p} />}
+          {section === "memory" && <MemorySettings {...p} />}
+          {section === "security" && <Security {...p} />}
+          {section === "notifications" && <Notifications {...p} />}
+          {section === "appearance" && <AppearanceSection {...p} />}
+          {section === "shortcuts" && <Shortcuts {...p} />}
+          {section === "plugins" && <Plugins />}
+          {section === "privacy" && <Privacy {...p} />}
+          {section === "system" && <SystemSection {...p} />}
+          {dirty && (
+            <div className="savebar">
+              <span className="small muted grow">{tr("Unsaved changes")}</span>
+              <button className="btn btn-ghost" onClick={() => loaded.data && setDraft(structuredClone(loaded.data))}><Undo2 size={15} /> {tr("Discard")}</button>
+              <button className="btn btn-primary" onClick={save}><Save size={15} /> {tr("Save changes")}</button>
+            </div>
+          )}
         </div>
       </div>
-      <ErrorNote error={error} />
-      <div className="tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>{t}</button>
-        ))}
-      </div>
-      {tab === "General" && <General s={draft} set={set} />}
-      {tab === "AI" && <Ai s={draft} set={set} />}
-      {tab === "Voice" && <Voice s={draft} set={set} />}
-      {tab === "Permissions" && <Permissions s={draft} set={set} />}
-      {tab === "Memory" && <MemorySettings s={draft} set={set} />}
-      {tab === "Notifications" && <Notifications s={draft} set={set} />}
-      {tab === "Security" && <Security />}
     </div>
   );
 }
@@ -75,7 +122,7 @@ type P = { s: Settings; set: (fn: (s: Settings) => void) => void };
 
 function General({ s, set }: P) {
   return (
-    <Card>
+    <Card title="General">
       <div className="form-grid">
         <Field label="Your name" hint="Optional. Used in greetings.">
           <input className="input" dir="auto" value={s.general.userName} onChange={(e) => set((x) => { x.general.userName = e.target.value; })} />
@@ -93,7 +140,7 @@ function General({ s, set }: P) {
             <option value="ar">Always Egyptian Arabic</option>
           </select>
         </Field>
-        <Field label="Conversation memory window (minutes)" hint="After this much silence, a new conversation context starts.">
+        <Field label="Conversation window (minutes)" hint="After this much silence, a new conversation context starts.">
           <input className="input" type="number" min={1} value={s.general.conversationTimeoutMinutes} onChange={(e) => set((x) => { x.general.conversationTimeoutMinutes = Number(e.target.value); })} />
         </Field>
       </div>
@@ -119,35 +166,44 @@ function Ai({ s, set }: P) {
   const allModels = (id: string) => statuses[id]?.models ?? [];
 
   return (
-    <div className="stack">
-      <Card title="Privacy">
-        <Toggle
-          label="Allow cloud AI"
-          hint="Off = nothing you say leaves this computer. On = providers marked 'cloud' may be used when online, with your own API key."
-          checked={s.ai.allowCloud}
-          onChange={(v) => set((x) => { x.ai.allowCloud = v; })}
-        />
+    <>
+      <Models s={s} set={set} />
+      <Card title="Behaviour">
+        <Toggle label="Allow cloud AI" hint="Off = nothing you say leaves this computer. On = providers marked 'cloud' may be used when online, with your own API key."
+          checked={s.ai.allowCloud} onChange={(v) => set((x) => { x.ai.allowCloud = v; })} />
+        <Toggle label="Stream replies as they're written" hint="Shows text word by word. Off waits for the complete answer."
+          checked={s.ai.streamResponses} onChange={(v) => set((x) => { x.ai.streamResponses = v; })} />
+        <div className="form-grid">
+          <Field label="Local context window" hint="How much conversation local models see. Bigger remembers more but is slower and uses more memory.">
+            <select className="input" value={s.ai.localContextTokens} onChange={(e) => set((x) => { x.ai.localContextTokens = Number(e.target.value); })}>
+              {[4096, 8192, 16384, 32768].map((n) => <option key={n} value={n}>{n / 1024}K tokens{n === 8192 ? " (recommended)" : ""}</option>)}
+            </select>
+          </Field>
+          <Field label="Max tool steps per request" hint="JARVIS stops and checks in after this many actions.">
+            <input className="input" type="number" min={1} max={30} value={s.ai.maxAgentSteps} onChange={(e) => set((x) => { x.ai.maxAgentSteps = Number(e.target.value); })} />
+          </Field>
+          <Field label="Model timeout (seconds)" hint="A model that takes longer is treated as failed and the next one is tried.">
+            <input className="input" type="number" min={10} value={s.ai.requestTimeoutSeconds} onChange={(e) => set((x) => { x.ai.requestTimeoutSeconds = Number(e.target.value); })} />
+          </Field>
+        </div>
       </Card>
       <Card title="Providers">
-        <p className="muted small">
-          Free and local: install <strong>Ollama</strong> (ollama.com) and run <code>ollama pull qwen2.5:7b</code>, or use LM Studio's local server. Any OpenAI-compatible server works.
-        </p>
         {s.ai.providers.map((p, i) => {
           const st = statuses[p.id];
           return (
             <div key={p.id} className="provider">
               <div className="row between wrap">
-                <div className="row">
+                <div className="row wrap">
                   <strong>{p.name}</strong>
                   <Badge tone={p.isLocal ? "good" : "warn"}>{p.isLocal ? "local" : "cloud"}</Badge>
                   {st && <Badge tone={st.available ? "good" : "bad"}>{st.available ? `${st.models.length} models` : "unavailable"}</Badge>}
                 </div>
                 <div className="row">
-                  <button className="btn btn-ghost" onClick={() => check(p.id)} disabled={!p.enabled} title="Test connection"><RefreshCw size={14} /> Test</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => check(p.id)} disabled={!p.enabled} title="Test connection"><RefreshCw size={13} /> Test</button>
                   <Toggle label="Enabled" checked={p.enabled} onChange={(v) => set((x) => { x.ai.providers[i].enabled = v; })} />
                 </div>
               </div>
-              {st && !st.available && <div className="muted small">{st.message}</div>}
+              {st && !st.available && <div className="small muted">{st.message}</div>}
               {p.kind !== "anthropic" && (
                 <Field label="Server URL">
                   <input className="input mono" value={p.baseUrl} onChange={(e) => set((x) => { x.ai.providers[i].baseUrl = e.target.value; })} />
@@ -159,12 +215,12 @@ function Ai({ s, set }: P) {
                   {secrets.data?.names.includes(p.apiKeySecret) ? (
                     <>
                       <Badge tone="good">API key stored ({secrets.data.protection})</Badge>
-                      <button className="btn btn-ghost" onClick={async () => { await del(`/secrets/${p.apiKeySecret}`); void secrets.reload(); }}><Trash2 size={14} /> Remove</button>
+                      <button className="btn btn-ghost btn-sm" onClick={async () => { await del(`/secrets/${p.apiKeySecret}`); void secrets.reload(); }}><Trash2 size={13} /> Remove</button>
                     </>
                   ) : (
                     <>
                       <input className="input grow mono" type="password" placeholder="Paste API key (stored encrypted, never shown again)" value={keys[p.id] ?? ""} onChange={(e) => setKeys((k) => ({ ...k, [p.id]: e.target.value }))} />
-                      <button className="btn" disabled={!keys[p.id]} onClick={async () => { await put(`/secrets/${p.apiKeySecret}`, { value: keys[p.id] }); setKeys((k) => ({ ...k, [p.id]: "" })); void secrets.reload(); }}>Save key</button>
+                      <button className="btn btn-sm" disabled={!keys[p.id]} onClick={async () => { await put(`/secrets/${p.apiKeySecret}`, { value: keys[p.id] }); setKeys((k) => ({ ...k, [p.id]: "" })); void secrets.reload(); }}>Save key</button>
                     </>
                   )}
                 </div>
@@ -174,8 +230,9 @@ function Ai({ s, set }: P) {
         })}
       </Card>
       <Card title="Which model does what">
-        <p className="muted small">
-          Direct commands never use AI. Other requests are classified (general / reasoning / coding) and go to the first available choice below, falling back to “general”. Empty model = the provider's first model.
+        <p className="small muted">
+          Direct commands never use AI. Other requests are classified (general / reasoning / coding / vision) and go to the first available choice, then fall back down the list.
+          An empty model means “the best installed one” (tool-capable, ~7-8B preferred).
         </p>
         {Object.entries(s.ai.roles).map(([role, bindings]) => (
           <div key={role} className="role">
@@ -183,29 +240,116 @@ function Ai({ s, set }: P) {
             <div className="stack-sm grow">
               {bindings.map((b, j) => (
                 <div key={j} className="row wrap">
-                  <span className="muted small">{j + 1}.</span>
+                  <span className="meta">{j + 1}.</span>
                   <select className="input" value={b.provider} onChange={(e) => set((x) => { x.ai.roles[role][j].provider = e.target.value; })}>
                     {s.ai.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
-                  <input className="input mono grow" list={`models-${role}-${j}`} placeholder="(first available)" value={b.model} onChange={(e) => set((x) => { x.ai.roles[role][j].model = e.target.value; })} />
+                  <input className="input mono grow" list={`models-${role}-${j}`} placeholder="(best installed)" value={b.model} onChange={(e) => set((x) => { x.ai.roles[role][j].model = e.target.value; })} />
                   <datalist id={`models-${role}-${j}`}>{allModels(b.provider).map((m) => <option key={m} value={m} />)}</datalist>
-                  <button className="btn btn-ghost" onClick={() => set((x) => { x.ai.roles[role].splice(j, 1); })} aria-label="Remove"><Trash2 size={14} /></button>
+                  <button className="btn btn-ghost btn-icon" onClick={() => set((x) => { x.ai.roles[role].splice(j, 1); })} aria-label="Remove"><Trash2 size={14} /></button>
                 </div>
               ))}
-              <button className="btn btn-ghost small" onClick={() => set((x) => { x.ai.roles[role].push({ provider: s.ai.providers[0]?.id ?? "", model: "" }); })}>+ Add fallback</button>
+              <button className="btn btn-ghost btn-sm" style={{ alignSelf: "flex-start" }} onClick={() => set((x) => { x.ai.roles[role].push({ provider: s.ai.providers[0]?.id ?? "", model: "" }); })}>+ Add fallback</button>
             </div>
           </div>
         ))}
-        <div className="form-grid">
-          <Field label="Max tool steps per request" hint="JARVIS stops and checks in after this many actions.">
-            <input className="input" type="number" min={1} max={30} value={s.ai.maxAgentSteps} onChange={(e) => set((x) => { x.ai.maxAgentSteps = Number(e.target.value); })} />
-          </Field>
-          <Field label="Model timeout (seconds)">
-            <input className="input" type="number" min={10} value={s.ai.requestTimeoutSeconds} onChange={(e) => set((x) => { x.ai.requestTimeoutSeconds = Number(e.target.value); })} />
-          </Field>
-        </div>
       </Card>
-    </div>
+    </>
+  );
+}
+
+/** Installed local models with their real capabilities, and one-click downloads of recommended ones. */
+function Models({ s, set }: P) {
+  const models = useLoad(() => get<ModelsResponse>("/ai/models"));
+  const [pulls, setPulls] = useState<Record<string, PullState>>({});
+  const [custom, setCustom] = useState("");
+  const [error, setError] = useState<unknown>(null);
+  useEffect(() => {
+    if (models.data) setPulls(Object.fromEntries(models.data.pulls.map((p) => [p.model, p])));
+  }, [models.data]);
+  useEvents(["ai.model"], (e) => {
+    const st = e.data as PullState;
+    setPulls((p) => ({ ...p, [st.model]: st }));
+    if (st.done) void models.reload();
+  });
+  const pull = async (provider: string, model: string) => {
+    try { setError(null); await post(`/ai/providers/${provider}/pull`, { model }); } catch (e) { setError(e); }
+  };
+  const general = s.ai.roles.general ?? [];
+  const pinned = (provider: string, model: string) => general.some((b) => b.provider === provider && b.model === model);
+  const pin = (provider: string, model: string) => set((x) => {
+    const list = x.ai.roles.general ?? (x.ai.roles.general = []);
+    const i = list.findIndex((b) => b.provider === provider);
+    if (i >= 0) list[i].model = model; else list.unshift({ provider, model });
+  });
+
+  const pullable = models.data?.providers.find((p) => p.canPull && p.reachable);
+  const installed = new Set(models.data?.providers.flatMap((p) => p.models.map((m) => m.name)) ?? []);
+
+  return (
+    <Card title="Local models" actions={<button className="btn btn-ghost btn-sm" onClick={() => models.reload()}><RefreshCw size={13} /> Refresh</button>}>
+      <ErrorNote error={error ?? models.error} />
+      {models.data?.providers.map((p) => (
+        <div key={p.provider} className="stack-sm">
+          <div className="row"><strong className="small">{p.name}</strong>{!p.reachable && <Badge tone="bad">not reachable</Badge>}</div>
+          {!p.reachable && p.provider === "ollama" && (
+            <div className="note">Ollama isn't running. Install it free from <code>ollama.com</code>; JARVIS will detect it automatically.</div>
+          )}
+          {p.models.map((m) => (
+            <div key={m.name} className="model-row">
+              <span className="mono grow">{m.name}</span>
+              {m.parameterSize && <span className="meta">{m.parameterSize}</span>}
+              {m.sizeBytes ? <span className="meta">{fmtBytes(m.sizeBytes)}</span> : null}
+              {m.contextLength ? <span className="meta">{Math.round(m.contextLength / 1024)}K ctx</span> : null}
+              {m.capabilities.map((c) => <Badge key={c} tone={c === "tools" ? "good" : c === "vision" ? "info" : c === "embedding" ? "accent" : "neutral"}>{c}</Badge>)}
+              {!m.capabilitiesReported && <Badge tone="neutral" title="This Ollama version doesn't report capabilities; guessed from the name">guessed</Badge>}
+              {!m.capabilities.includes("embedding") && (
+                pinned(p.provider, m.name)
+                  ? <Badge tone="good">default</Badge>
+                  : <button className="btn btn-ghost btn-sm" onClick={() => pin(p.provider, m.name)} title="Use for general conversation">Use</button>
+              )}
+            </div>
+          ))}
+          {p.reachable && p.models.length === 0 && <div className="small muted">No models installed yet — download one below.</div>}
+        </div>
+      ))}
+      {pullable && (
+        <>
+          <div className="divider" />
+          <div className="hud-label">Recommended (free)</div>
+          {models.data?.recommended.map((r) => {
+            const st = pulls[r.name];
+            const has = installed.has(r.name) || installed.has(`${r.name}:latest`);
+            const running = st && !st.done;
+            return (
+              <div key={r.name} className="model-row">
+                <div className="grow">
+                  <div><span className="mono">{r.name}</span> <span className="meta">{r.size} · {r.purpose}</span></div>
+                  <div className="small muted">{r.notes}</div>
+                  {running && (
+                    <div className="stack-sm" style={{ marginTop: 6 }}>
+                      <progress max={st.total ?? 1} value={st.completed ?? 0} />
+                      <span className="meta">{st.status}{st.total ? ` · ${fmtBytes(st.completed ?? 0)} / ${fmtBytes(st.total)}` : ""}</span>
+                    </div>
+                  )}
+                  {st?.error && <div className="error-note small">{st.error}</div>}
+                </div>
+                {has ? <Badge tone="good">installed</Badge> : (
+                  <button className="btn btn-sm" disabled={!!running} onClick={() => pull(pullable.provider, r.name)}><Download size={13} /> {running ? "Downloading" : "Download"}</button>
+                )}
+              </div>
+            );
+          })}
+          <form className="row" onSubmit={(e) => { e.preventDefault(); if (custom.trim()) { void pull(pullable.provider, custom.trim()); setCustom(""); } }}>
+            <input className="input mono grow" placeholder="Any Ollama model, e.g. llama3.1:8b" value={custom} onChange={(e) => setCustom(e.target.value)} />
+            <button className="btn btn-sm" disabled={!custom.trim()} type="submit"><Download size={13} /> Pull</button>
+          </form>
+          {Object.values(pulls).filter((x) => !models.data?.recommended.some((r) => r.name === x.model) && !x.done).map((x) => (
+            <div key={x.model} className="stack-sm"><span className="meta">{x.model}: {x.status}</span><progress max={x.total ?? 1} value={x.completed ?? 0} /></div>
+          ))}
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -224,9 +368,9 @@ function Voice({ s, set }: P) {
   const arVoices = voices.data?.voices.filter((v) => v.language.startsWith("ar")) ?? [];
 
   return (
-    <div className="stack">
+    <>
       <Card title="Speech recognition (local Whisper)">
-        <p className="muted small">Runs entirely on this computer. Models download once from the whisper.cpp project. For Egyptian Arabic, “small” is noticeably better than “base”.</p>
+        <p className="small muted">Runs entirely on this computer. Models download once from the whisper.cpp project. For Egyptian Arabic, “small” is noticeably better than “base”.</p>
         <ul className="list list-rows">
           {models.data?.models.map((m) => {
             const pr = progress[m.name];
@@ -234,12 +378,12 @@ function Voice({ s, set }: P) {
               <li key={m.name}>
                 <input type="radio" name="stt" aria-label={`Use ${m.name}`} checked={s.voice.sttModel === m.name} disabled={!m.installed} onChange={() => set((x) => { x.voice.sttModel = m.name; })} />
                 <div className="grow">
-                  <strong>{m.name}</strong> <span className="muted small">~{Math.round(m.approxBytes / 1e6)} MB</span>
-                  <div className="muted small">{m.description}</div>
+                  <strong>{m.name}</strong> <span className="meta">~{Math.round(m.approxBytes / 1e6)} MB</span>
+                  <div className="small muted">{m.description}</div>
                   {pr && !m.installed && (pr.error ? <div className="error-note">{pr.error}</div> : <progress max={pr.total ?? m.approxBytes} value={pr.bytes} />)}
                 </div>
                 {m.installed ? <Badge tone="good">installed</Badge> : (
-                  <button className="btn" disabled={models.data?.downloading} onClick={() => post(`/voice/models/${m.name}/download`).then(() => models.reload())}><Download size={14} /> Download</button>
+                  <button className="btn btn-sm" disabled={models.data?.downloading} onClick={() => post(`/voice/models/${m.name}/download`).then(() => models.reload())}><Download size={13} /> Download</button>
                 )}
               </li>
             );
@@ -247,7 +391,7 @@ function Voice({ s, set }: P) {
         </ul>
       </Card>
       <Card title="Wake word and conversation">
-        <Toggle label="Listen for “Jarvis” (wake word)" hint="Keeps the microphone open while JARVIS runs. The orb shows when it's listening. Off by default." checked={s.voice.wakeWordEnabled} onChange={(v) => set((x) => { x.voice.wakeWordEnabled = v; })} />
+        <Toggle label="Listen for “Jarvis” (wake word)" hint="Keeps the microphone open while JARVIS runs. The orb and the top bar show when it's listening. Off by default." checked={s.voice.wakeWordEnabled} onChange={(v) => set((x) => { x.voice.wakeWordEnabled = v; })} />
         <div className="form-grid">
           <Field label="Wake words" hint="Comma separated. Arabic spellings are recognised too.">
             <input className="input" dir="auto" value={s.voice.wakeWords.join(", ")} onChange={(e) => set((x) => { x.voice.wakeWords = e.target.value.split(",").map((w) => w.trim()).filter(Boolean); })} />
@@ -266,7 +410,7 @@ function Voice({ s, set }: P) {
       <Card title="Spoken replies">
         <Toggle label="Speak replies" checked={s.voice.ttsEnabled} onChange={(v) => set((x) => { x.voice.ttsEnabled = v; })} />
         <Toggle label="Only speak when I used my voice" checked={s.voice.speakOnlyForVoiceInput} onChange={(v) => set((x) => { x.voice.speakOnlyForVoiceInput = v; })} />
-        {!voices.data?.available && <p className="muted small">No speech voices available on this system.</p>}
+        {!voices.data?.available && <p className="small muted">No speech voices available on this system.</p>}
         <div className="form-grid">
           <Field label="English voice">
             <select className="input" value={s.voice.voiceEn} onChange={(e) => set((x) => { x.voice.voiceEn = e.target.value; })}>
@@ -284,34 +428,12 @@ function Voice({ s, set }: P) {
             <input className="input" type="number" step={0.1} min={0.5} max={2} value={s.voice.rate} onChange={(e) => set((x) => { x.voice.rate = Number(e.target.value); })} />
           </Field>
         </div>
-        <button className="btn" onClick={() => post("/voice/speak", { text: "Good evening, Sir. All systems are operational." })}>Test English voice</button>{" "}
-        <button className="btn" onClick={() => post("/voice/speak", { text: "مساء الخير يا فندم، كل حاجة شغالة تمام.", lang: "ar" })}>جرب الصوت العربي</button>
+        <div className="row wrap">
+          <button className="btn btn-sm" onClick={() => post("/voice/speak", { text: "Good evening, Sir. All systems are operational." })}>Test English voice</button>
+          <button className="btn btn-sm" onClick={() => post("/voice/speak", { text: "مساء الخير يا فندم، كل حاجة شغالة تمام.", lang: "ar" })}>جرب الصوت العربي</button>
+        </div>
       </Card>
-    </div>
-  );
-}
-
-function Permissions({ s, set }: P) {
-  return (
-    <div className="stack">
-      <Card title="Approvals">
-        <Toggle
-          label="Run sensitive actions without asking"
-          hint="Sensitive = changing files, running programs, typing into apps. Critical actions (deleting, power, destructive commands, sending) always ask."
-          checked={s.permissions.autoApproveSensitive}
-          onChange={(v) => set((x) => { x.permissions.autoApproveSensitive = v; })}
-        />
-        <Field label="Approval timeout (seconds)" hint="If you don't answer, the action is not taken.">
-          <input className="input" type="number" min={15} value={s.permissions.approvalTimeoutSeconds} onChange={(e) => set((x) => { x.permissions.approvalTimeoutSeconds = Number(e.target.value); })} />
-        </Field>
-        <p className="muted small">Per-tool permissions are in <a href="#/system">System → Tools and permissions</a>.</p>
-      </Card>
-      <Card title="Files">
-        <Field label="Folders JARVIS may read freely" hint="One per line. Empty = your user folder. Writing anywhere still asks; system folders and credential files are always protected.">
-          <textarea className="input mono" rows={4} value={s.files.allowedRoots.join("\n")} onChange={(e) => set((x) => { x.files.allowedRoots = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean); })} />
-        </Field>
-      </Card>
-    </div>
+    </>
   );
 }
 
@@ -326,7 +448,7 @@ const MEMORY_KINDS: [string, string][] = [
 
 function MemorySettings({ s, set }: P) {
   return (
-    <Card>
+    <Card title="Memory">
       <Toggle label="Long-term memory" hint="When off, JARVIS won't store or use memories." checked={s.memory.enabled} onChange={(v) => set((x) => { x.memory.enabled = v; })} />
       <Toggle label="Keep conversation history" checked={s.memory.storeConversations} onChange={(v) => set((x) => { x.memory.storeConversations = v; })} />
       <Field label="Delete conversations older than (days)" hint="0 keeps them forever.">
@@ -341,10 +463,6 @@ function MemorySettings({ s, set }: P) {
           </label>
         ))}
       </div>
-      <p className="muted small">
-        Learning your patterns automatically is not active in this version (planned for Phase 8). When it arrives, learned items will be
-        stored as unconfirmed, low-confidence hints that you can review and delete.
-      </p>
       <div className="row">
         <ConfirmButton prompt="Delete all conversation history?" onConfirm={() => void del("/conversations")}><Trash2 size={14} /> Delete conversation history</ConfirmButton>
       </div>
@@ -353,30 +471,191 @@ function MemorySettings({ s, set }: P) {
 }
 
 function Notifications({ s, set }: P) {
+  const cues: [SoundKind, string, string][] = [
+    ["wake", "Wake", "When JARVIS starts listening"],
+    ["accepted", "Accepted", "When a request is received"],
+    ["processing", "Processing", "A soft tick for each action (off by default)"],
+    ["completed", "Completed", "When a request finishes"],
+    ["warning", "Warning", "When an approval is needed"],
+    ["error", "Error", "When something fails"],
+    ["notification", "Notification", "When a notification is delivered"],
+  ];
   return (
-    <Card>
-      <Toggle label="Windows notifications" checked={s.notifications.toastsEnabled} onChange={(v) => set((x) => { x.notifications.toastsEnabled = v; })} />
-      <Toggle label="Speak important notifications" checked={s.notifications.speakImportant} onChange={(v) => set((x) => { x.notifications.speakImportant = v; })} />
-      <Toggle label="Hold non-urgent notifications during meetings" checked={s.notifications.holdDuringMeetings} onChange={(v) => set((x) => { x.notifications.holdDuringMeetings = v; })} />
-      <Toggle label="Hold non-urgent notifications during fullscreen apps and presentations" checked={s.notifications.holdDuringFullscreen} onChange={(v) => set((x) => { x.notifications.holdDuringFullscreen = v; })} />
-      <div className="form-grid">
-        <Field label="Quiet hours from" hint="24h, e.g. 23:00. Critical alerts still come through.">
-          <input className="input" type="time" value={s.notifications.quietHoursStart} onChange={(e) => set((x) => { x.notifications.quietHoursStart = e.target.value; })} />
+    <>
+      <Card title="Notifications">
+        <Toggle label="Windows notifications" checked={s.notifications.toastsEnabled} onChange={(v) => set((x) => { x.notifications.toastsEnabled = v; })} />
+        <Toggle label="Speak important notifications" checked={s.notifications.speakImportant} onChange={(v) => set((x) => { x.notifications.speakImportant = v; })} />
+        <Toggle label="Hold non-urgent notifications during meetings" checked={s.notifications.holdDuringMeetings} onChange={(v) => set((x) => { x.notifications.holdDuringMeetings = v; })} />
+        <Toggle label="Hold non-urgent notifications during fullscreen apps and presentations" checked={s.notifications.holdDuringFullscreen} onChange={(v) => set((x) => { x.notifications.holdDuringFullscreen = v; })} />
+        <div className="form-grid">
+          <Field label="Quiet hours from" hint="24h, e.g. 23:00. Critical alerts still come through.">
+            <input className="input" type="time" value={s.notifications.quietHoursStart} onChange={(e) => set((x) => { x.notifications.quietHoursStart = e.target.value; })} />
+          </Field>
+          <Field label="Quiet hours until">
+            <input className="input" type="time" value={s.notifications.quietHoursEnd} onChange={(e) => set((x) => { x.notifications.quietHoursEnd = e.target.value; })} />
+          </Field>
+        </div>
+      </Card>
+      <Card title="Interface sounds">
+        <Toggle label="Play interface sounds" hint="Short synthesized cues from the dashboard and command console while they're open. Off silences everything." checked={s.sounds.enabled} onChange={(v) => set((x) => { x.sounds.enabled = v; })} />
+        <Field label={`Volume ${Math.round(s.sounds.volume * 100)}%`}>
+          <input type="range" min={0} max={1} step={0.05} value={s.sounds.volume} disabled={!s.sounds.enabled} onChange={(e) => set((x) => { x.sounds.volume = Number(e.target.value); })} />
         </Field>
-        <Field label="Quiet hours until">
-          <input className="input" type="time" value={s.notifications.quietHoursEnd} onChange={(e) => set((x) => { x.notifications.quietHoursEnd = e.target.value; })} />
-        </Field>
+        {cues.map(([k, label, hint]) => (
+          <div key={k} className="row">
+            <div className="grow"><Toggle label={label} hint={hint} checked={s.sounds[k]} onChange={(v) => set((x) => { x.sounds[k] = v; })} /></div>
+            <button className="btn btn-ghost btn-sm" disabled={!s.sounds.enabled} onClick={() => playCue(k, s.sounds.volume)}>Play</button>
+          </div>
+        ))}
+      </Card>
+    </>
+  );
+}
+
+function AppearanceSection({ s, set }: P) {
+  const a = s.appearance;
+  const accents: [Settings["appearance"]["accent"], string, string][] = [
+    ["cyan", "Cyan", "#3fd0ff"], ["amber", "Amber", "#ffba52"], ["violet", "Violet", "#aa8cff"], ["green", "Green", "#46e8aa"],
+  ];
+  return (
+    <Card title="Appearance">
+      <p className="small muted">Changes preview immediately; save to keep them (the desktop orb follows too).</p>
+      <Row label="Interface language" hint="العربية switches the whole interface to right-to-left. Replies follow Settings → General → Reply language.">
+        <Segmented label="Interface language" value={a.language} onChange={(v) => set((x) => { x.appearance.language = v; })} options={[["en", "English"], ["ar", "العربية"]]} />
+      </Row>
+      <Row label="Theme" hint="Dark is the HUD; light suits bright rooms; auto follows Windows.">
+        <Segmented label="Theme" value={a.theme} onChange={(v) => set((x) => { x.appearance.theme = v; })} options={[["dark", "Dark"], ["light", "Light"], ["auto", "Auto"]]} />
+      </Row>
+      <Row label="Energy colour">
+        <div className="swatches" role="radiogroup" aria-label="Energy colour">
+          {accents.map(([v, label, hex]) => (
+            <button key={v} type="button" role="radio" aria-checked={a.accent === v} aria-label={label} title={label}
+              className={`swatch ${a.accent === v ? "on" : ""}`} style={{ background: hex, color: hex }} onClick={() => set((x) => { x.appearance.accent = v; })} />
+          ))}
+        </div>
+      </Row>
+      <Row label="Motion" hint="Reduced keeps state changes but stops ambient motion; Off removes all animation.">
+        <Segmented label="Motion" value={a.motion} onChange={(v) => set((x) => { x.appearance.motion = v; })} options={[["full", "Full"], ["reduced", "Reduced"], ["off", "Off"]]} />
+      </Row>
+      <Row label="Density">
+        <Segmented label="Density" value={a.density} onChange={(v) => set((x) => { x.appearance.density = v; })} options={[["comfortable", "Comfortable"], ["compact", "Compact"]]} />
+      </Row>
+      <Row label={`Text size ${Math.round(a.textScale * 100)}%`}>
+        <input type="range" min={0.85} max={1.4} step={0.05} value={a.textScale} onChange={(e) => set((x) => { x.appearance.textScale = Number(e.target.value); })} />
+      </Row>
+      <Row label={`Desktop orb size ${a.orbSize}px`}>
+        <input type="range" min={48} max={128} step={4} value={a.orbSize} onChange={(e) => set((x) => { x.appearance.orbSize = Number(e.target.value); })} />
+      </Row>
+      <Toggle label="Holographic grid and scan lines" checked={a.hudEffects} onChange={(v) => set((x) => { x.appearance.hudEffects = v; })} />
+      <Toggle label="Context panel on wide screens" hint="The right-hand panel with what's happening now and next." checked={a.contextPanel} onChange={(v) => set((x) => { x.appearance.contextPanel = v; })} />
+    </Card>
+  );
+}
+
+function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="toggle-row" style={{ cursor: "default" }}>
+      <span className="toggle-text"><span>{label}</span>{hint && <small>{hint}</small>}</span>
+      {children}
+    </div>
+  );
+}
+
+function Shortcuts({ s, set }: P) {
+  const items: [keyof Settings["shortcuts"], string, string][] = [
+    ["commandConsole", "Command console", "Opens the cinematic command console from anywhere."],
+    ["pushToTalk", "Push to talk", "Starts listening for one command."],
+    ["dashboard", "Open dashboard", "Optional."],
+  ];
+  return (
+    <Card title="Keyboard shortcuts">
+      <p className="small muted">Global shortcuts work in every app. Click a box and press the new combination (it must include Ctrl, Alt, Shift or Win). If another app already owns a combination, the tray icon tells you.</p>
+      {items.map(([k, label, hint]) => (
+        <Row key={k} label={label} hint={hint}>
+          <div className="row">
+            <ShortcutInput value={s.shortcuts[k]} onChange={(v) => set((x) => { x.shortcuts[k] = v; })} />
+            {s.shortcuts[k] && <button className="btn btn-ghost btn-icon" onClick={() => set((x) => { x.shortcuts[k] = ""; })} aria-label={`Clear ${label}`}><Trash2 size={14} /></button>}
+          </div>
+        </Row>
+      ))}
+      <Row label="Inside the dashboard" hint="Ctrl+K or / opens the console; Esc closes it."><span className="kbd">Ctrl K</span></Row>
+    </Card>
+  );
+}
+
+function ShortcutInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [recording, setRecording] = useState(false);
+  return (
+    <input
+      className="input shortcut-input"
+      readOnly
+      value={recording ? "Press keys…" : value || "None"}
+      onFocus={() => setRecording(true)}
+      onBlur={() => setRecording(false)}
+      onKeyDown={(e) => {
+        e.preventDefault();
+        if (e.key === "Escape") { (e.target as HTMLInputElement).blur(); return; }
+        const combo = comboFrom(e);
+        if (combo) { onChange(combo); (e.target as HTMLInputElement).blur(); }
+      }}
+      aria-label="Shortcut"
+      style={{ width: 190 }}
+    />
+  );
+}
+
+function comboFrom(e: React.KeyboardEvent): string | null {
+  const key = e.key;
+  if (["Control", "Alt", "Shift", "Meta"].includes(key)) return null;
+  const mods = [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Win"].filter(Boolean) as string[];
+  if (mods.length === 0) return null;
+  const name = key === " " ? "Space" : /^F\d{1,2}$/.test(key) ? key : key.length === 1 ? key.toUpperCase() : null;
+  if (!name || !/^([A-Z0-9]|Space|F\d{1,2})$/.test(name)) return null;
+  return [...mods, name].join("+");
+}
+
+function Plugins() {
+  const tools = useLoad(() => get<ToolInfo[]>("/tools"));
+  return (
+    <Card title="Tools & plugins">
+      <p className="small muted">
+        Everything JARVIS can do is a tool with a declared risk. Safe tools run immediately; sensitive tools ask first unless you allow them; critical actions
+        (deleting, power, destructive commands, sending) always ask, whatever you choose here. Third-party and generated plugins will appear here with the
+        permissions they request — never with unrestricted access.
+      </p>
+      <div className="table-wrap">
+        <table className="table">
+          <thead><tr><th>Tool</th><th>What it does</th><th>Risk</th><th>Permission</th></tr></thead>
+          <tbody>
+            {tools.data?.map((t) => (
+              <tr key={t.name}>
+                <td className="mono small nowrap">{t.name} {t.requiresInternet && <Badge tone="info">web</Badge>}</td>
+                <td className="small">{t.description}</td>
+                <td><RiskBadge risk={t.risk} /></td>
+                <td>
+                  <select className="input input-sm" value={t.policy} onChange={async (e) => { await put(`/tools/${t.name}/policy`, { policy: e.target.value }); void tools.reload(); }}>
+                    <option value="Default">Default</option>
+                    <option value="Allow">Always allow</option>
+                    <option value="Ask">Always ask</option>
+                    <option value="Block">Block</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </Card>
   );
 }
 
-function Security() {
+function Security({ s, set }: P) {
   const { status, refresh } = useStatus();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
+  const secrets = useLoad(() => get<{ names: string[]; protection: string }>("/secrets"));
   const apply = async (newPin: string) => {
     try {
       await put("/auth/pin", { currentPin: current || null, newPin });
@@ -390,26 +669,115 @@ function Security() {
     }
   };
   return (
-    <Card title="Dashboard PIN">
-      <p className="muted small">
-        A PIN locks this dashboard and the local API after inactivity. API keys are always stored encrypted ({status?.secretsProtection}). JARVIS's API only accepts connections from this computer.
-      </p>
-      <div className="form-grid">
-        {status?.pinSet && (
-          <Field label="Current PIN">
-            <input className="input" type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(e.target.value)} />
-          </Field>
-        )}
-        <Field label={status?.pinSet ? "New PIN" : "PIN"} hint="4–32 characters.">
-          <input className="input" type="password" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value)} />
+    <>
+      <Card title="Approvals">
+        <Toggle label="Run sensitive actions without asking" hint="Sensitive = changing files, running programs, typing into apps. Critical actions always ask."
+          checked={s.permissions.autoApproveSensitive} onChange={(v) => set((x) => { x.permissions.autoApproveSensitive = v; })} />
+        <Field label="Approval timeout (seconds)" hint="If you don't answer, the action is not taken.">
+          <input className="input" type="number" min={15} value={s.permissions.approvalTimeoutSeconds} onChange={(e) => set((x) => { x.permissions.approvalTimeoutSeconds = Number(e.target.value); })} />
         </Field>
-      </div>
-      <div className="row">
-        <button className="btn btn-primary" disabled={next.length < 4} onClick={() => apply(next)}>{status?.pinSet ? "Change PIN" : "Set PIN"}</button>
-        {status?.pinSet && <button className="btn" disabled={!current} onClick={() => apply("")}>Remove PIN</button>}
-      </div>
-      {msg && <p className="muted">{msg}</p>}
-      <ErrorNote error={error} />
-    </Card>
+        <Field label="Folders JARVIS may read freely" hint="One per line. Empty = your user folder. Writing anywhere still asks; system folders and credential files are always protected.">
+          <textarea className="input mono" rows={3} value={s.files.allowedRoots.join("\n")} onChange={(e) => set((x) => { x.files.allowedRoots = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean); })} />
+        </Field>
+      </Card>
+      <Card title="Dashboard PIN">
+        <p className="small muted">A PIN locks this dashboard and the local API after inactivity. JARVIS's API only accepts connections from this computer.</p>
+        <div className="form-grid">
+          {status?.pinSet && (
+            <Field label="Current PIN">
+              <input className="input" type="password" inputMode="numeric" value={current} onChange={(e) => setCurrent(e.target.value)} />
+            </Field>
+          )}
+          <Field label={status?.pinSet ? "New PIN" : "PIN"} hint="4–32 characters.">
+            <input className="input" type="password" inputMode="numeric" value={next} onChange={(e) => setNext(e.target.value)} />
+          </Field>
+          <Field label="Lock after (minutes idle)">
+            <input className="input" type="number" min={1} value={s.security.unlockMinutes} onChange={(e) => set((x) => { x.security.unlockMinutes = Number(e.target.value); })} />
+          </Field>
+        </div>
+        <div className="row">
+          <button className="btn btn-primary btn-sm" disabled={next.length < 4} onClick={() => apply(next)}>{status?.pinSet ? "Change PIN" : "Set PIN"}</button>
+          {status?.pinSet && <button className="btn btn-sm" disabled={!current} onClick={() => apply("")}>Remove PIN</button>}
+        </div>
+        {msg && <p className="muted small">{msg}</p>}
+        <ErrorNote error={error} />
+      </Card>
+      <Card title="Stored secrets">
+        <p className="small muted">API keys and connector tokens, encrypted with {secrets.data?.protection ?? "…"}. Values are never shown or sent to the dashboard.</p>
+        {secrets.data?.names.length ? (
+          <ul className="list">
+            {secrets.data.names.map((n) => (
+              <li key={n}><span className="mono small">{n}</span>
+                <ConfirmButton className="btn btn-ghost btn-sm" prompt={`Delete the secret "${n}"?`} onConfirm={async () => { await del(`/secrets/${n}`); void secrets.reload(); }}><Trash2 size={13} /> Delete</ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="small muted">No secrets stored.</p>}
+      </Card>
+    </>
+  );
+}
+
+function Privacy({ s, set }: P) {
+  const { status } = useStatus();
+  return (
+    <>
+      <Card title="What JARVIS may see and hear">
+        <Toggle label="Allow screen capture" hint="Screenshots by command or by the AI. Off blocks every screen-capture tool." checked={s.privacy.allowScreenCapture} onChange={(v) => set((x) => { x.privacy.allowScreenCapture = v; })} />
+        <Toggle label="Wake word (always-on microphone)" hint="Off by default. When on, the top bar shows “Mic on”." checked={s.voice.wakeWordEnabled} onChange={(v) => set((x) => { x.voice.wakeWordEnabled = v; })} />
+        <div className="note">JARVIS has no camera access in this build. Presence uses only Windows signals (active window, idle time, fullscreen, whether another app is using the microphone).</div>
+      </Card>
+      <Card title="What leaves this computer">
+        <Toggle label="Allow cloud AI" hint="Off = conversations never leave this PC." checked={s.ai.allowCloud} onChange={(v) => set((x) => { x.ai.allowCloud = v; })} />
+        <p className="small muted">Web search and page reading go to the sites involved only when you (or the AI, through an audited tool) ask. Nothing is sent anywhere else.</p>
+      </Card>
+      <Card title="What JARVIS keeps">
+        <Toggle label="Long-term memory" checked={s.memory.enabled} onChange={(v) => set((x) => { x.memory.enabled = v; })} />
+        <Toggle label="Conversation history" checked={s.memory.storeConversations} onChange={(v) => set((x) => { x.memory.storeConversations = v; })} />
+        <Field label="Delete conversations older than (days)" hint="0 keeps them forever.">
+          <input className="input" type="number" min={0} value={s.memory.conversationRetentionDays} onChange={(e) => set((x) => { x.memory.conversationRetentionDays = Number(e.target.value); })} />
+        </Field>
+        <p className="meta">All data lives in {status?.dataDir}</p>
+        <div className="row wrap">
+          <ConfirmButton prompt="Delete all conversation history?" onConfirm={() => void del("/conversations")}><Trash2 size={14} /> Delete conversations</ConfirmButton>
+          <ConfirmButton prompt="Delete ALL memories? This cannot be undone." onConfirm={() => void del("/memory?confirm=true")}><Trash2 size={14} /> Delete all memories</ConfirmButton>
+        </div>
+      </Card>
+    </>
+  );
+}
+
+function SystemSection({ s, set }: P) {
+  const { status, refresh } = useStatus();
+  return (
+    <>
+      <Card title="Runtime">
+        <dl className="kv small">
+          <dt>Version</dt><dd>{status?.version}</dd>
+          <dt>Platform</dt><dd>{status?.platformDescription}</dd>
+          <dt>Data folder</dt><dd className="mono">{status?.dataDir}</dd>
+        </dl>
+        <div className="row wrap">
+          <button className="btn btn-sm" onClick={async () => { await post(status?.paused ? "/runtime/resume" : "/runtime/pause"); await refresh(); }}>
+            {status?.paused ? "Resume JARVIS" : "Pause JARVIS"}
+          </button>
+          <ConfirmButton className="btn btn-danger btn-sm" prompt="Shut down JARVIS completely? Reminders and voice stop until you start it again." onConfirm={() => void post("/runtime/shutdown")}>Shut down JARVIS</ConfirmButton>
+          <a className="btn btn-ghost btn-sm" href="#/system">Health & capabilities</a>
+        </div>
+      </Card>
+      <Card title="Network">
+        <div className="form-grid">
+          <Field label="Local API port" hint="Takes effect after JARVIS restarts. If it's busy, the next free port is used.">
+            <input className="input" type="number" min={1024} max={65535} value={s.runtime.port} onChange={(e) => set((x) => { x.runtime.port = Number(e.target.value); })} />
+          </Field>
+          <Field label="Connectivity check every (seconds)">
+            <input className="input" type="number" min={5} value={s.runtime.connectivityProbeSeconds} onChange={(e) => set((x) => { x.runtime.connectivityProbeSeconds = Number(e.target.value); })} />
+          </Field>
+          <Field label="Connectivity probe URL" hint="Used with other well-known endpoints to decide online/offline.">
+            <input className="input mono" value={s.runtime.connectivityProbeUrl} onChange={(e) => set((x) => { x.runtime.connectivityProbeUrl = e.target.value; })} />
+          </Field>
+        </div>
+      </Card>
+    </>
   );
 }

@@ -26,7 +26,7 @@ $tfm = "net10.0-windows10.0.19041.0"
 if (-not $Version) {
     $props = [xml](Get-Content (Join-Path $root "Directory.Build.props"))
     $Version = ($props.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).'#text'
-    if (-not $Version) { $Version = "0.1.0" }
+    if (-not $Version) { $Version = "0.2.0" }
 }
 Write-Host "Packaging JARVIS $Version" -ForegroundColor Cyan
 

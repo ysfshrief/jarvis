@@ -32,6 +32,7 @@ public static class ToolSelector
         (["task", "todo", "done", "complete", "مهمه", "تاسك", "خلصت"], ["task_complete", "task_update"]),
         (["remind", "reminder", "alarm", "فكرني", "تذكير"], ["reminder_list", "reminder_cancel"]),
         (["forget", "remember", "انسي", "افتكر"], ["memory_forget"]),
+        (["today", "priorit", "brief", "my day", "focus", "النهارده", "اولويات", "يومي"], ["daily_briefing"]),
         (["project", "build", "code", "repo", "test", "مشروع", "بيلد", "كود"], ["project_open"]),
     ];
 

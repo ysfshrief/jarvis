@@ -59,7 +59,7 @@ public static class Program
     }
 }
 
-/// <summary>Wires together the tray icon, orb, quick bar, dashboard, hotkeys and the runtime connection.</summary>
+/// <summary>Wires together the tray icon, orb, command console, dashboard, hotkeys and the runtime connection.</summary>
 public sealed class App : Application
 {
     private readonly JarvisPaths _paths;
@@ -68,12 +68,21 @@ public sealed class App : Application
     private Forms.NotifyIcon? _tray;
     private OrbWindow? _orb;
     private QuickBarWindow? _quick;
+    private ConsoleWindow? _console;
     private DashboardWindow? _dashboard;
     private Hotkeys? _hotkeys;
     private Forms.ToolStripMenuItem? _pauseItem;
     private Forms.ToolStripMenuItem? _orbItem;
+    private Forms.ToolStripMenuItem? _askItem;
+    private Forms.ToolStripMenuItem? _talkItem;
+    private string _shortcutsKey = "";
     private bool _paused;
+    private bool _connected;
     private int _pendingApprovals;
+    private string _voiceState = "Idle";
+    private string? _turnPhase;
+    private DateTime _errorUntil;
+    private readonly DispatcherTimer _errorTimer = new() { Interval = TimeSpan.FromSeconds(3.2) };
 
     public App(JarvisPaths paths, bool startInTray)
     {
@@ -81,6 +90,7 @@ public sealed class App : Application
         _startInTray = startInTray;
         _core = new CoreClient(paths);
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        _errorTimer.Tick += (_, _) => { _errorTimer.Stop(); UpdateOrb(); };
     }
 
     protected override void OnStartup(StartupEventArgs e)
@@ -88,11 +98,14 @@ public sealed class App : Application
         base.OnStartup(e);
         _quick = new QuickBarWindow(_core);
         _quick.OpenDashboardRequested += () => { _quick.Hide(); _ = ShowDashboard(); };
+        _console = new ConsoleWindow(_core, _paths);
+        _console.DashboardRequested += () => _ = ShowDashboard("assistant");
         _dashboard = new DashboardWindow(_core, _paths);
 
         CreateTray();
         CreateOrb();
-        RegisterHotkeys();
+        _hotkeys = new Hotkeys();
+        ApplyShortcuts("Ctrl+Alt+J", "Ctrl+Alt+Space", "");
 
         _core.ConnectionChanged += connected => Dispatcher.BeginInvoke(() => OnConnectionChanged(connected));
         _core.EventReceived += (type, data) => Dispatcher.BeginInvoke(() => OnEvent(type, data));
@@ -105,8 +118,10 @@ public sealed class App : Application
     {
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("Open dashboard", null, (_, _) => _ = ShowDashboard());
-        menu.Items.Add("Ask JARVIS…   Ctrl+Alt+J", null, (_, _) => ToggleQuickBar());
-        menu.Items.Add("Push to talk   Ctrl+Alt+Space", null, (_, _) => PushToTalk());
+        _askItem = new Forms.ToolStripMenuItem("Command console", null, (_, _) => ToggleConsole());
+        menu.Items.Add(_askItem);
+        _talkItem = new Forms.ToolStripMenuItem("Push to talk", null, (_, _) => PushToTalk());
+        menu.Items.Add(_talkItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         _orbItem = new Forms.ToolStripMenuItem("Show orb", null, (_, _) => ToggleOrb()) { Checked = true };
         menu.Items.Add(_orbItem);
@@ -124,7 +139,7 @@ public sealed class App : Application
             Visible = true,
             ContextMenuStrip = menu,
         };
-        _tray.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) ToggleQuickBar(); };
+        _tray.MouseClick += (_, e) => { if (e.Button == Forms.MouseButtons.Left) ToggleConsole(); };
         _tray.MouseDoubleClick += (_, _) => _ = ShowDashboard();
     }
 
@@ -144,9 +159,9 @@ public sealed class App : Application
         _orb = new OrbWindow();
         var prefs = DesktopPrefs.Load(_paths);
         var area = SystemParameters.WorkArea;
-        _orb.Left = prefs.OrbLeft is { } l && l >= SystemParameters.VirtualScreenLeft && l < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 40 ? l : area.Right - _orb.Width - 24;
-        _orb.Top = prefs.OrbTop is { } t && t >= SystemParameters.VirtualScreenTop && t < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 40 ? t : area.Bottom - _orb.Height - 24;
-        _orb.Clicked += ToggleQuickBar;
+        _orb.Left = prefs.OrbLeft is { } l && l >= SystemParameters.VirtualScreenLeft && l < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 40 ? l : area.Right - _orb.Width - 16;
+        _orb.Top = prefs.OrbTop is { } t && t >= SystemParameters.VirtualScreenTop && t < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 40 ? t : area.Bottom - _orb.Height - 16;
+        _orb.Clicked += ToggleConsole;
         _orb.DoubleClicked += () => _ = ShowDashboard();
         _orb.MenuRequested += p => _tray?.ContextMenuStrip?.Show((int)p.X, (int)p.Y);
         _orb.Moved += () =>
@@ -156,34 +171,58 @@ public sealed class App : Application
             p.OrbTop = _orb.Top;
             p.Save(_paths);
         };
-        _orb.SetState("Disconnected");
+        _orb.SetState("offline");
         _orb.Show();
     }
 
-    private void RegisterHotkeys()
+    /// <summary>(Re)registers the global shortcuts from Settings → Shortcuts and says so if one is taken.</summary>
+    private void ApplyShortcuts(string console, string talk, string dashboard)
     {
-        _hotkeys = new Hotkeys();
-        if (!_hotkeys.Register(Hotkeys.ModControl | Hotkeys.ModAlt, 0x4A /* J */, ToggleQuickBar))
-            Program.Log(_paths, "Ctrl+Alt+J is taken by another app");
-        if (!_hotkeys.Register(Hotkeys.ModControl | Hotkeys.ModAlt, 0x20 /* Space */, PushToTalk))
-            Program.Log(_paths, "Ctrl+Alt+Space is taken by another app");
+        var key = $"{console}|{talk}|{dashboard}";
+        if (_hotkeys is null || key == _shortcutsKey) return;
+        _shortcutsKey = key;
+        _hotkeys.UnregisterAll();
+        var problems = new System.Collections.Generic.List<string>();
+        void Bind(string combo, Action action, string name)
+        {
+            if (string.IsNullOrWhiteSpace(combo)) return;
+            if (!Hotkeys.TryParse(combo, out var mods, out var vk)) { problems.Add($"{name}: \"{combo}\" isn't a valid shortcut"); return; }
+            if (!_hotkeys.Register(mods, vk, action)) problems.Add($"{name}: {combo} is already used by another app");
+        }
+        Bind(console, ToggleConsole, "Command console");
+        Bind(talk, PushToTalk, "Push to talk");
+        Bind(dashboard, () => _ = ShowDashboard(), "Dashboard");
+        if (_askItem is not null) _askItem.Text = string.IsNullOrWhiteSpace(console) ? "Command console" : $"Command console   {console}";
+        if (_talkItem is not null) _talkItem.Text = string.IsNullOrWhiteSpace(talk) ? "Push to talk" : $"Push to talk   {talk}";
+        foreach (var p in problems) Program.Log(_paths, p);
+        if (problems.Count > 0)
+            _tray?.ShowBalloonTip(6000, "JARVIS shortcuts", string.Join("\n", problems) + "\nChange them in Settings → Shortcuts.", Forms.ToolTipIcon.Warning);
     }
 
     private async Task ShowDashboard(string page = "overview")
     {
         _quick?.Hide();
+        _console?.Hide();
         await _dashboard!.ShowPageAsync(page);
     }
 
-    private void ToggleQuickBar()
+    private async void ToggleConsole()
     {
-        if (_quick is null || _orb is null) return;
-        if (_quick.IsVisible) { _quick.Hide(); return; }
-        _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
+        if (_console is { IsVisible: true }) { _console.Hide(); return; }
+        if (_quick is { IsVisible: true }) { _quick.Hide(); return; }
+        if (_console is not null && await _console.ShowConsoleAsync()) return;
+        // No WebView2: the native quick bar does the same job, more plainly.
+        if (_quick is not null && _orb is not null) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
     }
 
-    private void PushToTalk()
+    private async void PushToTalk()
     {
+        if (_console is not null && (_console.IsVisible || await _console.ShowConsoleAsync()))
+        {
+            try { await _core.PostAsync("/voice/listen"); }
+            catch (Exception ex) { _tray?.ShowBalloonTip(4000, "JARVIS", ex.Message, Forms.ToolTipIcon.Warning); }
+            return;
+        }
         if (_quick is null || _orb is null) return;
         if (!_quick.IsVisible) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
         _ = _quick.ListenAsync();
@@ -210,13 +249,10 @@ public sealed class App : Application
 
     private void OnConnectionChanged(bool connected)
     {
+        _connected = connected;
         if (_tray is not null) _tray.Text = connected ? "JARVIS" : "JARVIS (reconnecting…)";
-        if (!connected)
-        {
-            _orb?.SetState("Disconnected");
-            return;
-        }
-        _ = RefreshStatusAsync();
+        UpdateOrb();
+        if (connected) _ = RefreshStatusAsync();
     }
 
     private async Task RefreshStatusAsync()
@@ -228,36 +264,62 @@ public sealed class App : Application
             {
                 _paused = s.Bool("paused");
                 _pendingApprovals = s.Int("pendingApprovals");
-                ApplyStatus(s?["voice"]?.Str("state") ?? "Idle");
+                _voiceState = s?["voice"]?.Str("state") ?? "Idle";
+                ApplyStatus();
             });
-            await ApplyOrbSettingAsync();
+            await ApplySettingsAsync();
         }
         catch { }
     }
 
-    /// <summary>Honours Settings → General → "Show the floating orb".</summary>
-    private async Task ApplyOrbSettingAsync()
+    /// <summary>Honours Settings: show orb, orb size/colour/motion, and global shortcuts.</summary>
+    private async Task ApplySettingsAsync()
     {
         try
         {
             var settings = await _core.GetAsync("/settings");
             var show = settings?["general"]?["showOrb"]?.GetValue<bool>() ?? true;
+            var appearance = settings?["appearance"];
+            var shortcuts = settings?["shortcuts"];
             await Dispatcher.InvokeAsync(() =>
             {
                 if (_orb is null) return;
+                _orb.Configure(appearance?["orbSize"]?.GetValue<int>() ?? 72, appearance.Str("accent") ?? "cyan", appearance.Str("motion") ?? "full");
                 if (show && !_orb.IsVisible) _orb.Show();
                 if (!show && _orb.IsVisible) _orb.Hide();
                 if (_orbItem is not null) _orbItem.Checked = _orb.IsVisible;
+                if (shortcuts is not null)
+                    ApplyShortcuts(shortcuts.Str("commandConsole") ?? "", shortcuts.Str("pushToTalk") ?? "", shortcuts.Str("dashboard") ?? "");
             });
         }
         catch { }
     }
 
-    private void ApplyStatus(string voiceState)
+    private void ApplyStatus()
     {
         if (_pauseItem is not null) _pauseItem.Text = _paused ? "Resume JARVIS" : "Pause JARVIS";
-        _orb?.SetState(_paused ? "Paused" : voiceState is "Unavailable" ? "Idle" : voiceState);
         _orb?.SetAttention(_pendingApprovals > 0);
+        UpdateOrb();
+    }
+
+    /// <summary>
+    /// Same priority as the dashboard: offline > error (briefly) > warning (approval) > speaking >
+    /// listening > executing > thinking > idle.
+    /// </summary>
+    private void UpdateOrb()
+    {
+        if (_orb is null) return;
+        string state;
+        if (!_connected || _paused) state = "offline";
+        else if (DateTime.UtcNow < _errorUntil) state = "error";
+        else if (_pendingApprovals > 0) state = "warning";
+        else if (_voiceState == "Speaking") state = "speaking";
+        else if (_voiceState == "Listening") state = "listening";
+        else if (_voiceState == "Transcribing") state = "thinking";
+        else if (_turnPhase == "executing") state = "executing";
+        else if (_turnPhase is not null) state = "thinking";
+        else state = "idle";
+        if (_orb.State != state) _orb.SetState(state);
     }
 
     private void OnEvent(string type, JsonNode? data)
@@ -267,16 +329,31 @@ public sealed class App : Application
             case "hello":
                 _paused = data.Bool("paused");
                 _pendingApprovals = data.Int("pendingApprovals");
-                ApplyStatus(data?["voice"]?.Str("state") ?? "Idle");
+                _voiceState = data?["voice"]?.Str("state") ?? "Idle";
+                ApplyStatus();
                 break;
             case "voice.state":
-                if (!_paused) _orb?.SetState(data.Str("state") is "Unavailable" ? "Idle" : data.Str("state") ?? "Idle");
+                _voiceState = data.Str("state") ?? "Idle";
+                UpdateOrb();
                 break;
             case "agent.turn.started":
-                if (!_paused && _orb?.State is "Idle" or "WakeListening") _orb?.SetState("Thinking");
+                _turnPhase = "understanding";
+                UpdateOrb();
+                break;
+            case "agent.turn.phase":
+                var phase = data.Str("phase");
+                _turnPhase = phase is "completed" or "failed" ? null : phase;
+                UpdateOrb();
                 break;
             case "agent.turn.completed":
-                if (_orb?.State == "Thinking") _orb.SetState("Idle");
+                _turnPhase = null;
+                if (!data.Bool("success"))
+                {
+                    _errorUntil = DateTime.UtcNow.AddSeconds(3);
+                    _errorTimer.Stop();
+                    _errorTimer.Start();
+                }
+                UpdateOrb();
                 break;
             case "runtime.state":
                 if (data.Bool("stopping"))
@@ -286,26 +363,25 @@ public sealed class App : Application
                     return;
                 }
                 _paused = data.Bool("paused");
-                ApplyStatus("Idle");
+                ApplyStatus();
                 break;
             case "approval.requested":
                 _pendingApprovals++;
-                _orb?.SetAttention(true);
+                ApplyStatus();
                 // Approvals need a human: bring them in front of the user unless the dashboard is already up.
-                if (_dashboard?.IsActive != true && _orb is not null && _quick is not null)
-                    _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
+                if (_dashboard?.IsActive != true && _console?.IsVisible != true && _quick?.IsVisible != true) ToggleConsole();
                 else _ = _quick?.RefreshApprovalsAsync();
                 break;
             case "approval.resolved":
                 _pendingApprovals = Math.Max(0, _pendingApprovals - 1);
-                _orb?.SetAttention(_pendingApprovals > 0);
+                ApplyStatus();
                 _ = _quick?.RefreshApprovalsAsync();
                 break;
             case "ui.show":
                 _ = ShowDashboard();
                 break;
             case "settings.changed":
-                _ = ApplyOrbSettingAsync();
+                _ = ApplySettingsAsync();
                 break;
         }
     }

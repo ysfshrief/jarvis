@@ -86,8 +86,19 @@ export interface ToolStep {
   data?: unknown;
 }
 
+export interface UsedMemory {
+  id: string;
+  kind: string;
+  source: string;
+  content: string;
+}
+
 export interface TurnResult {
   conversationId: string;
+  turnId?: string;
+  fallbackFrom?: string | null;
+  contextTrimmed?: boolean;
+  usedMemories?: UsedMemory[];
   reply: string;
   lang: "en" | "ar";
   route: "deterministic" | "ai" | "none";
@@ -160,6 +171,7 @@ export interface Status {
   dataDir?: string;
   secretsProtection?: string;
   honorific?: string;
+  honorificAr?: string;
   userName?: string;
 }
 
@@ -288,6 +300,9 @@ export interface Settings {
     roles: Record<string, { provider: string; model: string }[]>;
     maxAgentSteps: number;
     requestTimeoutSeconds: number;
+    localContextTokens: number;
+    streamResponses: boolean;
+    embeddingModel: string;
   };
   voice: {
     ttsEnabled: boolean;
@@ -316,7 +331,79 @@ export interface Settings {
   };
   security: { pinHash: string; unlockMinutes: number };
   runtime: { port: number; connectivityProbeUrl: string; connectivityProbeSeconds: number };
+  appearance: Appearance;
+  sounds: SoundSettings;
+  shortcuts: { commandConsole: string; pushToTalk: string; dashboard: string };
+  privacy: { allowScreenCapture: boolean };
 }
+
+export interface Appearance {
+  theme: "dark" | "light" | "auto";
+  accent: "cyan" | "amber" | "violet" | "green";
+  motion: "full" | "reduced" | "off";
+  hudEffects: boolean;
+  density: "comfortable" | "compact";
+  textScale: number;
+  orbSize: number;
+  contextPanel: boolean;
+  language: "en" | "ar";
+}
+
+export interface SoundSettings {
+  enabled: boolean;
+  volume: number;
+  wake: boolean;
+  accepted: boolean;
+  processing: boolean;
+  completed: boolean;
+  warning: boolean;
+  error: boolean;
+  notification: boolean;
+}
+
+export interface MetricsSample {
+  timestamp: string;
+  cpuPercent?: number | null;
+  memoryPercent?: number | null;
+  memoryUsedGb?: number | null;
+  memoryTotalGb?: number | null;
+  gpuPercent?: number | null;
+  netDownBytesPerSec: number;
+  netUpBytesPerSec: number;
+  batteryPercent?: number | null;
+  charging?: boolean | null;
+  temperatureC?: number | null;
+  runtimeMemoryMb: number;
+  runtimeCpuPercent: number;
+}
+
+export interface MetricsResponse {
+  source: string;
+  current: MetricsSample;
+  history: MetricsSample[];
+}
+
+export interface DiskInfo { name: string; label: string; format: string; totalGb: number; freeGb: number; usedPercent: number }
+export interface ProcessInfo { pid: number; name: string; memoryMb: number; cpuPercent?: number | null }
+
+export interface ModelInfo {
+  name: string;
+  family?: string | null;
+  parameterSize?: string | null;
+  quantization?: string | null;
+  sizeBytes?: number | null;
+  contextLength?: number | null;
+  capabilities: string[];
+  capabilitiesReported: boolean;
+}
+
+export interface ModelsResponse {
+  providers: { provider: string; name: string; reachable: boolean; canPull: boolean; models: ModelInfo[]; error?: string }[];
+  recommended: { name: string; purpose: string; size: string; notes: string }[];
+  pulls: PullState[];
+}
+
+export interface PullState { providerId: string; model: string; status: string; completed?: number | null; total?: number | null; done: boolean; error?: string | null }
 
 export interface ProviderStatus {
   providerId: string;

@@ -30,6 +30,38 @@ public sealed class Hotkeys : IDisposable
         return true;
     }
 
+    public void UnregisterAll()
+    {
+        foreach (var id in _actions.Keys) UnregisterHotKey(_source.Handle, id);
+        _actions.Clear();
+    }
+
+    /// <summary>Parses "Ctrl+Alt+J", "Ctrl+Shift+Space", "Win+F9"… Returns false for anything without a modifier.</summary>
+    public static bool TryParse(string? text, out uint modifiers, out uint key)
+    {
+        modifiers = 0;
+        key = 0;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        foreach (var raw in text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (raw.ToLowerInvariant())
+            {
+                case "ctrl" or "control": modifiers |= ModControl; break;
+                case "alt": modifiers |= ModAlt; break;
+                case "shift": modifiers |= ModShift; break;
+                case "win" or "meta": modifiers |= ModWin; break;
+                case "space": key = 0x20; break;
+                default:
+                    var k = raw.ToUpperInvariant();
+                    if (k.Length == 1 && (char.IsAsciiLetterUpper(k[0]) || char.IsAsciiDigit(k[0]))) key = k[0];
+                    else if (k.Length is 2 or 3 && k[0] == 'F' && int.TryParse(k[1..], out var f) && f is >= 1 and <= 24) key = (uint)(0x70 + f - 1);
+                    else return false;
+                    break;
+            }
+        }
+        return modifiers != 0 && key != 0;
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == WmHotkey && _actions.TryGetValue(wParam.ToInt32(), out var action))

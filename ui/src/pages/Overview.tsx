@@ -1,157 +1,215 @@
 import { useState } from "react";
-import { Bell, Code2, MessageCircle, Users, Send } from "lucide-react";
-import { get, post, type ActivityEntry, type Reminder, type TaskItem, type TurnResult } from "../api";
-import { useStatus, navigate } from "../App";
+import { ArrowDown, ArrowUp, BatteryCharging, BatteryMedium, Bell, Code2, CornerDownLeft, MessageCircle, Users } from "lucide-react";
+import { get, post, type ActivityEntry, type NotificationItem, type Reminder, type TaskItem, type TurnResult } from "../api";
+import { navigate, useClock, useStatus } from "../App";
 import { useEvents } from "../events";
 import { ApprovalCard, useApprovals } from "../components/Approvals";
-import { Badge, Card, Empty, formatTime, timeAgo, useLoad } from "../components/ui";
+import { Orb } from "../components/Orb";
+import { StepList } from "../components/Steps";
+import { Timeline } from "../components/Timeline";
+import { Badge, Card, Empty, fmtBytes, formatTime, Gauge, Sparkline, timeAgo, useLoad } from "../components/ui";
+import { useMetrics } from "../lib/metrics";
+import { useOrbState } from "../lib/orbState";
+import { useActiveTurn } from "../lib/turns";
+import { tr } from "../lib/i18n";
 
+/** The cinematic home: JARVIS at the centre, the machine on the left, your day on the right. */
 export function Overview() {
-  const { status } = useStatus();
+  const { status, connected } = useStatus();
   const approvals = useApprovals();
+  const orb = useOrbState(status, connected, approvals.length);
+  const now = useClock();
   const tasks = useLoad(() => get<TaskItem[]>("/tasks"));
   const reminders = useLoad(() => get<Reminder[]>("/reminders"));
-  const activity = useLoad(() => get<ActivityEntry[]>("/activity?limit=8"));
+  const activity = useLoad(() => get<ActivityEntry[]>("/activity?limit=6&kind=request"));
+  const notes = useLoad(() => get<NotificationItem[]>("/notifications?limit=5"));
   useEvents(["tasks", "reminders"], () => {
     void tasks.reload();
     void reminders.reload();
   });
-  useEvents(["activity"], (e) => activity.setData((cur) => [e.data as ActivityEntry, ...(cur ?? [])].slice(0, 8)));
+  useEvents(["activity"], (e) => {
+    const a = e.data as ActivityEntry;
+    if (a.kind === "request") activity.setData((cur) => [a, ...(cur ?? [])].slice(0, 6));
+  });
+  useEvents(["notification"], () => void notes.reload());
 
-  const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const who = status?.userName || status?.honorific || "";
-  const presence = status?.presence?.snapshot;
+  const hour = now.getHours();
+  const greeting = hour < 5 ? "Working late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const ar = document.documentElement.lang === "ar";
+  const loc = ar ? "ar-EG" : [];
+  const who = (ar ? status?.honorificAr : status?.honorific) || status?.userName || "";
 
   return (
-    <div className="stack">
-      <div className="hero">
-        <div>
-          <h1>
-            {greeting}
-            {who ? `, ${who}` : ""}.
-          </h1>
-          <p className="muted">
-            {summaryLine(tasks.data?.length ?? 0, reminders.data ?? [], approvals.length, status?.queuedActions ?? 0)}
-          </p>
-        </div>
+    <div className="home">
+      <div className="home-side">
+        <MachineCard />
+        <NowCard />
       </div>
 
-      <QuickCommand />
-
-      {approvals.length > 0 && (
-        <Card title="Waiting for your decision">
-          <div className="stack">
-            {approvals.map((a) => (
-              <ApprovalCard key={a.id} approval={a} />
-            ))}
+      <div className="home-center">
+        <div className="home-orb-wrap">
+          <Orb state={orb.state} size="100%" label={orb.label} hollow />
+          <div className="home-time" dir="ltr">
+            <div className="d">{now.toLocaleDateString(loc, { weekday: "long" })}</div>
+            <div className="t">{now.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" })}</div>
+            <div className="d">{now.toLocaleDateString(loc, { day: "numeric", month: "long", year: "numeric" })}</div>
           </div>
-        </Card>
-      )}
+        </div>
+        <div className="orb-label" data-state={orb.state}>{orb.label}</div>
+        <div className="greeting">
+          <h1>{tr(greeting)}{who ? `${document.documentElement.lang === "ar" ? " " : ", "}${who}` : ""}{document.documentElement.lang === "ar" ? "" : "."}</h1>
+          <div className="sub">{summaryLine(tasks.data ?? [], reminders.data ?? [], approvals.length, status?.queuedActions ?? 0)}</div>
+        </div>
+        <HomeCommand />
+        {approvals.map((a) => <div key={a.id} className="reply-card"><ApprovalCard approval={a} /></div>)}
+        {!status?.ai?.anyAvailable && status && (
+          <Card title={tr("Enable conversation (free, local)")} className="reply-card">
+            <p className="small">Direct commands work now. For open conversation and multi-step planning, JARVIS needs a local model:</p>
+            <ol className="steps small">
+              <li>Install <strong>Ollama</strong> from <code>ollama.com</code>.</li>
+              <li>Download a model in <a href="#/settings/ai">Settings → AI</a> (qwen2.5:7b recommended, ~4.7 GB).</li>
+            </ol>
+          </Card>
+        )}
+      </div>
 
-      {presence && <ContextPanel activity={presence.activity} app={presence.activeProcess} title={presence.activeWindowTitle} meeting={presence.inMeeting} />}
-
-      {!status?.ai?.anyAvailable && (
-        <Card title="Enable conversation (free, local)">
-          <p>
-            Direct commands work now. For open conversation and multi-step planning, JARVIS needs a language model. The free, private option:
-          </p>
-          <ol className="steps">
-            <li>Install <strong>Ollama</strong> from <code>ollama.com</code>.</li>
-            <li>In a terminal run <code>ollama pull qwen2.5:7b</code> (good English and Arabic; ~4.7 GB).</li>
-            <li>JARVIS detects it automatically — check <a href="#/settings">Settings → AI</a>.</li>
-          </ol>
-        </Card>
-      )}
-
-      <div className="grid-3">
-        <Card title="Open tasks" actions={<a href="#/tasks" className="link">All</a>}>
+      <div className="home-side right">
+        <Card title={tr("Priorities")} actions={<a href="#/tasks" className="link small">{tr("All")}</a>}>
           {tasks.data && tasks.data.length > 0 ? (
             <ul className="list">
-              {tasks.data.slice(0, 6).map((t) => (
-                <li key={t.id} dir="auto">
-                  <span>{t.title}</span>
+              {tasks.data.slice().sort((a, b) => prio(b.priority) - prio(a.priority)).slice(0, 5).map((t) => (
+                <li key={t.id}>
+                  <span className="truncate grow" dir="auto">{t.title}</span>
+                  {t.dueAt && <span className="meta nowrap" dir="ltr">{formatTime(t.dueAt)}</span>}
                   {t.priority !== "normal" && <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{t.priority}</Badge>}
                 </li>
               ))}
             </ul>
-          ) : (
-            <Empty>No open tasks.</Empty>
-          )}
+          ) : <Empty>{tr("No open tasks.")}</Empty>}
         </Card>
-        <Card title="Upcoming reminders" actions={<a href="#/tasks" className="link">All</a>}>
+        <Card title={tr("Upcoming")} actions={<a href="#/tasks" className="link small">{tr("All")}</a>}>
           {reminders.data && reminders.data.length > 0 ? (
             <ul className="list">
-              {reminders.data.slice(0, 6).map((r) => (
-                <li key={r.id} dir="auto">
-                  <span>{r.text}</span>
-                  <span className="muted small nowrap" dir="ltr">{formatTime(r.dueAt)}</span>
+              {reminders.data.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <Bell size={13} className="dim" />
+                  <span className="truncate grow" dir="auto">{r.text}</span>
+                  <span className="meta nowrap" dir="ltr">{formatTime(r.dueAt)}</span>
                 </li>
               ))}
             </ul>
-          ) : (
-            <Empty>Nothing scheduled.</Empty>
-          )}
+          ) : <Empty>{tr("Nothing scheduled.")}</Empty>}
         </Card>
-        <Card title="Recent activity" actions={<a href="#/activity" className="link">All</a>}>
+        <Card title={tr("Recent")} actions={<a href="#/activity" className="link small">{tr("Log")}</a>}>
           {activity.data && activity.data.length > 0 ? (
             <ul className="list">
               {activity.data.map((a) => (
                 <li key={a.id}>
-                  <span className="truncate" dir="auto" title={a.summary}>{a.summary}</span>
-                  <span className="muted small nowrap" dir="ltr">{timeAgo(a.timestamp)}</span>
+                  <span className={`dot ${a.status === "ok" ? "dot-ok" : a.status === "failed" ? "dot-bad" : "dot-unknown"}`} />
+                  <span className="truncate grow" dir="auto" title={a.summary}>{a.summary}</span>
+                  <span className="meta nowrap" dir="ltr">{timeAgo(a.timestamp)}</span>
                 </li>
               ))}
             </ul>
-          ) : (
-            <Empty>Nothing yet.</Empty>
-          )}
+          ) : <Empty>{tr("Nothing yet.")}</Empty>}
         </Card>
+        {notes.data && notes.data.length > 0 && (
+          <Card title={tr("Notifications")} actions={<a href="#/system" className="link small">{tr("All")}</a>}>
+            <ul className="list">
+              {notes.data.slice(0, 4).map((n) => (
+                <li key={n.id}>
+                  <span className="truncate grow" dir="auto">{n.title}</span>
+                  <Badge tone={n.status === "held" ? "info" : "neutral"}>{n.status}</Badge>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
 
-function summaryLine(tasks: number, reminders: Reminder[], approvals: number, queued: number) {
-  const parts: string[] = [];
-  if (approvals) parts.push(`${approvals} action${approvals === 1 ? "" : "s"} waiting for your approval`);
-  const soon = reminders.filter((r) => new Date(r.dueAt).getTime() - Date.now() < 3 * 3600_000);
-  if (soon.length) parts.push(`${soon.length} reminder${soon.length === 1 ? "" : "s"} in the next few hours`);
-  if (tasks) parts.push(`${tasks} open task${tasks === 1 ? "" : "s"}`);
-  if (queued) parts.push(`${queued} action${queued === 1 ? "" : "s"} queued until we're back online`);
-  return parts.length ? parts.join(" · ") + "." : "All clear. Ask me anything, or say “Jarvis”.";
+function prio(p: string) {
+  return p === "urgent" ? 3 : p === "high" ? 2 : p === "normal" ? 1 : 0;
 }
 
-/** The adaptive part of the dashboard: shows what's relevant to what you're doing right now. */
-function ContextPanel({ activity, app, title, meeting }: { activity: string; app?: string | null; title?: string | null; meeting: boolean }) {
-  if (activity === "other" || activity === "browsing") return null;
-  const icon = activity === "coding" ? <Code2 size={18} /> : activity === "meeting" ? <Users size={18} /> : <MessageCircle size={18} />;
-  const label = activity === "coding" ? "Coding" : activity === "meeting" ? "In a meeting" : "Communication";
-  const hint =
-    activity === "coding"
-      ? "Ask “run the build in this project and tell me what failed” — I'll ask before running anything that changes files."
-      : activity === "meeting"
-        ? "I'm holding non-urgent notifications until the meeting ends."
-        : "Drafting replies is coming with the inbox connectors; I'll never send without your OK.";
+function summaryLine(tasks: TaskItem[], reminders: Reminder[], approvals: number, queued: number) {
+  const ar = document.documentElement.lang === "ar";
+  const parts: string[] = [];
+  const pl = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  if (approvals) parts.push(ar ? `${approvals} حاجة مستنية موافقتك` : `${pl(approvals, "action", "actions")} waiting for your approval`);
+  const soon = reminders.filter((r) => new Date(r.dueAt).getTime() - Date.now() < 3 * 3600_000).length;
+  if (soon) parts.push(ar ? `${soon} تذكير في الكام ساعة الجايين` : `${pl(soon, "reminder", "reminders")} in the next few hours`);
+  const urgent = tasks.filter((t) => t.priority === "urgent" || t.priority === "high").length;
+  if (urgent) parts.push(ar ? `${urgent} مهمة مهمة` : `${pl(urgent, "high-priority task", "high-priority tasks")}`);
+  else if (tasks.length) parts.push(ar ? `${tasks.length} مهمة مفتوحة` : `${pl(tasks.length, "open task", "open tasks")}`);
+  if (queued) parts.push(ar ? `${queued} حاجة مستنية النت` : `${pl(queued, "action", "actions")} queued until we're back online`);
+  return parts.length ? parts.join(" · ") + (ar ? "" : ".") : tr("All clear. Ask me anything, or say “Jarvis”.");
+}
+
+function MachineCard() {
+  const { data } = useMetrics(3000);
+  const c = data?.current;
+  const hist = data?.history ?? [];
   return (
-    <Card title={<span className="row">{icon} {label} mode</span>}>
-      <div className="row wrap">
-        {app && <Badge tone="info">{app}</Badge>}
-        {title && <span className="muted truncate" dir="auto">{title}</span>}
-        {meeting && <Badge tone="warn"><Bell size={12} /> notifications held</Badge>}
+    <Card title={tr("Systems")} actions={<a href="#/system" className="link small">{tr("Details")}</a>}>
+      <div className="row" style={{ justifyContent: "space-around", flexWrap: "wrap", gap: 6 }}>
+        <Gauge value={c?.cpuPercent} label="CPU" size={96} />
+        <Gauge value={c?.memoryPercent} label="Memory" size={96} />
+        {c?.gpuPercent != null ? <Gauge value={c.gpuPercent} label="GPU" size={96} /> : null}
       </div>
-      <p className="muted small">{hint}</p>
+      <Sparkline values={hist.map((h) => h.cpuPercent)} max={100} height={44} />
+      <div className="row between small">
+        <span className="row" title="Download"><ArrowDown size={13} className="dim" /> {fmtBytes(c?.netDownBytesPerSec, true)}</span>
+        <span className="row" title="Upload"><ArrowUp size={13} className="dim" /> {fmtBytes(c?.netUpBytesPerSec, true)}</span>
+        {c?.batteryPercent != null && (
+          <span className="row" title="Battery">{c.charging ? <BatteryCharging size={14} /> : <BatteryMedium size={14} />} {c.batteryPercent}%</span>
+        )}
+      </div>
+      <div className="meta">JARVIS itself: {c ? `${Math.round(c.runtimeMemoryMb)} MB · ${c.runtimeCpuPercent.toFixed(1)}% CPU` : "—"}</div>
     </Card>
   );
 }
 
-function QuickCommand() {
+function NowCard() {
+  const { status } = useStatus();
+  const p = status?.presence?.snapshot;
+  if (!status?.presence?.supported || !p) return null;
+  const icon = p.activity === "coding" ? <Code2 size={16} /> : p.activity === "meeting" ? <Users size={16} /> : <MessageCircle size={16} />;
+  const hint =
+    p.activity === "coding"
+      ? "Try “build this project and tell me what failed” — I'll ask before running anything that changes files."
+      : p.inMeeting
+        ? "Holding non-urgent notifications until the meeting ends."
+        : null;
+  return (
+    <Card title={tr("Now")}>
+      <div className="row">
+        {icon}
+        <strong className="small">{p.state === "Idle" ? "Away" : p.activity === "other" ? "Working" : p.activity}</strong>
+        {p.inMeeting && <Badge tone="warn">meeting</Badge>}
+        {p.isFullscreen && <Badge tone="info">fullscreen</Badge>}
+      </div>
+      {p.activeProcess && (
+        <div className="small truncate" title={p.activeWindowTitle ?? ""}>
+          <span className="mono">{p.activeProcess}</span> <span className="muted" dir="auto">{p.activeWindowTitle}</span>
+        </div>
+      )}
+      {hint && <p className="small muted">{hint}</p>}
+    </Card>
+  );
+}
+
+function HomeCommand() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<TurnResult | null>(null);
+  const active = useActiveTurn();
   const send = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || busy) return;
     setBusy(true);
+    setLast(null);
     try {
       setLast(await post<TurnResult>("/chat", { text }));
       setText("");
@@ -162,19 +220,27 @@ function QuickCommand() {
     }
   };
   return (
-    <Card>
-      <form className="row" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        <input className="input grow" dir="auto" placeholder="Ask JARVIS… (e.g. “open VS Code”, “فكرني بعد ربع ساعة أكلم أحمد”)" value={text} onChange={(e) => setText(e.target.value)} />
-        <button className="btn btn-primary" disabled={busy || !text.trim()} type="submit" aria-label="Send">
-          <Send size={16} />
-        </button>
+    <>
+      <form className="cmd" onSubmit={(e) => { e.preventDefault(); void send(); }}>
+        <span className="prompt" aria-hidden>›</span>
+        <input dir="auto" placeholder={tr("Ask JARVIS… “what's happening today?”, “افتح VS Code”")} value={text} onChange={(e) => setText(e.target.value)} aria-label="Ask JARVIS" />
+        <span className="kbd" title="Command console">Ctrl K</span>
+        <button className="btn btn-primary btn-icon" disabled={busy || !text.trim()} type="submit" aria-label="Send"><CornerDownLeft size={16} /></button>
       </form>
-      {last && (
-        <div className={`quick-reply ${last.success ? "" : "quick-reply-bad"}`} dir="auto">
-          {last.reply}{" "}
-          <button className="link small" onClick={() => navigate("assistant")}>Continue in Assistant →</button>
+      {busy && active && (
+        <div className="reply-card stack-sm">
+          <Timeline turn={active} />
+          {active.tools.length > 0 && <StepList steps={active.tools} />}
+          {active.draft && <div className="bubble"><div className="bubble-text cursor" dir="auto">{active.draft}</div></div>}
         </div>
       )}
-    </Card>
+      {last && !busy && (
+        <div className={`reply-card stack-sm ${last.success ? "" : "msg-error"}`}>
+          {last.steps?.length > 0 && <StepList steps={last.steps} />}
+          <div className="bubble"><div className="bubble-text" dir="auto">{last.reply}</div></div>
+          <button className="link small" style={{ alignSelf: "flex-start" }} onClick={() => navigate("assistant")}>{tr("Continue in Assistant →")}</button>
+        </div>
+      )}
+    </>
   );
 }

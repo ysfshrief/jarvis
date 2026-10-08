@@ -177,3 +177,32 @@ public class NotificationPolicyTests
         Assert.Empty(center.Recent(status: NotificationStatus.Held));
     }
 }
+
+public class BriefingTests
+{
+    [Fact]
+    public async Task Briefing_reports_only_what_exists()
+    {
+        using var host = new TestHost();
+        var empty = await host.Say("what's happening today");
+        Assert.True(empty.Success);
+        Assert.Contains("clear", empty.Reply);
+
+        var tasks = host.Get<Jarvis.Core.Tasks.TaskStore>();
+        tasks.Create(new("Sign the CityCrep contract", Priority: "urgent"));
+        tasks.Create(new("File the report", DueAt: DateTimeOffset.Now.AddHours(-2)));
+        tasks.Create(new("Water the plants", Priority: "low"));
+        host.Get<Jarvis.Core.Scheduling.ReminderStore>().Create("call Ahmed", DateTimeOffset.Now.AddMinutes(30));
+
+        var day = await host.Say("brief me");
+        Assert.Contains("Sign the CityCrep contract", day.Reply);
+        Assert.Contains("Overdue: File the report", day.Reply);
+        Assert.Contains("call Ahmed", day.Reply);
+        Assert.DoesNotContain("Water the plants", day.Reply);
+
+        var prio = await host.Say("أولوياتي إيه");
+        Assert.Contains("Sign the CityCrep contract", prio.Reply);
+        Assert.DoesNotContain("call Ahmed", prio.Reply);
+        Assert.Equal("ar", prio.Lang);
+    }
+}

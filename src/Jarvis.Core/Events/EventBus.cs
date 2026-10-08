@@ -73,6 +73,7 @@ public static class EventTypes
     public const string VoiceModelProgress = "voice.model.progress";
     public const string RuntimeState = "runtime.state";
     public const string ModelPull = "ai.model.pull";
+    public const string AiStatusChanged = "ai.status";
     public const string SettingsChanged = "settings.changed";
     public const string MemoryChanged = "memory.changed";
     public const string TasksChanged = "tasks.changed";

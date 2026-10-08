@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Mic, Plus, Send, Square, Wrench } from "lucide-react";
-import { get, post, type StoredMessage, type ToolStep, type TurnResult } from "../api";
+import { Brain, Mic, Plus, Send, Square } from "lucide-react";
+import { get, post, type StoredMessage, type ToolStep, type TurnResult, type UsedMemory } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
 import { ApprovalCard, useApprovals } from "../components/Approvals";
-import { Badge, RiskBadge } from "../components/ui";
+import { Orb } from "../components/Orb";
+import { StepList } from "../components/Steps";
+import { Timeline } from "../components/Timeline";
+import { Badge } from "../components/ui";
+import { useOrbState } from "../lib/orbState";
+import { useTurns } from "../lib/turns";
+import { tr } from "../lib/i18n";
 
 interface Msg {
   key: string;
@@ -15,11 +21,14 @@ interface Msg {
   model?: string | null;
   success?: boolean;
   source?: string;
-  pending?: boolean;
+  memories?: UsedMemory[];
+  fallbackFrom?: string | null;
+  durationMs?: number;
+  turnId?: string;
 }
 
 export function Assistant() {
-  const { status, refresh } = useStatus();
+  const { status, refresh, connected } = useStatus();
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState("");
@@ -27,6 +36,8 @@ export function Assistant() {
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
   const approvals = useApprovals();
+  const orb = useOrbState(status, connected, approvals.length);
+  const turns = useTurns();
   const bottom = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -39,15 +50,18 @@ export function Assistant() {
       .catch(() => {});
   }, [status?.activeConversation, conversationId]);
 
+  // Turns in progress for this conversation (any surface: typed here, console, voice).
+  const running = turns.filter((t) => !t.result && (!conversationId || t.conversationId === conversationId));
+
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, approvals.length]);
+  }, [messages, approvals.length, running.length, running[running.length - 1]?.draft.length, running[running.length - 1]?.tools.length]);
 
-  // Voice and other surfaces (quick bar, phone later) talk to the same conversation; show their turns too.
+  // Voice and other surfaces talk to the same conversation; show their turns too.
   useEvents(["agent", "voice"], (e) => {
     if (e.type === "voice.transcript" && e.data.text) setHeard(e.data.text);
     if (e.type === "agent.turn.started" && e.data.source !== "Text") {
-      setMessages((m) => [...m, { key: `u-${Date.now()}`, role: "user", text: e.data.text, source: e.data.source }]);
+      setMessages((m) => [...m, { key: `u-${e.data.turnId ?? Date.now()}`, role: "user", text: e.data.text, source: e.data.source }]);
     }
     if (e.type === "agent.turn.completed" && e.data.source !== "Text") {
       setMessages((m) => [...m, toMsg(e.data as TurnResult)]);
@@ -60,13 +74,13 @@ export function Assistant() {
     if (!t || busy) return;
     setText("");
     setBusy(true);
-    setMessages((m) => [...m, { key: `u-${Date.now()}`, role: "user", text: t }, { key: "pending", role: "assistant", text: "", pending: true }]);
+    setMessages((m) => [...m, { key: `u-${Date.now()}`, role: "user", text: t }]);
     try {
       const r = await post<TurnResult>("/chat", { text: t, conversationId });
       if (!conversationId) setConversationId(r.conversationId);
-      setMessages((m) => [...m.filter((x) => !x.pending), toMsg(r)]);
+      setMessages((m) => [...m, toMsg(r)]);
     } catch (e) {
-      setMessages((m) => [...m.filter((x) => !x.pending), { key: `e-${Date.now()}`, role: "assistant", text: e instanceof Error ? e.message : String(e), success: false }]);
+      setMessages((m) => [...m, { key: `e-${Date.now()}`, role: "assistant", text: e instanceof Error ? e.message : String(e), success: false }]);
     } finally {
       setBusy(false);
       input.current?.focus();
@@ -98,39 +112,50 @@ export function Assistant() {
 
   return (
     <div className="chat">
-      <div className="chat-head">
-        <h2>Assistant</h2>
-        <button className="btn btn-ghost" onClick={newConversation}>
-          <Plus size={16} /> New conversation
-        </button>
+      <div className="page-head">
+        <div className="row">
+          <h2>{tr("Assistant")}</h2>
+          <span className="orb-label" data-state={orb.state} style={{ marginInlineStart: 8 }}>{orb.label}</span>
+        </div>
+        <button className="btn btn-ghost" onClick={newConversation}><Plus size={15} /> {tr("New conversation")}</button>
       </div>
 
       <div className="chat-log" aria-live="polite">
-        {messages.length === 0 && (
+        {messages.length === 0 && running.length === 0 && (
           <div className="chat-empty">
-            <p>Try:</p>
+            <Orb state={orb.state} size={120} label={orb.label} />
+            <p>{tr("How can I help")}{status?.honorific ? `, ${status.honorific}` : ""}?</p>
             <div className="suggestions">
-              {["What can you do?", "open calculator", "remind me in 20 minutes to call Ahmed", "الساعة كام؟", "how's the system", "run git --version"].map((s) => (
-                <button key={s} className="chip-btn" dir="auto" onClick={() => setText(s)}>
-                  {s}
-                </button>
+              {["What can you do?", "What's happening today?", "open calculator", "remind me in 20 minutes to call Ahmed", "الساعة كام؟", "how's the system"].map((s) => (
+                <button key={s} className="chip-btn" dir="auto" onClick={() => { setText(s); input.current?.focus(); }}>{s}</button>
               ))}
             </div>
           </div>
         )}
-        {messages.map((m) => (
-          <Bubble key={m.key} m={m} />
+        {messages.map((m) => <Message key={m.key} m={m} />)}
+        {running.map((t) => (
+          <div key={t.turnId} className="msg">
+            <Orb state={t.phase === "executing" ? "executing" : "thinking"} size={30} />
+            <div className="msg-body">
+              <Timeline turn={t} />
+              {t.tools.length > 0 && <StepList steps={t.tools} />}
+              {t.draft ? (
+                <div className="bubble"><div className="bubble-text cursor" dir="auto">{t.draft}</div></div>
+              ) : (
+                <div className="bubble"><span className="typing"><i /><i /><i /></span></div>
+              )}
+            </div>
+          </div>
         ))}
-        {approvals.map((a) => (
-          <ApprovalCard key={a.id} approval={a} />
-        ))}
+        {busy && running.length === 0 && (
+          <div className="msg"><Orb state="thinking" size={30} /><div className="bubble"><span className="typing"><i /><i /><i /></span></div></div>
+        )}
+        {approvals.map((a) => <ApprovalCard key={a.id} approval={a} />)}
         <div ref={bottom} />
       </div>
 
       {(listening || heard) && (
-        <div className="heard" dir="auto">
-          {listening && !heard ? "Listening… speak now." : `Heard: “${heard}”`}
-        </div>
+        <div className="heard" dir="auto">{listening && !heard ? "Listening… speak now." : `Heard: “${heard}”`}</div>
       )}
 
       <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
@@ -139,7 +164,7 @@ export function Assistant() {
           className="input grow"
           dir="auto"
           rows={1}
-          placeholder="Message JARVIS — English or عربي"
+          placeholder={tr("Message JARVIS — English or عربي")}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -149,60 +174,62 @@ export function Assistant() {
             }
           }}
         />
-        <button type="button" className={`btn ${listening ? "btn-danger" : ""}`} onClick={listening ? () => post("/voice/stop") : listen} disabled={!voiceUsable && !listening} title={voiceTitle} aria-label={voiceTitle}>
+        <button type="button" className={`btn btn-icon ${listening ? "btn-danger" : ""}`} onClick={listening ? () => post("/voice/stop") : listen} disabled={!voiceUsable && !listening} title={voiceTitle} aria-label={voiceTitle}>
           {listening ? <Square size={16} /> : <Mic size={16} />}
         </button>
-        <button type="submit" className="btn btn-primary" disabled={busy || !text.trim()} aria-label="Send">
-          <Send size={16} />
-        </button>
+        <button type="submit" className="btn btn-primary btn-icon" disabled={busy || !text.trim()} aria-label="Send"><Send size={16} /></button>
       </form>
     </div>
   );
 }
 
-function Bubble({ m }: { m: Msg }) {
-  if (m.pending)
-    return (
-      <div className="bubble bubble-assistant">
-        <span className="typing"><i /><i /><i /></span>
-      </div>
-    );
+function Message({ m }: { m: Msg }) {
+  const user = m.role === "user";
   return (
-    <div className={`bubble bubble-${m.role} ${m.success === false ? "bubble-error" : ""}`}>
-      <div className="bubble-text" dir="auto">{m.text}</div>
-      {m.steps && m.steps.length > 0 && (
-        <div className="steps-list">
-          {m.steps.map((s, i) => (
-            <div key={i} className={`step step-${s.status.toLowerCase()}`} title={s.message}>
-              <Wrench size={12} />
-              <span className="step-tool">{s.tool}</span>
-              <span className="truncate" dir="auto">{s.summary}</span>
-              <RiskBadge risk={s.risk} />
-              <Badge tone={s.status === "Ok" ? "good" : s.status === "Queued" ? "info" : "bad"}>{s.status}</Badge>
-            </div>
-          ))}
-        </div>
-      )}
-      {m.role === "assistant" && m.route && (
-        <div className="bubble-meta">
-          {m.route === "ai" ? `AI · ${m.model ?? ""}` : m.route === "deterministic" ? "Direct command" : "No model"}
-          {m.source === "Voice" && " · voice"}
-        </div>
-      )}
+    <div className={`msg ${user ? "msg-user" : ""} ${m.success === false ? "msg-error" : ""}`}>
+      {!user && <Orb state={m.success === false ? "error" : "idle"} size={30} />}
+      <div className="msg-body">
+        {!user && m.steps && m.steps.length > 0 && <StepList steps={m.steps} />}
+        <div className="bubble"><div className="bubble-text" dir="auto">{m.text}</div></div>
+        {!user && m.memories && m.memories.length > 0 && (
+          <div className="memchips" title="Memories JARVIS used for this answer">
+            <Brain size={13} className="dim" />
+            {m.memories.slice(0, 4).map((x) => (
+              <Badge key={x.id} tone={x.source === "user" || x.source === "confirmed" ? "accent" : "warn"} title={`${x.kind} · ${x.source}`}>
+                <span className="truncate" style={{ maxWidth: 220, textTransform: "none" }} dir="auto">{x.content}</span>
+              </Badge>
+            ))}
+          </div>
+        )}
+        {!user && m.route && (
+          <div className="msg-meta meta">
+            {m.route === "ai" ? `AI · ${m.model ?? ""}` : m.route === "deterministic" ? tr("Direct command") : "No model"}
+            {m.fallbackFrom && <Badge tone="warn" title={`${m.fallbackFrom} failed, another model answered`}>fallback</Badge>}
+            {m.source?.toLowerCase() === "voice" && <Badge tone="info">voice</Badge>}
+            {m.durationMs ? <span>{(m.durationMs / 1000).toFixed(1)} s</span> : null}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function toMsg(r: TurnResult): Msg {
-  return { key: `a-${Date.now()}-${Math.random()}`, role: "assistant", text: r.reply, steps: r.steps, route: r.route, model: r.model, success: r.success, source: r.source };
+  return {
+    key: `a-${r.turnId ?? Date.now()}-${Math.random()}`, role: "assistant", text: r.reply, steps: r.steps, route: r.route, model: r.model,
+    success: r.success, source: r.source, memories: r.usedMemories, fallbackFrom: r.fallbackFrom, durationMs: r.durationMs, turnId: r.turnId,
+  };
 }
 
 function fromStored(s: StoredMessage): Msg {
-  let meta: { route?: string; model?: string | null; steps?: ToolStep[] } = {};
+  let meta: { route?: string; model?: string | null; steps?: ToolStep[]; usedMemories?: UsedMemory[]; fallbackFrom?: string | null } = {};
   try {
     meta = s.meta ? JSON.parse(s.meta) : {};
   } catch {
     /* ignore */
   }
-  return { key: `s-${s.id}`, role: s.role, text: s.content, route: meta.route, model: meta.model, steps: meta.steps ?? [], source: s.source ?? undefined };
+  return {
+    key: `s-${s.id}`, role: s.role, text: s.content, route: meta.route, model: meta.model, steps: meta.steps ?? [],
+    source: s.source ?? undefined, memories: meta.usedMemories, fallbackFrom: meta.fallbackFrom,
+  };
 }

@@ -134,6 +134,7 @@ public sealed class SettingsStore : ISettingsStore
         if (s.Appearance.Accent is not ("cyan" or "amber" or "violet" or "green")) s.Appearance.Accent = "cyan";
         if (s.Appearance.Motion is not ("full" or "reduced" or "off")) s.Appearance.Motion = "full";
         if (s.Appearance.Density is not ("comfortable" or "compact")) s.Appearance.Density = "comfortable";
+        if (s.Appearance.Language is not ("en" or "ar")) s.Appearance.Language = "en";
         s.Appearance.TextScale = Math.Clamp(s.Appearance.TextScale, 0.85, 1.4);
         s.Appearance.OrbSize = Math.Clamp(s.Appearance.OrbSize, 48, 128);
         s.Sounds.Volume = Math.Clamp(s.Sounds.Volume, 0, 1);

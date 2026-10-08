@@ -30,7 +30,9 @@ jarvis-core.exe  (Jarvis.Runtime)    – always on; starts at sign-in (HKCU Run 
   ├─ writes %LOCALAPPDATA%\JARVIS\runtime.json {port, token, pid} for local clients
   └─ launches JARVIS.exe --tray (if enabled) and restarts it if it crashes (exit code ≠ 0)
 
-JARVIS.exe       (Jarvis.Desktop)    – orb, tray, quick bar, hotkeys, dashboard window (WebView2)
+JARVIS.exe       (Jarvis.Desktop)    – orb, tray, global hotkeys (from Settings → Shortcuts),
+                                       command console + dashboard windows (WebView2, shared profile);
+                                       native quick bar as fallback when WebView2 is missing
   └─ talks to the runtime over HTTP + WebSocket; restarts the runtime if it dies unexpectedly
 ```
 
@@ -90,6 +92,23 @@ stored locally and restored from the database after a restart.
 
 Deterministic commands that fail (e.g. an unknown app) are handed to the AI when one is available.
 Without any model, JARVIS still answers direct commands and explains how to enable conversation.
+
+## User interface
+
+The dashboard, the command console (`#/console`, shown by the desktop shell in a borderless window)
+and any browser tab are the same React app talking to the same API:
+
+- **Live turn store** (`ui/src/lib/turns.ts`): one subscription to the event stream builds the state of
+  every request (phase, tools running, streamed text). The orb, assistant, console and context panel all
+  read it, so a request started by voice shows progress everywhere.
+- **Orb state** is derived, in one place, from connection, pause, recent failure, pending approvals,
+  voice state and the current turn phase. The desktop orb (WPF) applies the same priority rules.
+- **Appearance** settings become attributes on `<html>` (theme, accent, motion, HUD effects, density,
+  text scale, language/`dir`); CSS does the rest. Motion uses transform/opacity only.
+- **Sounds** are synthesized with Web Audio (no files) and de-duplicated across open windows with a
+  BroadcastChannel so two windows never double a cue.
+- **System metrics** are sampled by the runtime only when a page asks (`/api/system/metrics`), so a
+  closed dashboard costs nothing.
 
 ## Permissions
 

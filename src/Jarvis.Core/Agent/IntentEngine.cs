@@ -81,8 +81,13 @@ public static partial class IntentEngine
 
         // Tasks.
         if ((m = AddTask().Match(t)).Success)
-            return new ToolIntent("task_create", ToolArgs.From(new { title = Original(rawText, m.Groups["x"].Value) }));
+        {
+            var (title, priority) = SplitPriority(Original(rawText, m.Groups["x"].Value));
+            return new ToolIntent("task_create", priority is null ? ToolArgs.From(new { title }) : ToolArgs.From(new { title, priority }));
+        }
         if (ListTasks().IsMatch(t)) return new ToolIntent("task_list", new ToolArgs());
+        if (Priorities().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "priorities" }));
+        if (Briefing().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "today" }));
         if ((m = CompleteTask().Match(t)).Success)
             return new ToolIntent("task_complete", ToolArgs.From(new { title = m.Groups["x"].Value.Trim() }));
 
@@ -214,11 +219,36 @@ public static partial class IntentEngine
     [GeneratedRegex(@"^(?:to|that|about|of|for|ب|اني|ان|عشان)\s+|^ب(?=ال)|\s+(?:to|that)$")]
     private static partial Regex ReminderConnectors();
 
+    /// <summary>"…with high priority", "…, urgent", "… (أولوية عالية)" → the priority, and the title without it.</summary>
+    internal static (string Title, string? Priority) SplitPriority(string title)
+    {
+        var m = TaskPriority().Match(title);
+        if (!m.Success || m.Index == 0) return (title, null);
+        var word = m.Groups["p"].Value.ToLowerInvariant();
+        var priority = word switch
+        {
+            "urgent" or "critical" or "asap" or "مستعجل" or "مستعجله" or "مستعجلة" or "ضروري" => "urgent",
+            "high" or "important" or "عالية" or "عاليه" or "مهم" or "مهمة" or "مهمه" => "high",
+            "low" or "منخفضة" or "منخفضه" or "قليلة" => "low",
+            _ => "normal",
+        };
+        return (title[..m.Index].TrimEnd(' ', ',', '-', '(', '،'), priority);
+    }
+
+    [GeneratedRegex(@"[\s,،\-(]+(?:with |at |as )?(?:a )?(?:(?<p>high|urgent|low|normal|critical|important) priority|priority[: ]+(?<p>high|urgent|low|normal)|(?<p>urgent|asap|important)|بأولوية (?<p>عالية|عاليه|منخفضة|منخفضه)|أولوية (?<p>عالية|عاليه|منخفضة|منخفضه)|اولويه (?<p>عاليه|منخفضه)|(?<p>مستعجل|مستعجله|مستعجلة|ضروري))\)?[.!]?$", RegexOptions.IgnoreCase)]
+    private static partial Regex TaskPriority();
+
     [GeneratedRegex(@"^(?:add (?:a )?task(?: to)?|add to (?:my )?(?:tasks|todo|to-do)(?: list)?|new task|create (?:a )?task(?: to)?|(?:ضيف|اضف|سجل|اعمل) (?:مهمه|تاسك)(?: جديده)?)[\s:]+(?<x>.+)$")]
     private static partial Regex AddTask();
 
     [GeneratedRegex(@"^(?:(?:what are|show|list|show me|read) (?:my|the) (?:tasks|todos?|to-dos?)(?: list)?|my tasks|tasks|(?:ايه )?مهامي(?: ايه)?|ايه المهام|عندي (?:مهام|ايه) (?:ايه|النهارده)|المهام)$")]
     private static partial Regex ListTasks();
+
+    [GeneratedRegex(@"^(?:(?:check|show|what are|whats|what's) (?:my|the) (?:priorities|top priorities)|my priorities|priorities|(?:ايه )?اولوياتي(?: ايه)?|ايه الاولويات)$")]
+    private static partial Regex Priorities();
+
+    [GeneratedRegex(@"^(?:(?:what's|whats|what is) (?:happening|going on|on|up)(?: for me)? today|what(?:'s| is) my day(?: look(?:ing)? like)?|how(?:'s| is) my day(?: looking)?|brief me|(?:give me )?(?:my |a |the )?(?:daily |morning )?briefing|my day|today|(?:ايه|إيه) (?:اللي ورايا|ورايا|اخبار يومي|اللي عندي) (?:النهارده|انهارده)|يومي عامل ايه|لخصلي يومي|(?:اديني |عايز )?(?:ال)?ملخص (?:ال)?يوم)$")]
+    private static partial Regex Briefing();
 
     [GeneratedRegex(@"^(?:mark (?:the )?(?:task )?(?<x>.+?) (?:as )?(?:done|complete|completed|finished)|complete (?:the )?task (?<x>.+)|(?:خلص|خلصت|علم علي) (?:مهمه|تاسك) (?<x>.+))$")]
     private static partial Regex CompleteTask();
