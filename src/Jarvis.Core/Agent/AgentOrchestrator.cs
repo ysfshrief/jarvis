@@ -207,7 +207,7 @@ public sealed class AgentOrchestrator(
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
         var system = Persona.SystemPrompt(s, lang, input.Source == InputSource.Voice, connectivity.IsOnline,
             presence.Current, relevant, tasks.List().Take(8).ToList(), platform.Description);
-        var available = tools.AvailableFor(s);
+        var available = ToolSelector.Select(text, tools.AvailableFor(s), compact: route.Provider!.IsLocal);
 
         await conv.HistoryLock.WaitAsync(ct).ConfigureAwait(false);
         List<ChatMessage> working;

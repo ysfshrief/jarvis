@@ -284,3 +284,42 @@ public class VoiceLogicTests
         Assert.Equal("", WhisperSpeechToText.Clean("[BLANK_AUDIO]"));
     }
 }
+
+public class ToolSelectionTests
+{
+    [Fact]
+    public void Local_models_get_a_focused_tool_list()
+    {
+        using var host = new TestHost();
+        var all = host.Get<IToolRegistry>().AvailableFor(host.Settings.Current);
+        var forFiles = Agent.ToolSelector.Select("move the report file to my documents folder", all, compact: true);
+        Assert.Contains(forFiles, t => t.Name == "file_move");
+        Assert.DoesNotContain(forFiles, t => t.Name == "reminder_cancel");
+        Assert.True(forFiles.Count < all.Count);
+        Assert.Equal(all.Count, Agent.ToolSelector.Select("anything", all, compact: false).Count);
+    }
+
+    [Fact]
+    public async Task Models_without_tool_support_fall_back_to_plain_chat()
+    {
+        var calls = 0;
+        var handler = new LambdaHandler(body =>
+        {
+            calls++;
+            return body.Contains("\"tools\"")
+                ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("""{"error":{"message":"registry.ollama.ai/library/gemma:2b does not support tools"}}""") }
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"choices":[{"message":{"content":"hello"}}]}""") };
+        });
+        var provider = new OpenAiCompatibleProvider(new ProviderConfig { Id = "o", Name = "Ollama", BaseUrl = "http://x/v1", IsLocal = true }, () => null, new HttpClient(handler));
+        var tool = new ToolDefinition { Name = "t", Description = "d", Category = "c" };
+        var r = await provider.CompleteAsync(new ChatRequest { Model = "gemma:2b", Messages = [ChatMessage.User("hi")], Tools = [tool] }, CancellationToken.None);
+        Assert.Equal("hello", r.Content);
+        Assert.Equal(2, calls);
+    }
+
+    private sealed class LambdaHandler(Func<string, HttpResponseMessage> f) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            f(request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct));
+    }
+}

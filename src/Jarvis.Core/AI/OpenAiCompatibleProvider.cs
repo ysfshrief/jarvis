@@ -64,6 +64,11 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         using (resp)
         {
             var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            // Some local models can't call tools (Ollama answers 400 "does not support tools"):
+            // fall back to a plain conversation rather than failing the request.
+            if (resp.StatusCode == HttpStatusCode.BadRequest && request.Tools.Count > 0 &&
+                text.Contains("does not support tools", StringComparison.OrdinalIgnoreCase))
+                return await CompleteAsync(request with { Tools = [] }, ct).ConfigureAwait(false);
             if (!resp.IsSuccessStatusCode) throw Error(resp.StatusCode, text);
             return Parse(text);
         }
