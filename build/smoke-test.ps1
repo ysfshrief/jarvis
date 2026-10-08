@@ -79,7 +79,16 @@ try {
         $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
         $g.Dispose()
         $bmp.Save((Join-Path $OutDir "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
-        $bmp.Dispose()
+        # A small JPEG copy goes into the log too, so the result can be checked without downloading artifacts.
+        $w = [Math]::Min(960, $bmp.Width); $h = [int]($bmp.Height * $w / $bmp.Width)
+        $small = New-Object System.Drawing.Bitmap $bmp, $w, $h
+        $ms = New-Object System.IO.MemoryStream
+        $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq "image/jpeg" }
+        $ep = New-Object System.Drawing.Imaging.EncoderParameters 1
+        $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), 60L
+        $small.Save($ms, $codec, $ep)
+        Write-Host ("SCREENSHOT " + $name + " " + [Convert]::ToBase64String($ms.ToArray()))
+        $small.Dispose(); $bmp.Dispose()
     }
     Capture "desktop"
 

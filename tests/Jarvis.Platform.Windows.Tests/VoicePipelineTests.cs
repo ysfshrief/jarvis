@@ -74,7 +74,7 @@ public sealed class VoicePipelineTests(ITestOutputHelper output) : IDisposable
         output.WriteLine($"Agent: {result.Reply}");
         Assert.Equal("app_open", Assert.Single(result.Steps).Tool);
         Assert.True(result.Success, result.Reply);
-        foreach (var p in System.Diagnostics.Process.GetProcessesByName("CalculatorApp").Concat(System.Diagnostics.Process.GetProcessesByName("calc"))) { try { p.Kill(); } catch { } }
+        foreach (var p in System.Diagnostics.Process.GetProcessesByName("CalculatorApp").Concat(System.Diagnostics.Process.GetProcessesByName("calc")).Concat(System.Diagnostics.Process.GetProcessesByName("win32calc"))) { try { p.Kill(); } catch { } }
     }
 
     /// <summary>Windows TTS → WAV → 16 kHz mono float, the same format the microphone path produces.</summary>
