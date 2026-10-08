@@ -51,7 +51,8 @@ Name: "{autodesktop}\JARVIS"; Filename: "{app}\JARVIS.exe"; IconFilename: "{app}
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "JARVIS"; ValueData: """{app}\jarvis-core.exe"" --background"; Tasks: startup; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\jarvis-core.exe"; Description: "Start JARVIS now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\JARVIS.exe"; Description: "Start JARVIS now"; Flags: nowait postinstall skipifsilent; Check: HasDesktopShell
+Filename: "{app}\jarvis-core.exe"; Description: "Start JARVIS now"; Flags: nowait postinstall skipifsilent; Check: not HasDesktopShell
 
 [UninstallRun]
 Filename: "{sys}\taskkill.exe"; Parameters: "/F /IM JARVIS.exe"; Flags: runhidden; RunOnceId: "KillShell"
