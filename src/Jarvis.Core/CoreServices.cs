@@ -63,6 +63,7 @@ public static class CoreServices
         services.AddSingleton<ApprovalBroker>();
         services.AddSingleton<ProviderRegistry>();
         services.AddSingleton<ModelRouter>();
+        services.AddSingleton<ModelManager>();
         services.AddSingleton<IToolRegistry, ToolRegistry>();
         services.AddSingleton<ToolExecutor>();
         services.AddSingleton<AgentOrchestrator>();

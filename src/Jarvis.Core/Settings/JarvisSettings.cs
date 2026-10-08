@@ -43,8 +43,8 @@ public sealed class AiSettings
     [
         new()
         {
-            Id = "ollama", Name = "Ollama (local)", Kind = ProviderKinds.OpenAiCompatible,
-            BaseUrl = "http://127.0.0.1:11434/v1", IsLocal = true, Enabled = true,
+            Id = "ollama", Name = "Ollama (local)", Kind = ProviderKinds.Ollama,
+            BaseUrl = "http://127.0.0.1:11434", IsLocal = true, Enabled = true,
         },
         new()
         {
@@ -78,12 +78,20 @@ public sealed class AiSettings
     /// <summary>Maximum tool-calling rounds per request before JARVIS stops and reports.</summary>
     public int MaxAgentSteps { get; set; } = 8;
     public int RequestTimeoutSeconds { get; set; } = 120;
+    /// <summary>Context window requested from local models. Larger is slower and uses more memory.</summary>
+    public int LocalContextTokens { get; set; } = 8192;
+    /// <summary>Show replies word by word as the model writes them.</summary>
+    public bool StreamResponses { get; set; } = true;
+    /// <summary>Model used for semantic memory/file search (Ollama). Empty disables embeddings.</summary>
+    public string EmbeddingModel { get; set; } = "bge-m3";
 }
 
 public static class ProviderKinds
 {
     public const string OpenAiCompatible = "openai-compatible";
     public const string Anthropic = "anthropic";
+    /// <summary>Ollama's native API: model capabilities, context sizing, downloads, embeddings.</summary>
+    public const string Ollama = "ollama";
 }
 
 public static class ModelRoles

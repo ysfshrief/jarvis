@@ -32,6 +32,33 @@ jobs:
           dotnet test tests/Jarvis.Core.Tests -c Release --logger "console;verbosity=normal"
           dotnet test tests/Jarvis.Runtime.Tests -c Release --logger "console;verbosity=normal"
 
+  ollama-live:
+    name: Real local AI (Ollama) end to end
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Install Ollama and pull small real models
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &)
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/tags && break; sleep 1; done
+          ollama pull qwen2.5:1.5b
+          ollama pull all-minilm
+          ollama list
+      - name: Live AI tests
+        env:
+          JARVIS_OLLAMA_URL: http://127.0.0.1:11434
+          JARVIS_OLLAMA_MODEL: qwen2.5:1.5b
+          JARVIS_OLLAMA_EMBED_MODEL: all-minilm
+        run: dotnet test tests/Jarvis.Core.Tests -c Release --filter "FullyQualifiedName~OllamaLiveTests" --logger "console;verbosity=normal"
+      - name: Ollama log
+        if: always()
+        run: tail -n 80 /tmp/ollama.log || true
+
   windows:
     name: Windows build, tests, package, smoke test
     runs-on: windows-latest

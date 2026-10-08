@@ -25,6 +25,7 @@ public sealed record UserInput(string Text, string? ConversationId = null, Input
 public sealed record AgentTurnResult
 {
     public required string ConversationId { get; init; }
+    public string TurnId { get; init; } = "";
     public required string Reply { get; init; }
     public required string Lang { get; init; }
     /// <summary>"deterministic", "ai", or "none" (no model available).</summary>
@@ -34,6 +35,20 @@ public sealed record AgentTurnResult
     public bool Success { get; init; } = true;
     public long DurationMs { get; init; }
     public InputSource Source { get; init; }
+    /// <summary>Set when the first model failed and another one answered.</summary>
+    public string? FallbackFrom { get; init; }
+    /// <summary>True when older turns were condensed to fit the model's context window.</summary>
+    public bool ContextTrimmed { get; init; }
+}
+
+public static class TurnPhases
+{
+    public const string Understanding = "understanding";
+    public const string Analyzing = "analyzing";
+    public const string SelectingTool = "selecting_tool";
+    public const string Executing = "executing";
+    public const string Completed = "completed";
+    public const string Failed = "failed";
 }
 
 /// <summary>Information about the host platform, shown to the AI and in the UI.</summary>
@@ -71,7 +86,10 @@ public sealed class AgentOrchestrator(
     PlatformInfo platform,
     ILogger<AgentOrchestrator> logger)
 {
-    private const int MaxHistoryMessages = 40;
+    private const int MaxHistoryMessages = 60;
+    private const int MaxFallbacks = 2;
+    /// <summary>Context assumed for cloud models; they're far larger, this just bounds cost.</summary>
+    private const int CloudContextTokens = 100_000;
     private readonly ConcurrentDictionary<string, ConversationContext> _contexts = new();
     private string _activeConversationId = NewId();
 
@@ -93,9 +111,11 @@ public sealed class AgentOrchestrator(
         var lang = DetermineLang(text, conv, s);
         conv.LastLang = lang;
         var phr = new ToolCtx(lang, lang == Lang.Ar ? s.General.HonorificAr : s.General.Honorific);
-        var toolCtx = new ToolContext { Lang = lang, Settings = s, ConversationId = conv.Id, CancellationToken = ct };
+        var turnId = NewId();
+        var toolCtx = new ToolContext { Lang = lang, Settings = s, ConversationId = conv.Id, TurnId = turnId, CancellationToken = ct };
 
-        events.Publish(EventTypes.TurnStarted, new { conversationId = conv.Id, text, source = input.Source });
+        events.Publish(EventTypes.TurnStarted, new { conversationId = conv.Id, turnId, text, source = input.Source });
+        Phase(toolCtx, TurnPhases.Understanding);
         if (s.Memory.StoreConversations)
             conversations.Append(conv.Id, "user", text, LangCode(lang), input.Source.ToString().ToLowerInvariant());
 
@@ -117,7 +137,8 @@ public sealed class AgentOrchestrator(
                 "none", input.Source, success: false);
         }
 
-        result = result with { DurationMs = sw.ElapsedMilliseconds };
+        result = result with { DurationMs = sw.ElapsedMilliseconds, TurnId = turnId };
+        Phase(toolCtx, result.Success ? TurnPhases.Completed : TurnPhases.Failed);
         conv.LastActivity = DateTimeOffset.Now;
         if (s.Memory.StoreConversations)
         {
@@ -170,15 +191,18 @@ public sealed class AgentOrchestrator(
             }
             case ToolIntent { PreferAi: true } preferAi:
             {
+                Phase(toolCtx, TurnPhases.Analyzing);
                 var aiRoute = await router.RouteAsync(text, ct).ConfigureAwait(false);
                 if (aiRoute.HasModel)
                     return await RunAiAsync(text, input, conv, lang, phr, toolCtx, s, aiRoute, ct).ConfigureAwait(false);
+                Phase(toolCtx, TurnPhases.Executing, preferAi.Tool);
                 var (r, st) = await executor.ExecuteAsync(preferAi.Tool, preferAi.Args, toolCtx).ConfigureAwait(false);
                 // The build failing is the answer to "why is it failing", not an error of JARVIS.
                 return Remember(conv, text, Result(conv, lang, r.Message, "deterministic", input.Source, [st], r.Status is not (ToolStatus.NotFound or ToolStatus.Denied)));
             }
             case ToolIntent ti:
             {
+                Phase(toolCtx, TurnPhases.Executing, ti.Tool);
                 var (res, step) = await executor.ExecuteAsync(ti.Tool, ti.Args, toolCtx).ConfigureAwait(false);
                 var canFallBack = ti.FallBackToAiOnFailure && !res.Success &&
                                   res.Status is ToolStatus.Failed or ToolStatus.NotFound;
@@ -193,6 +217,7 @@ public sealed class AgentOrchestrator(
             }
         }
 
+        Phase(toolCtx, TurnPhases.Analyzing);
         var route = await router.RouteAsync(text, ct).ConfigureAwait(false);
         if (!route.HasModel)
             return Remember(conv, text, Result(conv, lang, Persona.NoModel(phr, route.Reason), "none", input.Source, success: false));
@@ -207,25 +232,41 @@ public sealed class AgentOrchestrator(
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
         var system = Persona.SystemPrompt(s, lang, input.Source == InputSource.Voice, connectivity.IsOnline,
             presence.Current, relevant, tasks.List().Take(8).ToList(), platform.Description);
-        var available = ToolSelector.Select(text, tools.AvailableFor(s), compact: route.Provider!.IsLocal);
 
         await conv.HistoryLock.WaitAsync(ct).ConfigureAwait(false);
-        List<ChatMessage> working;
+        List<ChatMessage> history;
         try
         {
             conv.History.Add(ChatMessage.User(text));
             Prune(conv.History);
-            working = [ChatMessage.System(system), .. conv.History];
+            history = [.. conv.History];
         }
         finally { conv.HistoryLock.Release(); }
 
         var steps = new List<ToolStep>();
-        var provider = route.Provider!;
-        var model = route.Model!;
         var added = new List<ChatMessage>();
+        var failed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? fallbackFrom = null;
+        var trimmedAny = false;
+        var spoken = input.Source == InputSource.Voice;
+        Phase(toolCtx, TurnPhases.Analyzing, route.Label);
 
-        for (var round = 0; round < s.Ai.MaxAgentSteps; round++)
+        var rounds = 0;
+        while (rounds < s.Ai.MaxAgentSteps)
         {
+            var provider = route.Provider!;
+            var model = route.Model!;
+            // Models that can't call tools still converse; deterministic commands cover the actions.
+            var available = route.SupportsTools ? ToolSelector.Select(text, tools.AvailableFor(s), compact: provider.IsLocal) : [];
+            var sys = route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote;
+            var contextTokens = provider.IsLocal
+                ? Math.Min(s.Ai.LocalContextTokens, route.Info?.ContextLength ?? int.MaxValue)
+                : CloudContextTokens;
+            var maxTokens = provider.IsLocal ? (spoken ? 512 : 2048) : (spoken ? 1024 : 4096);
+            var fitted = ContextBudget.Fit(sys, [.. history, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
+            trimmedAny |= fitted.Trimmed;
+
+            var stream = s.Ai.StreamResponses ? new DeltaStream(events, toolCtx, rounds) : null;
             ChatResponse response;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(TimeSpan.FromSeconds(s.Ai.RequestTimeoutSeconds));
@@ -234,24 +275,47 @@ public sealed class AgentOrchestrator(
                 response = await provider.CompleteAsync(new ChatRequest
                 {
                     Model = model,
-                    Messages = working,
+                    Messages = fitted.Messages,
                     Tools = available,
-                    MaxTokens = input.Source == InputSource.Voice ? 1024 : 4096,
+                    MaxTokens = maxTokens,
+                    ContextTokens = provider.IsLocal ? contextTokens : null,
+                    OnTextDelta = stream is null ? null : stream.Add,
                 }, timeout.Token).ConfigureAwait(false);
+                stream?.Flush();
             }
             catch (Exception ex) when (ex is AiProviderException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
             {
+                stream?.Reset();
                 var msg = ex is AiProviderException ? ex.Message : "timed out";
-                activity.Record(ActivityKinds.Ai, $"Model call failed: {provider.Id}/{model}", status: "failed", details: ex.Message, conversationId: conv.Id);
+                activity.Record(ActivityKinds.Ai, $"Model call failed: {route.Label}", status: "failed", details: ex.Message, conversationId: conv.Id);
+                failed.Add(route.Key);
+                if (failed.Count <= MaxFallbacks)
+                {
+                    await router.ReportFailureAsync(route, ct).ConfigureAwait(false);
+                    var next = await router.RouteAsync(text, ct, route.Role, failed).ConfigureAwait(false);
+                    if (next.HasModel)
+                    {
+                        logger.LogWarning("Model {Failed} failed ({Error}); falling back to {Next}", route.Label, msg, next.Label);
+                        activity.Record(ActivityKinds.Ai, $"Switched to {next.Label} after {route.Label} failed", conversationId: conv.Id);
+                        fallbackFrom ??= route.Label;
+                        route = next;
+                        Phase(toolCtx, TurnPhases.Analyzing, route.Label);
+                        continue;
+                    }
+                }
                 Commit(conv, added);
-                return Result(conv, lang, Persona.ModelFailed(phr, msg), "ai", input.Source, steps, false, route.Label);
+                return Result(conv, lang, Persona.ModelFailed(phr, msg), "ai", input.Source, steps, false, route.Label) with
+                {
+                    FallbackFrom = fallbackFrom,
+                    ContextTrimmed = trimmedAny,
+                };
             }
 
+            rounds++;
             var assistant = ChatMessage.Assistant(response.Content, response.ToolCalls.Count > 0 ? response.ToolCalls : null) with
             {
                 ProviderData = response.ProviderData,
             };
-            working.Add(assistant);
             added.Add(assistant);
 
             if (response.ToolCalls.Count == 0)
@@ -260,16 +324,23 @@ public sealed class AgentOrchestrator(
                 var reply = string.IsNullOrWhiteSpace(response.Content)
                     ? phr.T("Done.", "تمام.")
                     : response.Content.Trim();
-                return Result(conv, lang, reply, "ai", input.Source, steps, steps.All(x => x.Status == ToolStatus.Ok), route.Label);
+                return Result(conv, lang, reply, "ai", input.Source, steps, steps.All(x => x.Status == ToolStatus.Ok), route.Label) with
+                {
+                    FallbackFrom = fallbackFrom,
+                    ContextTrimmed = trimmedAny,
+                };
             }
 
             foreach (var call in response.ToolCalls)
             {
+                Phase(toolCtx, TurnPhases.SelectingTool, call.Name);
                 ToolResult toolResult;
                 ToolStep step;
                 try
                 {
-                    (toolResult, step) = await executor.ExecuteAsync(call.Name, ToolArgs.Parse(call.ArgumentsJson), toolCtx).ConfigureAwait(false);
+                    var args = ToolArgs.Parse(call.ArgumentsJson);
+                    Phase(toolCtx, TurnPhases.Executing, call.Name);
+                    (toolResult, step) = await executor.ExecuteAsync(call.Name, args, toolCtx).ConfigureAwait(false);
                 }
                 catch (ToolArgumentException ex)
                 {
@@ -277,14 +348,57 @@ public sealed class AgentOrchestrator(
                     step = new ToolStep(call.Name, call.Name, RiskLevel.Safe, ToolStatus.Failed, ex.Message, 0, null);
                 }
                 steps.Add(step);
-                var toolMessage = ChatMessage.ToolResult(call.Id, call.Name, SerializeForModel(toolResult), !toolResult.Success);
-                working.Add(toolMessage);
-                added.Add(toolMessage);
+                added.Add(ChatMessage.ToolResult(call.Id, call.Name, SerializeForModel(toolResult), !toolResult.Success));
             }
+            Phase(toolCtx, TurnPhases.Analyzing, route.Label);
         }
 
         Commit(conv, added);
-        return Result(conv, lang, Persona.StepLimit(phr, s.Ai.MaxAgentSteps), "ai", input.Source, steps, false, route.Label);
+        return Result(conv, lang, Persona.StepLimit(phr, s.Ai.MaxAgentSteps), "ai", input.Source, steps, false, route.Label) with
+        {
+            FallbackFrom = fallbackFrom,
+            ContextTrimmed = trimmedAny,
+        };
+    }
+
+    private void Phase(ToolContext ctx, string phase, string? detail = null) =>
+        events.Publish(EventTypes.TurnPhase, new { conversationId = ctx.ConversationId, turnId = ctx.TurnId, phase, detail });
+
+    /// <summary>
+    /// Batches streamed text into a few events per second; one WebSocket message per token would
+    /// make the UI re-render far more than the eye can follow.
+    /// </summary>
+    private sealed class DeltaStream(IEventBus events, ToolContext ctx, int round)
+    {
+        private readonly System.Text.StringBuilder _pending = new();
+        private readonly Stopwatch _since = Stopwatch.StartNew();
+        private readonly object _gate = new();
+
+        public void Add(string piece)
+        {
+            lock (_gate)
+            {
+                _pending.Append(piece);
+                if (_since.ElapsedMilliseconds >= 60 || _pending.Length >= 48) FlushLocked();
+            }
+        }
+
+        public void Flush() { lock (_gate) FlushLocked(); }
+
+        /// <summary>The model failed mid-answer: tell the UI to drop what it showed.</summary>
+        public void Reset()
+        {
+            lock (_gate) _pending.Clear();
+            events.Publish(EventTypes.TurnDelta, new { conversationId = ctx.ConversationId, turnId = ctx.TurnId, round, text = "", reset = true });
+        }
+
+        private void FlushLocked()
+        {
+            if (_pending.Length == 0) return;
+            events.Publish(EventTypes.TurnDelta, new { conversationId = ctx.ConversationId, turnId = ctx.TurnId, round, text = _pending.ToString(), reset = false });
+            _pending.Clear();
+            _since.Restart();
+        }
     }
 
     /// <summary>Recent conversation history for the UI.</summary>
@@ -303,7 +417,7 @@ public sealed class AgentOrchestrator(
     private ConversationContext Resolve(string? requestedId, JarvisSettings s)
     {
         var id = string.IsNullOrWhiteSpace(requestedId) ? _activeConversationId : requestedId;
-        var ctx = _contexts.GetOrAdd(id, i => new ConversationContext(i));
+        var ctx = _contexts.GetOrAdd(id, i => Restore(i, s));
         var idle = DateTimeOffset.Now - ctx.LastActivity;
         if (string.IsNullOrWhiteSpace(requestedId) && ctx.History.Count > 0 && idle > TimeSpan.FromMinutes(s.General.ConversationTimeoutMinutes))
         {
@@ -311,6 +425,33 @@ public sealed class AgentOrchestrator(
             _activeConversationId = NewId();
             ctx = _contexts.GetOrAdd(_activeConversationId, i => new ConversationContext(i) { ForcedLang = ctx.ForcedLang });
         }
+        return ctx;
+    }
+
+    /// <summary>
+    /// After a restart the in-memory context is gone; continue a stored conversation from its
+    /// recent text turns (tool details aren't replayed — they may be stale).
+    /// </summary>
+    private ConversationContext Restore(string id, JarvisSettings s)
+    {
+        var ctx = new ConversationContext(id);
+        if (!s.Memory.StoreConversations) return ctx;
+        try
+        {
+            var stored = conversations.Messages(id, 30);
+            foreach (var m in stored.TakeLast(20))
+            {
+                if (m.Role == "user") ctx.History.Add(ChatMessage.User(m.Content));
+                else if (m.Role == "assistant") ctx.History.Add(ChatMessage.Assistant(m.Content));
+            }
+            while (ctx.History.Count > 0 && ctx.History[0].Role != ChatRole.User) ctx.History.RemoveAt(0);
+            if (stored.Count > 0)
+            {
+                ctx.LastActivity = stored[^1].CreatedAt;
+                ctx.LastLang = stored[^1].Lang == "ar" ? Lang.Ar : Lang.En;
+            }
+        }
+        catch (Exception ex) { logger.LogWarning(ex, "Couldn't restore conversation {Id}", id); }
         return ctx;
     }
 

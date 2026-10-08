@@ -32,6 +32,7 @@ public sealed record UnlockDto(string Pin);
 public sealed record PolicyDto(ToolPolicy Policy);
 public sealed record SpeakDto(string Text, string? Lang);
 public sealed record SimulateDto(bool Offline);
+public sealed record PullDto(string? Model);
 
 /// <summary>The local HTTP API. Same contract for the dashboard, the desktop shell and future companion apps.</summary>
 public static class Api
@@ -223,8 +224,18 @@ public static class Api
         api.MapGet("/ai/route", async (string text, ModelRouter router, CancellationToken ct) =>
         {
             var d = await router.RouteAsync(text, ct);
-            return Results.Ok(new { d.Role, provider = d.Provider?.Id, d.Model, d.Reason });
+            return Results.Ok(new { d.Role, provider = d.Provider?.Id, d.Model, d.Reason, supportsTools = d.SupportsTools, capabilities = d.Info?.Capabilities });
         });
+        api.MapGet("/ai/models", async (ModelManager models, CancellationToken ct) => Results.Ok(new
+        {
+            providers = await models.ListAsync(ct),
+            recommended = ModelManager.Recommended,
+            pulls = models.Pulls,
+        }));
+        api.MapPost("/ai/providers/{id}/pull", (string id, PullDto dto, ModelManager models) =>
+            models.StartPull(id, dto.Model?.Trim() ?? "", out var error)
+                ? Results.Accepted(value: new { started = dto.Model })
+                : Results.BadRequest(new { error }));
 
         // ---- Voice ----
         api.MapGet("/voice", (VoiceService voice) => Results.Ok(voice.Status));

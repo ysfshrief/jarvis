@@ -130,6 +130,18 @@ public sealed class SettingsStore : ISettingsStore
         s.General.ConversationTimeoutMinutes = Math.Clamp(s.General.ConversationTimeoutMinutes, 1, 24 * 60);
         s.Ai.MaxAgentSteps = Math.Clamp(s.Ai.MaxAgentSteps, 1, 30);
         s.Ai.RequestTimeoutSeconds = Math.Clamp(s.Ai.RequestTimeoutSeconds, 10, 900);
+        s.Ai.LocalContextTokens = Math.Clamp(s.Ai.LocalContextTokens, 2048, 131072);
+        s.Ai.EmbeddingModel ??= "";
+        // v0.1 talked to Ollama through its OpenAI-compatible endpoint; the native API knows more.
+        foreach (var p in s.Ai.Providers)
+        {
+            if (p.Id == "ollama" && p.Kind == ProviderKinds.OpenAiCompatible && (p.BaseUrl ?? "").Contains(":11434"))
+            {
+                p.Kind = ProviderKinds.Ollama;
+                p.BaseUrl = p.BaseUrl!.TrimEnd('/');
+                if (p.BaseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase)) p.BaseUrl = p.BaseUrl[..^3];
+            }
+        }
         s.Voice.FollowUpSeconds = Math.Clamp(s.Voice.FollowUpSeconds, 0, 60);
         s.Voice.MaxUtteranceSeconds = Math.Clamp(s.Voice.MaxUtteranceSeconds, 3, 60);
         s.Voice.VadSensitivity = Math.Clamp(s.Voice.VadSensitivity, 1.2, 20);

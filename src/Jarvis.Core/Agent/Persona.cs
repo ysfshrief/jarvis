@@ -144,6 +144,10 @@ public static class Persona
         $"I can't answer that one yet{c.CommaSir} — no language model is available ({reason}). Direct commands still work: try \"help\" to see them. To enable full conversation for free, install Ollama from ollama.com and run \"ollama pull qwen2.5:7b\"; I'll detect it automatically.",
         $"مش هقدر أرد على دي لسه{c.CommaSir} — مفيش موديل لغة متاح ({reason}). الأوامر المباشرة شغالة: قول \"مساعدة\" عشان تشوفها. ولو عايز محادثة كاملة ببلاش، نزّل Ollama من ollama.com وشغّل \"ollama pull qwen2.5:7b\" وأنا هلاقيه لوحدي.");
 
+    /// <summary>Added to the system prompt when the chosen model can't call tools.</summary>
+    public const string NoToolsNote =
+        "Note: in this session you cannot run tools or act on the computer. If the user asks for an action, say you can't do it with the current model, and suggest the direct command (e.g. \"open Chrome\", \"remind me in 10 minutes to…\") or a model with tool support such as qwen2.5:7b.";
+
     public static string ModelFailed(ToolCtx c, string error) => c.T(
         $"I couldn't complete that{c.CommaSir}: the language model failed ({error}). Direct commands still work.",
         $"مقدرتش أكمل دي{c.CommaSir}: موديل اللغة وقع ({error}). الأوامر المباشرة لسه شغالة.");

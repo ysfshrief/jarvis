@@ -22,7 +22,10 @@ The same matrix is visible in the app under **System → What this build can do*
 | Desktop presence: orb, tray, quick bar (Ctrl+Alt+J), dashboard | Working | WebView2; falls back to browser |
 | Agent loop with deterministic EN/AR commands | Working | ~40 command patterns, no AI needed |
 | AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key |
-| AI router (no-AI / local / cloud) | Partial | Keyword task classes; no cost/latency model yet |
+| AI router (no-AI / local / cloud) | Partial | Keyword task classes + capability-aware model choice; no cost/latency model yet |
+| Native Ollama: model discovery, capabilities (tools/vision/embedding), context sizing, downloads | Working | Verified in CI against a real Ollama with qwen2.5:1.5b |
+| Streaming replies, model fallback chain, context budgeting for small models, conversation restore after restart | Working | |
+| Visible turn phases (understanding → analyzing → selecting tool → executing → completed) | Working | No chain-of-thought is exposed |
 | Egyptian Arabic replies | Working | Prompted; quality depends on the model (Qwen 2.5 7B+ recommended) |
 | Push-to-talk voice (Whisper) | Partial | Model download required; verified end to end in CI with synthesized speech; Arabic accuracy improves with `small` |
 | Wake word “Jarvis” | Partial | VAD + Whisper keyword spotting; CPU-heavier than a dedicated model |

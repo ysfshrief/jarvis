@@ -102,6 +102,8 @@ public sealed class ToolContext
     public required Lang Lang { get; init; }
     public required JarvisSettings Settings { get; init; }
     public string ConversationId { get; init; } = "";
+    /// <summary>The agent turn this call belongs to, so the UI can group steps under one request.</summary>
+    public string? TurnId { get; init; }
     public CancellationToken CancellationToken { get; init; }
 
     /// <summary>Pick the English or Egyptian Arabic phrasing.</summary>

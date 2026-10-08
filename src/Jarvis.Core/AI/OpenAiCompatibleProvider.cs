@@ -27,7 +27,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
             ["model"] = request.Model,
             ["messages"] = BuildMessages(request.Messages),
             ["max_tokens"] = request.MaxTokens,
-            ["stream"] = false,
+            ["stream"] = request.OnTextDelta is not null,
         };
         if (request.Temperature is { } temp) body["temperature"] = temp;
         if (request.Tools.Count > 0)
@@ -54,7 +54,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         HttpResponseMessage resp;
         try
         {
-            resp = await http.SendAsync(req, ct).ConfigureAwait(false);
+            resp = await http.SendAsync(req, request.OnTextDelta is null ? HttpCompletionOption.ResponseContentRead : HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
@@ -63,6 +63,9 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
 
         using (resp)
         {
+            var isStream = resp.IsSuccessStatusCode && request.OnTextDelta is not null &&
+                           resp.Content.Headers.ContentType?.MediaType == "text/event-stream";
+            if (isStream) return await ReadStreamAsync(resp, request, ct).ConfigureAwait(false);
             var text = await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
             // Some local models can't call tools (Ollama answers 400 "does not support tools"):
             // fall back to a plain conversation rather than failing the request.
@@ -72,6 +75,62 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
             if (!resp.IsSuccessStatusCode) throw Error(resp.StatusCode, text);
             return Parse(text);
         }
+    }
+
+    /// <summary>Server-sent events: "data: {chunk}" lines with content and tool-call fragments.</summary>
+    private static async Task<ChatResponse> ReadStreamAsync(HttpResponseMessage resp, ChatRequest request, CancellationToken ct)
+    {
+        var text = new StringBuilder();
+        var calls = new SortedDictionary<int, (string? Id, string? Name, StringBuilder Args)>();
+        string? finish = null, model = null;
+        ChatUsage? usage = null;
+        await using var s = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        using var reader = new StreamReader(s, Encoding.UTF8);
+        string? line;
+        while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
+        {
+            if (!line.StartsWith("data:", StringComparison.Ordinal)) continue;
+            var data = line[5..].Trim();
+            if (data == "[DONE]") break;
+            JsonNode? chunk;
+            try { chunk = JsonNode.Parse(data); } catch (JsonException) { continue; }
+            model ??= chunk?["model"]?.GetValue<string>();
+            if (chunk?["usage"] is JsonObject u)
+                usage = new ChatUsage(u["prompt_tokens"]?.GetValue<int>() ?? 0, u["completion_tokens"]?.GetValue<int>() ?? 0);
+            var choice = chunk?["choices"]?[0];
+            if (choice is null) continue;
+            finish = choice["finish_reason"]?.GetValue<string>() ?? finish;
+            var delta = choice["delta"];
+            if (delta?["content"]?.GetValue<string>() is { Length: > 0 } piece)
+            {
+                text.Append(piece);
+                request.OnTextDelta!(piece);
+            }
+            if (delta?["tool_calls"] is JsonArray tcs)
+            {
+                foreach (var tc in tcs)
+                {
+                    var index = tc?["index"]?.GetValue<int>() ?? calls.Count;
+                    if (!calls.TryGetValue(index, out var acc)) acc = (null, null, new StringBuilder());
+                    acc.Id ??= tc?["id"]?.GetValue<string>();
+                    acc.Name ??= tc?["function"]?["name"]?.GetValue<string>();
+                    var argsNode = tc?["function"]?["arguments"];
+                    if (argsNode is JsonValue v && v.TryGetValue<string>(out var frag)) acc.Args.Append(frag);
+                    else if (argsNode is JsonObject obj) acc.Args.Append(obj.ToJsonString());
+                    calls[index] = acc;
+                }
+            }
+        }
+        return new ChatResponse
+        {
+            Content = text.Length > 0 ? text.ToString() : null,
+            ToolCalls = calls.Where(c => !string.IsNullOrEmpty(c.Value.Name))
+                .Select(c => new ToolCall(c.Value.Id ?? $"call_{c.Key}", c.Value.Name!, c.Value.Args.Length > 0 ? c.Value.Args.ToString() : "{}"))
+                .ToList(),
+            FinishReason = finish,
+            Usage = usage,
+            Model = model ?? request.Model,
+        };
     }
 
     public async Task<ProviderStatus> CheckAsync(CancellationToken ct)

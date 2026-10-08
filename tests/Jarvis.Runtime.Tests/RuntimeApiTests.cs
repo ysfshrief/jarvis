@@ -153,6 +153,21 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task Ai_models_are_listed_with_recommendations_and_bad_pulls_rejected()
+    {
+        var c = _f.Authed();
+        var models = await c.GetFromJsonAsync<JsonElement>("/api/ai/models");
+        Assert.Contains(models.GetProperty("recommended").EnumerateArray(), m => m.GetProperty("name").GetString() == "qwen2.5:7b");
+        var ollama = models.GetProperty("providers").EnumerateArray().Single(p => p.GetProperty("provider").GetString() == "ollama");
+        Assert.True(ollama.GetProperty("canPull").GetBoolean());
+
+        var bad = await c.PostAsJsonAsync("/api/ai/providers/ollama/pull", new { model = "rm -rf /" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        var unknown = await c.PostAsJsonAsync("/api/ai/providers/nope/pull", new { model = "qwen2.5:3b" });
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+    }
+
+    [Fact]
     public async Task Tools_capabilities_and_status_are_exposed()
     {
         var c = _f.Authed();

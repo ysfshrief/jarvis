@@ -18,6 +18,8 @@ public sealed record ChatMessage
     public string? ToolCallId { get; init; }
     public string? ToolName { get; init; }
     public bool IsError { get; init; }
+    /// <summary>Images attached to a user message (PNG/JPEG bytes) for vision-capable models.</summary>
+    [JsonIgnore] public IReadOnlyList<byte[]>? Images { get; init; }
     /// <summary>Opaque provider-specific payload to echo back verbatim (e.g. Anthropic thinking blocks).</summary>
     [JsonIgnore] public object? ProviderData { get; init; }
 
@@ -36,6 +38,10 @@ public sealed record ChatRequest
     public IReadOnlyList<ToolDefinition> Tools { get; init; } = [];
     public int MaxTokens { get; init; } = 4096;
     public double? Temperature { get; init; }
+    /// <summary>Context window to request from local servers that support it (Ollama num_ctx).</summary>
+    public int? ContextTokens { get; init; }
+    /// <summary>When set, the provider streams and reports text as it is generated.</summary>
+    [JsonIgnore] public Action<string>? OnTextDelta { get; init; }
 }
 
 public sealed record ChatUsage(int InputTokens, int OutputTokens);
@@ -60,6 +66,53 @@ public interface IChatProvider
     bool IsLocal { get; }
     Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct);
     Task<ProviderStatus> CheckAsync(CancellationToken ct);
+}
+
+/// <summary>What a specific model can do, as reported by the server (or inferred from its name).</summary>
+public static class ModelCapabilities
+{
+    public const string Completion = "completion";
+    public const string Tools = "tools";
+    public const string Vision = "vision";
+    public const string Embedding = "embedding";
+    public const string Thinking = "thinking";
+}
+
+public sealed record ModelInfo
+{
+    public required string Name { get; init; }
+    public string? Family { get; init; }
+    public string? ParameterSize { get; init; }
+    public string? Quantization { get; init; }
+    public long? SizeBytes { get; init; }
+    public int? ContextLength { get; init; }
+    public IReadOnlyList<string> Capabilities { get; init; } = [ModelCapabilities.Completion];
+    public DateTimeOffset? ModifiedAt { get; init; }
+    /// <summary>True when capabilities came from the server rather than a name-based guess.</summary>
+    public bool CapabilitiesReported { get; init; }
+
+    public bool Has(string capability) => Capabilities.Contains(capability, StringComparer.OrdinalIgnoreCase);
+    public bool IsChatModel => Has(ModelCapabilities.Completion) && !(Has(ModelCapabilities.Embedding) && Capabilities.Count == 1);
+}
+
+/// <summary>Providers that can describe their installed models in detail.</summary>
+public interface IModelCatalog
+{
+    Task<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken ct);
+}
+
+public sealed record PullProgress(string Status, long? Completed, long? Total);
+
+/// <summary>Providers that can download models on request (Ollama).</summary>
+public interface IModelPuller
+{
+    Task PullAsync(string model, IProgress<PullProgress> progress, CancellationToken ct);
+}
+
+/// <summary>Providers that can turn text into vectors for semantic search.</summary>
+public interface IEmbeddingProvider
+{
+    Task<float[][]> EmbedAsync(string model, IReadOnlyList<string> inputs, CancellationToken ct);
 }
 
 /// <summary>Raised for provider failures with a message suitable for the user.</summary>

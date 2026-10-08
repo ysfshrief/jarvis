@@ -13,7 +13,7 @@ modules could move into separate processes later (e.g. a sandboxed plugin host) 
 | Desktop shell | **WPF** + Windows Forms tray icon | Native, mature, transparent always-on-top windows for the orb, global hotkeys. |
 | Dashboard UI | React + TypeScript + Vite, hosted in **WebView2** | Rich, fast-to-build UI; WebView2 (Edge) ships with Windows 10/11; the same UI opens in any browser. |
 | Storage | **SQLite** (Microsoft.Data.Sqlite) with FTS5 | Local, single file, zero admin, full-text search with Arabic normalisation. |
-| Local AI | Any **OpenAI-compatible** server (Ollama, LM Studio, llama.cpp) | Free, private, swappable models. |
+| Local AI | **Ollama native API** (default) or any **OpenAI-compatible** server (LM Studio, llama.cpp) | Free, private, swappable models. The native API exposes model capabilities, context size, downloads and embeddings. |
 | Cloud AI (optional) | Official Anthropic SDK; any OpenAI-compatible API | Off by default; user's own key; never required. |
 | Speech-to-text | **whisper.cpp** via Whisper.net | Offline, multilingual (Arabic included), MIT licensed; models downloaded on demand. |
 | Text-to-speech | Windows OneCore voices (WinRT) | Offline, free, Arabic voices available as Windows language features. |
@@ -43,7 +43,8 @@ If the interface crashes the runtime keeps going (reminders, voice, notification
 src/Jarvis.Core               platform-neutral core (net10.0)
   Agent/        AgentOrchestrator (the loop), IntentEngine (EN/AR deterministic commands),
                 ToolExecutor (permission → approval → offline queue → execute → audit), Persona, ConversationStore
-  AI/           IChatProvider, OpenAiCompatibleProvider, AnthropicProvider, ProviderRegistry, ModelRouter
+  AI/           IChatProvider (+ IModelCatalog/IModelPuller/IEmbeddingProvider), OllamaProvider,
+                OpenAiCompatibleProvider, AnthropicProvider, ProviderRegistry, ModelRouter, ModelManager
   Tools/        ITool, ToolDefinition (JSON schema), ToolRegistry, built-in tools (files, commands, memory,
                 tasks, reminders, web search/read, system info)
   Permissions/  PermissionService (Safe/Sensitive/Critical policy), ApprovalBroker
@@ -69,14 +70,23 @@ input (text / voice / quick bar / API)
  → language detection (Arabic vs English by words; Egyptians code-switch, so "افتح VS Code" is Arabic)
  → pending-approval answer? ("yes", "أيوه", "لأ")
  → deterministic intent? (open/close apps, volume, reminders, tasks, memory, time, commands…)   ← no AI
- → otherwise AI router: classify (general / reasoning / coding) → first available provider
-      (local preferred; cloud only if allowed and online)
- → tool-calling loop (max N steps): model proposes tool calls
+ → otherwise AI router: classify (general / reasoning / coding / vision) → first available provider
+      (local preferred; cloud only if allowed and online); with no model pinned, the best installed
+      model is chosen by capability (tools > family > ~8B size)
+ → context budget: fit system prompt + tools + history into the model's window (old tool output
+      shortened, oldest turns replaced by an extractive recap)
+ → tool-calling loop (max N steps): model proposes tool calls; text streams to the UI
+      (agent.turn.delta); a failing model is excluded and the router picks the next one
+      (max 2 fallbacks); models without tool support converse without tool schemas
  → ToolExecutor for every call:
       assess risk of *this* call → permission policy → approval (if needed, with timeout)
       → offline? queue → execute with timeout → verify → activity log → event
  → reply in the user's language → conversation history → events to all UIs
 ```
+
+Every turn publishes `agent.turn.phase` events (understanding → analyzing → selecting_tool → executing →
+completed/failed) so the UI can show progress without exposing any model reasoning. Conversations are
+stored locally and restored from the database after a restart.
 
 Deterministic commands that fail (e.g. an unknown app) are handed to the AI when one is available.
 Without any model, JARVIS still answers direct commands and explains how to enable conversation.

@@ -109,7 +109,7 @@ public sealed class ToolExecutor(
             }
         }
 
-        events.Publish(EventTypes.ToolStarted, new { tool = name, summary, risk = decision.Risk, conversationId = ctx.ConversationId });
+        events.Publish(EventTypes.ToolStarted, new { tool = name, summary, risk = decision.Risk, conversationId = ctx.ConversationId, turnId = ctx.TurnId });
         var sw = Stopwatch.StartNew();
         ToolResult result;
         try
@@ -140,7 +140,7 @@ public sealed class ToolExecutor(
         activity.Record(ActivityKinds.Tool, summary, name, decision.Risk.ToString(), result.Success ? "ok" : result.Status.ToString().ToLowerInvariant(),
             result.Success ? Truncate(result.Message) : result.Error ?? result.Message, ctx.ConversationId, sw.ElapsedMilliseconds);
         var step = Step(name, summary, decision.Risk, result, sw.ElapsedMilliseconds);
-        events.Publish(EventTypes.ToolCompleted, new { step, conversationId = ctx.ConversationId });
+        events.Publish(EventTypes.ToolCompleted, new { step, conversationId = ctx.ConversationId, turnId = ctx.TurnId });
         return (result, step);
     }
 

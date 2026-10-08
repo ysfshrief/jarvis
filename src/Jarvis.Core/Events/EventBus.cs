@@ -55,6 +55,10 @@ public static class EventTypes
 {
     public const string TurnStarted = "agent.turn.started";
     public const string TurnCompleted = "agent.turn.completed";
+    /// <summary>Visible progress of a turn: understanding → analyzing → selecting_tool → executing → completed/failed.</summary>
+    public const string TurnPhase = "agent.turn.phase";
+    /// <summary>Reply text as the model writes it (streaming).</summary>
+    public const string TurnDelta = "agent.turn.delta";
     public const string ToolStarted = "tool.started";
     public const string ToolCompleted = "tool.completed";
     public const string ApprovalRequested = "approval.requested";
@@ -68,6 +72,7 @@ public static class EventTypes
     public const string VoiceTranscript = "voice.transcript";
     public const string VoiceModelProgress = "voice.model.progress";
     public const string RuntimeState = "runtime.state";
+    public const string ModelPull = "ai.model.pull";
     public const string SettingsChanged = "settings.changed";
     public const string MemoryChanged = "memory.changed";
     public const string TasksChanged = "tasks.changed";
