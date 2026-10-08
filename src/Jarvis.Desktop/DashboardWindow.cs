@@ -32,8 +32,9 @@ public sealed class DashboardWindow : Window
         _core = core;
         _paths = paths;
         Title = "JARVIS";
-        Width = 1280;
-        Height = 820;
+        var area = SystemParameters.WorkArea;
+        Width = Math.Min(1280, area.Width * 0.92);
+        Height = Math.Min(820, area.Height * 0.92);
         MinWidth = 720;
         MinHeight = 480;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;

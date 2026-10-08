@@ -45,18 +45,29 @@ public sealed class ConnectivityMonitor(ISettingsStore settings, IEventBus event
         Changed?.Invoke(online);
     }
 
+    /// <summary>Online if any of several independent endpoints answers (one blocked host must not mean "offline").</summary>
     private async Task<bool> ProbeAsync(CancellationToken ct)
     {
-        try
+        string[] urls =
+        [
+            settings.Current.Runtime.ConnectivityProbeUrl,
+            "https://www.gstatic.com/generate_204",
+            "https://cloudflare.com/cdn-cgi/trace",
+        ];
+        foreach (var url in urls.Where(u => !string.IsNullOrWhiteSpace(u)).Distinct())
         {
-            using var req = new HttpRequestMessage(HttpMethod.Get, settings.Current.Runtime.ConnectivityProbeUrl);
-            using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-            return (int)resp.StatusCode < 500;
+            try
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                using var resp = await _http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                if ((int)resp.StatusCode < 500) return true;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
+            {
+                logger.LogDebug("Connectivity probe {Url} failed: {Message}", url, ex.Message);
+            }
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            return false;
-        }
+        return false;
     }
 }
 

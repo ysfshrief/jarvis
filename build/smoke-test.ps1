@@ -57,6 +57,12 @@ try {
     Check "system status" { Say "how's the system" }
     Check "task" { Say "add task Prepare the CityCrep briefing" }
     Check "reminder (Arabic)" { Say "فكرني بعد 10 دقايق اكلم احمد" }
+    Check "reminder is listed" {
+        $r = @(Api GET "/api/reminders")
+        if ($r.Count -lt 1) { $n = Api GET "/api/notifications"; throw "no pending reminders; notifications: $($n | ConvertTo-Json -Depth 3 -Compress)" }
+        "$($r.Count) pending, due $($r[0].dueAt)"
+    }
+    Check "connectivity" { Start-Sleep 2; $s = Api GET "/api/status"; "online=$($s.online)" }
     Check "memory" { Say "remember that the CityCrep meeting is on Sunday"; Say "what do you know about CityCrep" }
     Check "open notepad" {
         $r = Say "open notepad"
