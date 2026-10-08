@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Jarvis.Platform.Windows\Jarvis.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Jarvis.Voice\Jarvis.Voice.csproj" />
   </ItemGroup>
 
   <ItemGroup>
