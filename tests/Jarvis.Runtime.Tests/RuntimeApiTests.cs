@@ -168,6 +168,27 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task System_metrics_disks_and_processes_are_real()
+    {
+        var c = _f.Authed();
+        await c.GetFromJsonAsync<JsonElement>("/api/system/metrics");
+        await Task.Delay(1100); // samples are cached for a second
+        var m = await c.GetFromJsonAsync<JsonElement>("/api/system/metrics");
+        var cur = m.GetProperty("current");
+        Assert.True(cur.GetProperty("runtimeMemoryMb").GetDouble() > 10);
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsWindows())
+        {
+            Assert.True(cur.GetProperty("memoryTotalGb").GetDouble() > 0.5);
+            Assert.InRange(cur.GetProperty("cpuPercent").GetDouble(), 0, 100);
+        }
+        Assert.True(m.GetProperty("history").GetArrayLength() >= 2);
+        var disks = await c.GetFromJsonAsync<JsonElement>("/api/system/disks");
+        Assert.True(disks.GetArrayLength() >= 1);
+        var procs = await c.GetFromJsonAsync<JsonElement>("/api/system/processes?limit=5");
+        Assert.Equal(5, procs.GetArrayLength());
+    }
+
+    [Fact]
     public async Task Tools_capabilities_and_status_are_exposed()
     {
         var c = _f.Authed();

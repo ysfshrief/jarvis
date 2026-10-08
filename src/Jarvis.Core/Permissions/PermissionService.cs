@@ -11,7 +11,7 @@ public sealed record PermissionDecision(PermissionOutcome Outcome, RiskLevel Ris
 
 /// <summary>
 /// Decides whether a tool call may run. The rules, in order:
-/// 1. A tool the user blocked never runs.
+/// 1. A tool the user blocked never runs; neither does screen capture when privacy settings forbid it.
 /// 2. Critical actions always require explicit approval; no setting can bypass this.
 /// 3. A per-tool "Allow" or "Ask" override applies to safe/sensitive actions.
 /// 4. Safe actions run; sensitive actions ask unless the user enabled auto-approve.
@@ -27,6 +27,8 @@ public sealed class PermissionService
 
         if (policy == ToolPolicy.Block)
             return new(PermissionOutcome.Deny, risk, "This tool is blocked in your permission settings.");
+        if (tool.CapturesScreen && !settings.Privacy.AllowScreenCapture)
+            return new(PermissionOutcome.Deny, risk, "Screen capture is turned off in Settings → Privacy.");
 
         if (risk == RiskLevel.Critical)
             return new(PermissionOutcome.RequireApproval, risk, assessment.Reason ?? "Critical actions always need your approval.");

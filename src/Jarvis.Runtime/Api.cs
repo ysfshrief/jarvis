@@ -302,6 +302,16 @@ public static class Api
             monitor.Set(!dto.Offline);
             return Results.Ok(new { online = monitor.IsOnline });
         });
+        // ---- System health (sampled only when a UI asks, so an idle JARVIS costs nothing) ----
+        api.MapGet("/system/metrics", (Jarvis.Core.Monitoring.SystemMetrics metrics) =>
+        {
+            var latest = metrics.Latest;
+            var current = latest is not null && DateTimeOffset.Now - latest.Timestamp < TimeSpan.FromSeconds(1) ? latest : metrics.Sample();
+            return Results.Ok(new { source = metrics.SourceName, current, history = metrics.History });
+        });
+        api.MapGet("/system/disks", () => Results.Ok(Jarvis.Core.Monitoring.SystemMetrics.Disks()));
+        api.MapGet("/system/processes", (Jarvis.Core.Monitoring.SystemMetrics metrics, string? sort, int? limit) =>
+            Results.Ok(metrics.Processes(limit ?? 15, sort ?? "memory")));
         api.MapGet("/capabilities", (PlatformInfo platform) => Results.Ok(Capabilities.All(platform.Name == "windows")));
 
         app.Map("/ws", (HttpContext ctx, EventHub hub) => hub.HandleAsync(ctx, json, Status(ctx.RequestServices)));

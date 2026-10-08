@@ -103,6 +103,7 @@ public sealed class ScreenshotTool : ToolBase
     {
         Name = "screenshot",
         Category = "screen",
+        CapturesScreen = true,
         Description = "Capture the whole screen (all monitors) to a PNG in Pictures\\JARVIS and return its path.",
     };
 

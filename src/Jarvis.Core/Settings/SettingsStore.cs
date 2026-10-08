@@ -126,6 +126,20 @@ public sealed class SettingsStore : ISettingsStore
         s.Notifications ??= new();
         s.Security ??= new();
         s.Runtime ??= new();
+        s.Appearance ??= new();
+        s.Sounds ??= new();
+        s.Shortcuts ??= new();
+        s.Privacy ??= new();
+        if (s.Appearance.Theme is not ("dark" or "light" or "auto")) s.Appearance.Theme = "dark";
+        if (s.Appearance.Accent is not ("cyan" or "amber" or "violet" or "green")) s.Appearance.Accent = "cyan";
+        if (s.Appearance.Motion is not ("full" or "reduced" or "off")) s.Appearance.Motion = "full";
+        if (s.Appearance.Density is not ("comfortable" or "compact")) s.Appearance.Density = "comfortable";
+        s.Appearance.TextScale = Math.Clamp(s.Appearance.TextScale, 0.85, 1.4);
+        s.Appearance.OrbSize = Math.Clamp(s.Appearance.OrbSize, 48, 128);
+        s.Sounds.Volume = Math.Clamp(s.Sounds.Volume, 0, 1);
+        s.Shortcuts.CommandConsole ??= "";
+        s.Shortcuts.PushToTalk ??= "";
+        s.Shortcuts.Dashboard ??= "";
 
         s.General.ConversationTimeoutMinutes = Math.Clamp(s.General.ConversationTimeoutMinutes, 1, 24 * 60);
         s.Ai.MaxAgentSteps = Math.Clamp(s.Ai.MaxAgentSteps, 1, 30);

@@ -17,6 +17,60 @@ public sealed class JarvisSettings
     public NotificationSettings Notifications { get; set; } = new();
     public SecuritySettings Security { get; set; } = new();
     public RuntimeSettings Runtime { get; set; } = new();
+    public AppearanceSettings Appearance { get; set; } = new();
+    public SoundSettings Sounds { get; set; } = new();
+    public ShortcutSettings Shortcuts { get; set; } = new();
+    public PrivacySettings Privacy { get; set; } = new();
+}
+
+public sealed class AppearanceSettings
+{
+    /// <summary>"dark" (default), "light" or "auto" (follow Windows).</summary>
+    public string Theme { get; set; } = "dark";
+    /// <summary>Energy colour: "cyan" (default), "amber", "violet", "green".</summary>
+    public string Accent { get; set; } = "cyan";
+    /// <summary>"full", "reduced" (no ambient motion) or "off" (no animation at all).</summary>
+    public string Motion { get; set; } = "full";
+    /// <summary>Holographic grid and scan-line overlays.</summary>
+    public bool HudEffects { get; set; } = true;
+    /// <summary>"comfortable" or "compact".</summary>
+    public string Density { get; set; } = "comfortable";
+    /// <summary>Interface text size multiplier (0.85–1.4).</summary>
+    public double TextScale { get; set; } = 1.0;
+    /// <summary>Diameter of the floating desktop orb in pixels (48–128).</summary>
+    public int OrbSize { get; set; } = 72;
+    /// <summary>Show the right-hand context panel on wide screens.</summary>
+    public bool ContextPanel { get; set; } = true;
+}
+
+public sealed class SoundSettings
+{
+    /// <summary>Master switch for interface sounds.</summary>
+    public bool Enabled { get; set; } = true;
+    public double Volume { get; set; } = 0.35;
+    public bool Wake { get; set; } = true;
+    public bool Accepted { get; set; } = true;
+    /// <summary>A soft tick while working. Off by default; it gets old fast.</summary>
+    public bool Processing { get; set; }
+    public bool Completed { get; set; } = true;
+    public bool Warning { get; set; } = true;
+    public bool Error { get; set; } = true;
+    public bool Notification { get; set; } = true;
+}
+
+public sealed class ShortcutSettings
+{
+    /// <summary>Opens the command console. Format: modifiers + key, e.g. "Ctrl+Alt+J".</summary>
+    public string CommandConsole { get; set; } = "Ctrl+Alt+J";
+    public string PushToTalk { get; set; } = "Ctrl+Alt+Space";
+    /// <summary>Opens the dashboard. Empty = no shortcut.</summary>
+    public string Dashboard { get; set; } = "";
+}
+
+public sealed class PrivacySettings
+{
+    /// <summary>Allow screenshots (by command or by the AI). Off blocks every screen capture tool.</summary>
+    public bool AllowScreenCapture { get; set; } = true;
 }
 
 public sealed class GeneralSettings

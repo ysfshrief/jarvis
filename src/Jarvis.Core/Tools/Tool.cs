@@ -28,6 +28,8 @@ public sealed class ToolDefinition
     public required string Category { get; init; }
     public RiskLevel Risk { get; init; } = RiskLevel.Safe;
     public bool RequiresInternet { get; init; }
+    /// <summary>Captures what is on screen; blocked when Settings → Privacy disallows screen capture.</summary>
+    public bool CapturesScreen { get; init; }
     public IReadOnlyList<ToolParameter> Parameters { get; init; } = [];
 
     /// <summary>JSON Schema (draft-07 subset) of the parameters, as AI providers expect.</summary>

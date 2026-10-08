@@ -172,6 +172,7 @@ public static class WindowsPlatform
         services.AddSingleton<IAudioInput>(sp => sp.GetRequiredService<WindowsAudioInput>());
         services.AddSingleton<INotificationSink, ToastNotificationSink>();
         services.AddSingleton<AppCatalog>();
+        services.AddSingleton<Jarvis.Core.Monitoring.IMetricsSource, WindowsMetricsSource>();
         services.AddHostedService<StartupRegistration>();
         services.AddHostedService<DesktopShellLauncher>();
         services.AddHostedService<AppCatalogWarmup>();

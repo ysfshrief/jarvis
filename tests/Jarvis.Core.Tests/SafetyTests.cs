@@ -47,6 +47,15 @@ public class PermissionTests
         Assert.Equal(PermissionOutcome.Deny, _svc.Evaluate(Tool, new(RiskLevel.Safe, "x"), S(s => s.Permissions.ToolOverrides["t"] = ToolPolicy.Block)).Outcome);
 
     [Fact]
+    public void Screen_capture_obeys_the_privacy_switch()
+    {
+        var capture = new ToolDefinition { Name = "screenshot", Description = "", Category = "screen", CapturesScreen = true };
+        Assert.Equal(PermissionOutcome.Allow, _svc.Evaluate(capture, new(RiskLevel.Safe, "x"), S()).Outcome);
+        var off = S(s => { s.Privacy.AllowScreenCapture = false; s.Permissions.ToolOverrides["screenshot"] = ToolPolicy.Allow; });
+        Assert.Equal(PermissionOutcome.Deny, _svc.Evaluate(capture, new(RiskLevel.Safe, "x"), off).Outcome);
+    }
+
+    [Fact]
     public void Ask_override_makes_safe_tools_ask() =>
         Assert.Equal(PermissionOutcome.RequireApproval, _svc.Evaluate(Tool, new(RiskLevel.Safe, "x"), S(s => s.Permissions.ToolOverrides["t"] = ToolPolicy.Ask)).Outcome);
 }
