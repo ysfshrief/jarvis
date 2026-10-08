@@ -58,7 +58,15 @@ public sealed class GenericMetricsSource : IMetricsSource
 
     public (double UsedGb, double TotalGb, double Percent)? Memory()
     {
-        if (!OperatingSystem.IsLinux() || !File.Exists("/proc/meminfo")) return null;
+        if (!OperatingSystem.IsLinux() || !File.Exists("/proc/meminfo"))
+        {
+            // Any OS: the GC knows the machine's memory load.
+            var gc = GC.GetGCMemoryInfo();
+            if (gc.TotalAvailableMemoryBytes <= 0 || gc.MemoryLoadBytes <= 0) return null;
+            var totalGb = gc.TotalAvailableMemoryBytes / 1073741824.0;
+            var usedGb = gc.MemoryLoadBytes / 1073741824.0;
+            return (usedGb, totalGb, Math.Round(100.0 * usedGb / totalGb, 1));
+        }
         var lines = File.ReadAllLines("/proc/meminfo");
         long Kb(string key) => long.TryParse(lines.FirstOrDefault(l => l.StartsWith(key))?.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1], out var v) ? v : 0;
         var total = Kb("MemTotal:");

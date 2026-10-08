@@ -176,11 +176,10 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
         var m = await c.GetFromJsonAsync<JsonElement>("/api/system/metrics");
         var cur = m.GetProperty("current");
         Assert.True(cur.GetProperty("runtimeMemoryMb").GetDouble() > 10);
-        if (OperatingSystem.IsLinux() || OperatingSystem.IsWindows())
-        {
-            Assert.True(cur.GetProperty("memoryTotalGb").GetDouble() > 0.5);
+        // The portable build reads memory everywhere; CPU comes from /proc on Linux and from the Windows layer on Windows.
+        Assert.True(cur.GetProperty("memoryTotalGb").GetDouble() > 0.5);
+        if (m.GetProperty("source").GetString() is "linux" or "windows")
             Assert.InRange(cur.GetProperty("cpuPercent").GetDouble(), 0, 100);
-        }
         Assert.True(m.GetProperty("history").GetArrayLength() >= 2);
         var disks = await c.GetFromJsonAsync<JsonElement>("/api/system/disks");
         Assert.True(disks.GetArrayLength() >= 1);
