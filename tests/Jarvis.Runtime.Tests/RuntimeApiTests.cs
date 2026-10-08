@@ -188,6 +188,32 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task Knowledge_api_confirms_rejects_and_profiles()
+    {
+        var c = _f.Authed();
+        var learned = await (await c.PostAsJsonAsync("/api/memory", new { content = "Prefers calls after 4pm", kind = "preference", source = "learned" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(learned.GetProperty("isConfirmed").GetBoolean());
+        Assert.Equal("dashboard", learned.GetProperty("provenance").GetProperty("via").GetString());
+        var id = learned.GetProperty("id").GetString();
+        var confirmed = await (await c.PostAsync($"/api/memory/{id}/confirm", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(confirmed.GetProperty("isConfirmed").GetBoolean());
+
+        var other = await (await c.PostAsJsonAsync("/api/memory", new { content = "Hates mornings", kind = "preference", source = "derived" })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(HttpStatusCode.OK, (await c.PostAsync($"/api/memory/{other.GetProperty("id").GetString()}/reject", null)).StatusCode);
+
+        var rel = await c.PostAsJsonAsync("/api/relations", new { from = "Mona", fromType = "person", relation = "manages", to = "Project Atlas", toType = "project" });
+        Assert.Equal(HttpStatusCode.OK, rel.StatusCode);
+        var entities = await c.GetFromJsonAsync<JsonElement>("/api/entities?q=atlas");
+        var atlas = entities.EnumerateArray().Single();
+        var profile = await c.GetFromJsonAsync<JsonElement>($"/api/entities/{atlas.GetProperty("id").GetString()}");
+        Assert.Contains(profile.GetProperty("relations").EnumerateArray(), r => r.GetProperty("fromName").GetString() == "Mona" && r.GetProperty("type").GetString() == "manages");
+
+        var status = await c.GetFromJsonAsync<JsonElement>("/api/memory/status");
+        Assert.True(status.GetProperty("entities").GetInt32() >= 2);
+        Assert.False(string.IsNullOrEmpty(status.GetProperty("semantic").GetProperty("message").GetString()));
+    }
+
+    [Fact]
     public async Task Tools_capabilities_and_status_are_exposed()
     {
         var c = _f.Authed();

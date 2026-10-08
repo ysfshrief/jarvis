@@ -73,6 +73,8 @@ try
     builder.Services.AddHostedService<ConnectivityService>();
     builder.Services.AddHostedService<RetentionService>();
     builder.Services.AddHostedService<ProviderWarmupService>();
+    builder.Services.AddHostedService<KnowledgeIndexService>();
+    builder.Services.AddHostedService<PatternLearnerService>();
 
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     {

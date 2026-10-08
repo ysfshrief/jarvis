@@ -80,6 +80,7 @@ public sealed class AgentOrchestrator(
     ModelRouter router,
     ApprovalBroker approvals,
     MemoryStore memory,
+    KnowledgeService knowledge,
     TaskStore tasks,
     ConversationStore conversations,
     ActivityLog activity,
@@ -116,7 +117,11 @@ public sealed class AgentOrchestrator(
         conv.LastLang = lang;
         var phr = new ToolCtx(lang, lang == Lang.Ar ? s.General.HonorificAr : s.General.Honorific);
         var turnId = NewId();
-        var toolCtx = new ToolContext { Lang = lang, Settings = s, ConversationId = conv.Id, TurnId = turnId, CancellationToken = ct };
+        var toolCtx = new ToolContext
+        {
+            Lang = lang, Settings = s, ConversationId = conv.Id, TurnId = turnId, CancellationToken = ct,
+            RequestText = text, Via = input.Source.ToString().ToLowerInvariant(),
+        };
 
         events.Publish(EventTypes.TurnStarted, new { conversationId = conv.Id, turnId, text, source = input.Source });
         Phase(toolCtx, TurnPhases.Understanding);
@@ -232,7 +237,7 @@ public sealed class AgentOrchestrator(
     private async Task<AgentTurnResult> RunAiAsync(string text, UserInput input, ConversationContext conv, Lang lang,
         ToolCtx phr, ToolContext toolCtx, JarvisSettings s, RouteDecision route, CancellationToken ct)
     {
-        var relevant = s.Memory.Enabled ? RelevantMemories(text) : [];
+        var relevant = s.Memory.Enabled ? await RelevantMemoriesAsync(text, ct).ConfigureAwait(false) : [];
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
         var used = relevant.Select(m => new UsedMemory(m.Id, m.Kind, m.Source, m.Content.Length > 160 ? m.Content[..159] + "…" : m.Content)).ToList();
         var system = Persona.SystemPrompt(s, lang, input.Source == InputSource.Voice, connectivity.IsOnline,
@@ -413,9 +418,10 @@ public sealed class AgentOrchestrator(
     public IReadOnlyList<ChatMessage> History(string conversationId) =>
         _contexts.TryGetValue(conversationId, out var c) ? c.History.ToList() : [];
 
-    private IReadOnlyList<MemoryItem> RelevantMemories(string text)
+    private async Task<IReadOnlyList<MemoryItem>> RelevantMemoriesAsync(string text, CancellationToken ct)
     {
-        var found = memory.Search(text, 6).ToList();
+        // Keyword + meaning + everything linked to people/things named in the request.
+        var found = (await knowledge.RecallAsync(text, 6, ct).ConfigureAwait(false)).Select(h => h.Memory).ToList();
         // Confirmed preferences are always relevant to how JARVIS behaves.
         foreach (var p in memory.List(MemoryKinds.Preference, 6))
             if (found.All(f => f.Id != p.Id)) found.Add(p);

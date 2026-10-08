@@ -195,5 +195,60 @@ public sealed class JarvisDatabase
             status TEXT NOT NULL
         );
         """,
-    ];
-}
+        // v2: provenance and confirmation of memories, entities and relationships, semantic vectors, pattern learner state.
+        """
+        ALTER TABLE memories ADD COLUMN provenance TEXT;
+        ALTER TABLE memories ADD COLUMN confirmed_at TEXT;
+
+        CREATE TABLE entities (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            norm TEXT NOT NULL,
+            aliases TEXT,
+            notes TEXT,
+            source TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX ux_entities_norm ON entities(type, norm);
+
+        CREATE TABLE relations (
+            id TEXT PRIMARY KEY,
+            from_id TEXT NOT NULL,
+            relation TEXT NOT NULL,
+            to_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            confidence REAL NOT NULL,
+            provenance TEXT,
+            created_at TEXT NOT NULL,
+            UNIQUE(from_id, relation, to_id)
+        );
+
+        CREATE TABLE memory_entities (
+            memory_id TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            PRIMARY KEY (memory_id, entity_id)
+        );
+        CREATE INDEX ix_memory_entities_entity ON memory_entities(entity_id);
+
+        CREATE TABLE embeddings (
+            owner_type TEXT NOT NULL,
+            owner_id TEXT NOT NULL,
+            model TEXT NOT NULL,
+            dims INTEGER NOT NULL,
+            hash TEXT NOT NULL,
+            vector BLOB NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (owner_type, owner_id)
+        );
+
+        CREATE TABLE learner_state (
+            key TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            memory_id TEXT,
+            evidence TEXT,
+            updated_at TEXT NOT NULL
+        );
+        """,
+    ];}

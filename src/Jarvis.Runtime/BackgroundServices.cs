@@ -109,3 +109,60 @@ public sealed class ProviderWarmupService(ProviderRegistry providers, ILogger<Pr
             logger.LogInformation("AI provider {Provider}: {Available} — {Message}", status.ProviderId, status.Available ? "available" : "unavailable", status.Message);
     }
 }
+
+/// <summary>
+/// Keeps semantic memory search up to date: embeds new/edited memories as they arrive and backfills
+/// older ones whenever an embedding model becomes available. Does nothing without a model.
+/// </summary>
+public sealed class KnowledgeIndexService(Jarvis.Core.Memory.KnowledgeService knowledge, ILogger<KnowledgeIndexService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
+        var nextBackfill = DateTimeOffset.MinValue;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (DateTimeOffset.Now >= nextBackfill)
+                {
+                    var n = await knowledge.BackfillAsync(stoppingToken);
+                    if (n > 0) logger.LogInformation("Indexed {Count} memories for semantic search", n);
+                    nextBackfill = DateTimeOffset.Now.AddMinutes(10);
+                }
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                wait.CancelAfter(TimeSpan.FromMinutes(10));
+                try { await knowledge.Semantic.WaitForWorkAsync(wait.Token); }
+                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested) { continue; }
+                while (await knowledge.Semantic.DrainAsync(stoppingToken) > 0) { }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogDebug(ex, "Semantic indexing skipped");
+                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+        }
+    }
+}
+
+/// <summary>Runs the opt-in pattern learner a few minutes after start and then every six hours.</summary>
+public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner learner, ISettingsStore settings, ILogger<PatternLearnerService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            if (settings.Current.Memory.LearnPatterns)
+            {
+                try
+                {
+                    var r = learner.Run(DateTimeOffset.Now);
+                    if (r.Proposed + r.Updated > 0) logger.LogInformation("Pattern learner proposed {New} and updated {Updated} patterns", r.Proposed, r.Updated);
+                }
+                catch (Exception ex) { logger.LogWarning(ex, "Pattern learner failed"); }
+            }
+            await Task.Delay(TimeSpan.FromHours(6), stoppingToken);
+        }
+    }
+}

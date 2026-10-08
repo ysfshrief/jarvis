@@ -116,10 +116,7 @@ public sealed class ToolExecutor(
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ctx.CancellationToken);
             timeout.CancelAfter(DefaultTimeout);
-            var runCtx = new ToolContext
-            {
-                Lang = ctx.Lang, Settings = ctx.Settings, ConversationId = ctx.ConversationId, CancellationToken = timeout.Token,
-            };
+            var runCtx = ctx.WithToken(timeout.Token);
             result = await tool.ExecuteAsync(args, runCtx).ConfigureAwait(false);
         }
         catch (ToolArgumentException ex)

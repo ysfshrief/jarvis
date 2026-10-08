@@ -1,8 +1,9 @@
+using System.Text.RegularExpressions;
 using Jarvis.Core.Memory;
 
 namespace Jarvis.Core.Tools.Builtin;
 
-public sealed class MemoryRememberTool(MemoryStore store) : ToolBase
+public sealed partial class MemoryRememberTool(KnowledgeService knowledge) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
     {
@@ -30,38 +31,119 @@ public sealed class MemoryRememberTool(MemoryStore store) : ToolBase
         if (!s.AllowedKinds.Contains(kind))
             return Task.FromResult(ToolResult.Fail(ctx.T($"You've told me not to store '{kind}' memories.", $"انت قايلي مخزنش حاجات من نوع '{kind}'.")));
 
-        // An explicit user request is a confirmed memory; anything the AI decides on its own is "derived".
-        var item = store.Add(new NewMemory(args.RequireString("content"), kind, args.GetString("subject"), MemorySources.UserExplicit));
-        return Task.FromResult(ToolResult.Ok(ctx.T($"Noted{ctx.CommaSir}.", $"اتسجلت{ctx.CommaSir}."), new { item.Id, item.Kind, item.Content }));
+        // Only an explicit "remember…" from the user makes a fact. If the AI decided to store something
+        // on its own, it is kept as "derived" — a hint the user can confirm or delete.
+        var explicitAsk = ctx.RequestText is null || ExplicitAsk().IsMatch(Language.TextNormalizer.Normalize(ctx.RequestText));
+        var source = explicitAsk ? MemorySources.UserExplicit : MemorySources.Derived;
+        var provenance = new MemoryProvenance(ctx.Via, ctx.ConversationId, ctx.TurnId, Quote(ctx.RequestText),
+            explicitAsk ? null : "The assistant inferred this from the conversation; it hasn't been confirmed.", Definition.Name);
+        var item = knowledge.Remember(new NewMemory(args.RequireString("content"), kind, args.GetString("subject"), source, Provenance: provenance));
+        var msg = explicitAsk
+            ? ctx.T($"Noted{ctx.CommaSir}.", $"اتسجلت{ctx.CommaSir}.")
+            : ctx.T("I've noted that as unconfirmed — you can confirm or delete it in Memory.", "سجلتها كحاجة مش متأكدة منها — تقدر تأكدها أو تمسحها من الذاكرة.");
+        return Task.FromResult(ToolResult.Ok(msg, new { item.Id, item.Kind, item.Content, item.Source }));
     }
+
+    private static string? Quote(string? text) => text is null ? null : text.Length <= 300 ? text : text[..297] + "...";
+
+    [GeneratedRegex(@"\b(remember|don'?t forget|note that|make a note|keep in mind|save (this|that)|for the record|from now on|always|never)\b|افتكر|فاكر|متنساش|ماتنساش|خلي في بالك|خد بالك ان|سجل|احفظ|دايما|ابدا|من هنا ورايح")]
+    private static partial Regex ExplicitAsk();
 }
 
-public sealed class MemorySearchTool(MemoryStore store) : ToolBase
+public sealed class MemorySearchTool(KnowledgeService knowledge) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
     {
         Name = "memory_search",
         Category = "memory",
-        Description = "Search JARVIS's long-term memory (facts, preferences, people, projects) for anything related to the query.",
+        Description = "Search JARVIS's long-term memory (facts, preferences, people, organisations, projects and how they relate) for anything related to the query.",
         Parameters = [new("query", "string", "What to look for.", true)],
     };
 
     protected override string Describe(ToolArgs args) => $"Search memory: {args.GetString("query")}";
 
-    public override Task<ToolResult> ExecuteAsync(ToolArgs args, ToolContext ctx)
+    public override async Task<ToolResult> ExecuteAsync(ToolArgs args, ToolContext ctx)
     {
         var query = args.RequireString("query");
-        var found = store.Search(query, 10);
-        if (found.Count == 0)
-            return Task.FromResult(ToolResult.Ok(ctx.T($"I don't have anything stored about \"{query}\".", $"معنديش أي حاجة متسجلة عن \"{query}\"."), Array.Empty<object>()));
+        var entity = knowledge.Entities.Find(query) ?? knowledge.Entities.Mentioned(query).FirstOrDefault();
+        var hits = await knowledge.RecallAsync(query, 10, ctx.CancellationToken).ConfigureAwait(false);
+        var profile = entity is null ? null : knowledge.Profile(entity);
 
-        var lines = string.Join("\n", found.Take(5).Select(m => "• " + m.Content));
-        var msg = ctx.T($"Here's what I have on \"{query}\":\n{lines}", $"ده اللي عندي عن \"{query}\":\n{lines}");
-        return Task.FromResult(ToolResult.Ok(msg, found.Select(m => new { m.Id, m.Kind, m.Content, m.Subject, m.Source, m.Confidence })));
+        var lines = new List<string>();
+        foreach (var h in hits.Take(6))
+            lines.Add("• " + h.Memory.Content + (h.Memory.IsConfirmed ? "" : ctx.T(" (unconfirmed)", " (مش متأكد)")));
+        if (profile is not null)
+        {
+            foreach (var r in profile.Relations.Take(5))
+            {
+                var line = $"• {r.FromName} {r.Type.Replace('_', ' ')} {r.ToName}";
+                if (!lines.Contains(line)) lines.Add(line);
+            }
+            if (profile.Tasks.Count > 0)
+                lines.Add(ctx.T($"• Open tasks: {string.Join(", ", profile.Tasks.Take(3).Select(t => t.Title))}", $"• مهام مفتوحة: {string.Join("، ", profile.Tasks.Take(3).Select(t => t.Title))}"));
+        }
+        if (lines.Count == 0)
+        {
+            var none = ctx.T($"I don't have anything stored about \"{query}\".", $"معنديش أي حاجة متسجلة عن \"{query}\".");
+            // "who is X" with nothing stored lets the AI answer from general knowledge instead.
+            return args.GetBool("require") == true ? ToolResult.Fail(none, status: ToolStatus.NotFound) : ToolResult.Ok(none, Array.Empty<object>());
+        }
+
+        var msg = ctx.T($"Here's what I have on \"{query}\":\n{string.Join("\n", lines)}", $"ده اللي عندي عن \"{query}\":\n{string.Join("\n", lines)}");
+        return ToolResult.Ok(msg, new
+        {
+            memories = hits.Select(h => new { h.Memory.Id, h.Memory.Kind, h.Memory.Content, h.Memory.Subject, h.Memory.Source, h.Memory.Confidence, h.Semantic }),
+            entity = profile is null ? null : new
+            {
+                profile.Entity.Name, profile.Entity.Type,
+                relations = profile.Relations.Select(r => new { r.FromName, r.Type, r.ToName, r.Source }),
+                tasks = profile.Tasks.Select(t => new { t.Title, t.State, t.Priority }),
+            },
+        });
     }
 }
 
-public sealed class MemoryForgetTool(MemoryStore store) : ToolBase
+public sealed class MemoryRelateTool(KnowledgeService knowledge) : ToolBase
+{
+    public override ToolDefinition Definition { get; } = new()
+    {
+        Name = "memory_relate",
+        Category = "memory",
+        Description = "Record how two people/organisations/projects relate, e.g. Ahmed works_at CityCrep, Sara manages Project Atlas. Use only for relationships the user stated.",
+        Parameters =
+        [
+            new("from", "string", "First entity name, e.g. Ahmed.", true),
+            new("from_type", "string", "Type of the first entity.", false, EntityTypes.All),
+            new("relation", "string", "Relationship in snake_case, e.g. works_at, manages, client_of, member_of, reports_to, owns, related_to.", true),
+            new("to", "string", "Second entity name, e.g. CityCrep.", true),
+            new("to_type", "string", "Type of the second entity.", false, EntityTypes.All),
+        ],
+    };
+
+    protected override string Describe(ToolArgs args) => $"Remember: {args.GetString("from")} {args.GetString("relation")?.Replace('_', ' ')} {args.GetString("to")}";
+
+    public override Task<ToolResult> ExecuteAsync(ToolArgs args, ToolContext ctx)
+    {
+        if (!ctx.Settings.Memory.Enabled)
+            return Task.FromResult(ToolResult.Fail(ctx.T("Memory is turned off in Settings.", "الذاكرة مقفولة من الإعدادات.")));
+        string Type(string? t, string fallback) => t is not null && EntityTypes.All.Contains(t) ? t : fallback;
+        var provenance = new MemoryProvenance(ctx.Via, ctx.ConversationId, ctx.TurnId, ctx.RequestText, null, Definition.Name);
+        Relation rel;
+        try
+        {
+            rel = knowledge.Relate(args.RequireString("from"), Type(args.GetString("from_type"), EntityTypes.Person), args.RequireString("relation"),
+                args.RequireString("to"), Type(args.GetString("to_type"), EntityTypes.Organization), MemorySources.UserExplicit, provenance);
+        }
+        catch (ArgumentException ex)
+        {
+            return Task.FromResult(ToolResult.Fail(ex.Message));
+        }
+        return Task.FromResult(ToolResult.Ok(ctx.T($"Noted: {rel.FromName} {rel.Type.Replace('_', ' ')} {rel.ToName}.", $"اتسجل: {rel.FromName} {rel.Type.Replace('_', ' ')} {rel.ToName}."),
+            new { rel.Id, rel.FromName, rel.Type, rel.ToName }));
+    }
+}
+
+public sealed class MemoryForgetTool(KnowledgeService knowledge) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
     {
@@ -76,15 +158,17 @@ public sealed class MemoryForgetTool(MemoryStore store) : ToolBase
         ],
     };
 
+    private MemoryStore Store => knowledge.Memories;
+
     public override RiskAssessment Assess(ToolArgs args, ToolContext ctx)
     {
         var id = args.GetString("id");
         if (id is not null)
         {
-            var item = store.Get(id);
+            var item = Store.Get(id);
             return new(RiskLevel.Sensitive, $"Forget: {item?.Content ?? id}");
         }
-        var matches = store.Search(args.RequireString("query"), 5);
+        var matches = Store.Search(args.RequireString("query"), 5);
         var preview = matches.Count == 0 ? "(nothing matches)" : string.Join("; ", matches.Select(m => m.Content));
         return new(RiskLevel.Sensitive, $"Forget {matches.Count} memor{(matches.Count == 1 ? "y" : "ies")}: {preview}");
     }
@@ -93,11 +177,11 @@ public sealed class MemoryForgetTool(MemoryStore store) : ToolBase
     {
         var id = args.GetString("id");
         var targets = id is not null
-            ? (store.Get(id) is { } one ? [one] : new List<MemoryItem>())
-            : store.Search(args.RequireString("query"), 5).ToList();
+            ? (Store.Get(id) is { } one ? [one] : new List<MemoryItem>())
+            : Store.Search(args.RequireString("query"), 5).ToList();
         if (targets.Count == 0)
             return Task.FromResult(ToolResult.Ok(ctx.T("There was nothing matching to forget.", "مكانش فيه حاجة زي كده أنساها.")));
-        var n = targets.Count(t => store.Delete(t.Id));
+        var n = targets.Count(t => Store.Delete(t.Id));
         return Task.FromResult(ToolResult.Ok(ctx.T($"Forgotten ({n}).", $"اتمسحت ({n})."), new { deleted = n }));
     }
 }

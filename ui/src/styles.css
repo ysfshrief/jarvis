@@ -568,3 +568,4 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
   letter-spacing: 0; text-transform: none;
 }
 :root[lang="ar"] h2, :root[lang="ar"] .nav-item, :root[lang="ar"] .btn, :root[lang="ar"] .settings-nav button { font-family: var(--font-ui); }
+.accent { color: var(--accent); }

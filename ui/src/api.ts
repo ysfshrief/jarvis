@@ -188,6 +188,8 @@ export interface ActivityEntry {
   durationMs?: number | null;
 }
 
+export interface MemoryProvenance { via: string; conversationId?: string | null; turnId?: string | null; quote?: string | null; reason?: string | null; tool?: string | null }
+
 export interface MemoryItem {
   id: string;
   kind: string;
@@ -201,6 +203,20 @@ export interface MemoryItem {
   expiresAt?: string | null;
   lastUsedAt?: string | null;
   useCount: number;
+  provenance?: MemoryProvenance | null;
+  confirmedAt?: string | null;
+  isConfirmed: boolean;
+  score?: number | null;
+  semantic?: boolean | null;
+  entities: { id: string; name: string; type: string }[];
+}
+
+export interface Entity { id: string; type: string; name: string; aliases: string[]; notes?: string | null; source: string; updatedAt: string; memories?: number }
+export interface Relation { id: string; fromId: string; fromName: string; type: string; toId: string; toName: string; source: string; confidence: number; createdAt: string }
+export interface EntityProfile { entity: Entity; memories: MemoryItem[]; relations: Relation[]; tasks: TaskItem[]; reminders: Reminder[] }
+export interface MemoryStatus {
+  total: number; confirmed: number; inferred: number; entities: number; learning: boolean; enabled: boolean;
+  semantic: { available: boolean; model?: string | null; provider?: string | null; indexed: number; total: number; message: string };
 }
 
 export interface TaskItem {

@@ -45,6 +45,10 @@ public static class CoreServices
 
         services.AddSingleton<ActivityLog>();
         services.AddSingleton<MemoryStore>();
+        services.AddSingleton<EntityStore>();
+        services.AddSingleton<SemanticIndex>();
+        services.AddSingleton<KnowledgeService>();
+        services.AddSingleton<PatternLearner>();
         services.AddSingleton<TaskStore>();
         services.AddSingleton<ReminderStore>();
         services.AddSingleton<ConversationStore>();
@@ -79,6 +83,7 @@ public static class CoreServices
         AddTool<MemoryRememberTool>(services);
         AddTool<MemorySearchTool>(services);
         AddTool<MemoryForgetTool>(services);
+        AddTool<MemoryRelateTool>(services);
         AddTool<TaskCreateTool>(services);
         AddTool<TaskListTool>(services);
         AddTool<TaskCompleteTool>(services);

@@ -125,10 +125,25 @@ Approvals are resolved from any surface (dashboard, quick bar, voice, future pho
 ## Memory model
 
 `memories` table + FTS5 index over Arabic-normalised text. Each item has a **kind** (fact, preference,
-person, project, context, pattern, assumption), a **source** (user / confirmed / learned / derived) and a
-**confidence**. Explicit user statements are 1.0; learned patterns start low and are labelled as hints in
-the AI prompt. Context items can expire. Users can view, search, edit, delete, clear by kind, and choose
-which kinds may be stored.
+person, project, context, pattern, assumption), a **source** (user / confirmed / learned / derived), a
+**confidence** and **provenance** (surface, conversation, the user's words, or for inferences the
+evidence). Explicit user statements are facts (1.0). Anything inferred — by the AI on its own or by the
+pattern learner — stays *unconfirmed* until the user confirms it (it becomes `confirmed`) or rejects it
+(deleted, and the learner never proposes it again). Unconfirmed items reach the AI only as labelled hints.
+
+Knowledge around memories (`KnowledgeService`):
+
+- **Entities** (person, organization, project, place, file, event, topic) with aliases (e.g. the Arabic
+  spelling), **relations** between them (`Ahmed works_at CityCrep`), and links from memories to the
+  entities they mention. "What do you know about CityCrep" gathers linked memories, relationships and
+  related tasks/reminders.
+- **Semantic recall**: memories are embedded by a local Ollama embedding model (`bge-m3` by default,
+  multilingual) in the background and stored as float32 vectors; recall ranks keyword hits, entity
+  links and cosine similarity together. Without an embedding model, recall is keyword + entity only
+  and the UI says so.
+- **Pattern learner** (opt-in): reads JARVIS's own activity log for routines (apps opened at regular
+  times, start of day, repeated requests) and preferences (language, brevity), with the evidence
+  attached to each proposal.
 
 ## Notification intelligence
 

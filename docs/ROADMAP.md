@@ -67,7 +67,11 @@ The same matrix is visible in the app under **System → What this build can do*
 | Local memory with kinds, sources, confidence, expiry; Arabic-aware search | Working |
 | Memory UI: view, search, add, edit, delete, clear, allowed kinds | Working |
 | Conversation history with retention | Working |
-| **Next:** entities & relationships (people ↔ projects ↔ files), semantic (embedding) search, conversation summarisation into memory | Planned |
+| Provenance on every memory ("why is this here?"): surface, conversation, your words, or the evidence for an inference | Working |
+| Confirmed vs inferred: AI-initiated and learned items stay unconfirmed until you confirm or reject them | Working |
+| People, organisations, projects and relationships ("Ahmed works at CityCrep"), entity profiles with related tasks | Working |
+| Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real Ollama embedding model |
+| **Next:** conversation summarisation into memory, file entities (with the file index) | Planned |
 
 ## Phase 4 — Web agent
 
@@ -99,8 +103,12 @@ notes, decisions and action items. Screenshots already work. **Foundation.**
 
 ## Phase 8 — Personal adaptation
 
-Memory already separates confirmed preferences from learned patterns and derived assumptions; a "What
-JARVIS learned" review screen and opt-in pattern learning come next. **Foundation.**
+| Capability | Status |
+| --- | --- |
+| Opt-in pattern learning from JARVIS's activity log: app routines, start of day, repeated requests, preferred language, preference for short answers | Working |
+| Review screen (Memory → To review) with evidence; confirm or reject; rejected patterns are never re-proposed | Working |
+| Learned preferences shape replies only as labelled hints | Working |
+| Writing-style learning from your sent messages (needs the inbox connectors) | Planned |
 
 ## Phase 9 — Plugins
 

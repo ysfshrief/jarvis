@@ -95,6 +95,28 @@ public class OllamaLiveTests
     }
 
     [OllamaFact]
+    public async Task Semantic_memory_recall_with_a_real_embedding_model()
+    {
+        using var host = new TestHost(s =>
+        {
+            s.Ai.Providers = [new ProviderConfig { Id = "ollama", Name = "Ollama", Kind = ProviderKinds.Ollama, BaseUrl = Url, IsLocal = true, Enabled = true }];
+            s.Ai.EmbeddingModel = EmbedModel;
+        });
+        host.Get<ProviderRegistry>().Factory = null;
+        host.Settings.Update(_ => { });
+        var knowledge = host.Get<Jarvis.Core.Memory.KnowledgeService>();
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("I drive a red Toyota to the office every day"));
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("My sister's birthday is on the 3rd of May"));
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("The quarterly board meeting is held in the Zamalek office"));
+        await knowledge.BackfillAsync(default);
+
+        var hits = await knowledge.RecallAsync("which vehicle do I own?", 3, default);
+        Assert.NotEmpty(hits);
+        Assert.Contains("Toyota", hits[0].Memory.Content);
+        Assert.True(hits[0].Semantic);
+    }
+
+    [OllamaFact]
     public async Task Full_agent_turn_through_real_ollama()
     {
         using var host = new TestHost(s =>

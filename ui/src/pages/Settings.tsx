@@ -451,8 +451,13 @@ function MemorySettings({ s, set }: P) {
     <Card title="Memory">
       <Toggle label="Long-term memory" hint="When off, JARVIS won't store or use memories." checked={s.memory.enabled} onChange={(v) => set((x) => { x.memory.enabled = v; })} />
       <Toggle label="Keep conversation history" checked={s.memory.storeConversations} onChange={(v) => set((x) => { x.memory.storeConversations = v; })} />
+      <Toggle label="Learn from my activity" hint="Off by default. JARVIS reviews its own activity log every few hours for routines and preferences, and proposes them as unconfirmed items you confirm or reject in Memory → To review. Nothing becomes a fact without you."
+        checked={s.memory.learnPatterns} onChange={(v) => set((x) => { x.memory.learnPatterns = v; })} />
       <Field label="Delete conversations older than (days)" hint="0 keeps them forever.">
         <input className="input" type="number" min={0} value={s.memory.conversationRetentionDays} onChange={(e) => set((x) => { x.memory.conversationRetentionDays = Number(e.target.value); })} />
+      </Field>
+      <Field label="Semantic search model" hint="A local embedding model (Ollama) lets JARVIS find memories by meaning, in English and Arabic. bge-m3 is recommended; empty turns semantic search off.">
+        <input className="input mono" placeholder="(off)" value={s.ai.embeddingModel} onChange={(e) => set((x) => { x.ai.embeddingModel = e.target.value.trim(); })} />
       </Field>
       <div className="field">
         <span className="field-label">JARVIS may remember</span>

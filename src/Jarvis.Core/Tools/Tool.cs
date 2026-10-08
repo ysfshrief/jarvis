@@ -106,6 +106,17 @@ public sealed class ToolContext
     public string ConversationId { get; init; } = "";
     /// <summary>The agent turn this call belongs to, so the UI can group steps under one request.</summary>
     public string? TurnId { get; init; }
+    /// <summary>The user's request that led to this call (for provenance, e.g. why a memory was stored).</summary>
+    public string? RequestText { get; init; }
+    /// <summary>Where the request came from: "text", "voice", "api", "scheduler", "dashboard"…</summary>
+    public string Via { get; init; } = "chat";
+
+    /// <summary>The same context with a different cancellation token (e.g. a per-tool timeout).</summary>
+    public ToolContext WithToken(CancellationToken token) => new()
+    {
+        Lang = Lang, Settings = Settings, ConversationId = ConversationId, TurnId = TurnId,
+        RequestText = RequestText, Via = Via, CancellationToken = token,
+    };
     public CancellationToken CancellationToken { get; init; }
 
     /// <summary>Pick the English or Egyptian Arabic phrasing.</summary>

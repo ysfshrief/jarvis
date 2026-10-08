@@ -92,6 +92,14 @@ public static partial class IntentEngine
             return new ToolIntent("task_complete", ToolArgs.From(new { title = m.Groups["x"].Value.Trim() }));
 
         // Memory.
+        if ((m = WorksAt().Match(t)).Success && !IsSelf(m.Groups["a"].Value))
+            return new ToolIntent("memory_relate", ToolArgs.From(new
+            {
+                from = Original(rawText, m.Groups["a"].Value), from_type = "person", relation = "works_at",
+                to = Original(rawText, m.Groups["b"].Value), to_type = "organization",
+            }));
+        if ((m = WhoIs().Match(t)).Success)
+            return new ToolIntent("memory_search", ToolArgs.From(new { query = Original(rawText, m.Groups["x"].Value), require = true }), FallBackToAiOnFailure: true);
         if ((m = Remember().Match(t)).Success)
             return new ToolIntent("memory_remember", ToolArgs.From(new { content = Original(rawText, m.Groups["x"].Value) }));
         if ((m = Recall().Match(t)).Success)
@@ -258,6 +266,15 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:what do you (?:know|remember) about|what did i tell you about|do you remember)\s+(?<x>.+)$|^(?:تعرف|فاكر|تفتكر) (?:ايه|اي حاجه) عن\s+(?<x>.+)$")]
     private static partial Regex Recall();
+
+    // "Ahmed works at CityCrep", "remember that Sara works for Atlas", "أحمد شغال في سيتي كريب".
+    [GeneratedRegex(@"^(?:(?:remember|note) (?:that )?)?(?<a>[\p{L}][\p{L}'\-]*(?: [\p{L}][\p{L}'\-]*){0,2}) (?:works|is working) (?:at|for) (?<b>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{1,50})$|^(?:افتكر (?:ان |إن )?)?(?<a>[\p{L}]+(?: [\p{L}]+)?) (?:شغال|بيشتغل|يشتغل|بتشتغل|شغاله) (?:في|ف|عند) (?<b>[\p{L}\p{N}][\p{L}\p{N} &'.\-]{1,50})$")]
+    private static partial Regex WorksAt();
+
+    [GeneratedRegex(@"^(?:who(?:'s| is) |مين )(?<x>[\p{L}][\p{L}\p{N} '.\-]{1,40})$")]
+    private static partial Regex WhoIs();
+
+    private static bool IsSelf(string who) => who.Trim() is "i" or "me" or "انا" or "احنا" or "we" or "he" or "she" or "هو" or "هي";
 
     [GeneratedRegex(@"^(?:forget(?: about| that)?)\s+(?<x>.+)$|^(?:انسي|امسح من ذاكرتك)\s+(?<x>.+)$")]
     private static partial Regex Forget();

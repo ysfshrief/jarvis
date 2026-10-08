@@ -24,6 +24,8 @@ namespace Jarvis.Runtime;
 public sealed record ChatRequestDto(string Text, string? ConversationId, string? Source);
 public sealed record ApprovalDecisionDto(bool Approve, bool Remember = false);
 public sealed record MemoryDto(string Content, string? Kind, string? Subject, string? Source, double? Confidence, string? Tags);
+public sealed record EntityDto(string? Name, string? Type, List<string>? Aliases, string? Notes);
+public sealed record RelationDto(string From, string? FromType, string Relation, string To, string? ToType);
 public sealed record TaskDto(string? Title, string? Notes, string? State, string? Priority, string? Project, DateTimeOffset? DueAt, bool ClearDue = false);
 public sealed record ReminderDto(string Text, DateTimeOffset? DueAt, double? InMinutes);
 public sealed record SecretDto(string Value);
@@ -103,13 +105,58 @@ public static class Api
         api.MapGet("/activity", (ActivityLog log, int? limit, string? kind, string? status) =>
             Results.Ok(log.Recent(limit ?? 100, kind, status)));
 
-        // ---- Memory ----
-        api.MapGet("/memory", (MemoryStore store, string? q, string? kind, int? limit) =>
-            Results.Ok(string.IsNullOrWhiteSpace(q) ? store.List(kind, limit ?? 200) : store.Search(q, limit ?? 50, kind)));
-        api.MapPost("/memory", (MemoryDto dto, MemoryStore store) =>
-            Guard(() => store.Add(new NewMemory(dto.Content, dto.Kind ?? MemoryKinds.Fact, dto.Subject, dto.Source ?? MemorySources.UserExplicit, dto.Confidence, dto.Tags))));
-        api.MapPut("/memory/{id}", (string id, MemoryDto dto, MemoryStore store) =>
-            Guard(() => store.Update(id, new MemoryUpdate(dto.Content, dto.Kind, dto.Subject, dto.Source, dto.Confidence, dto.Tags))));
+        // ---- Memory & knowledge ----
+        api.MapGet("/memory", async (KnowledgeService knowledge, string? q, string? kind, bool? confirmed, int? limit, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(q))
+                return Results.Ok(knowledge.Memories.List(kind, limit ?? 200, confirmed: confirmed).Select(m => MemoryView(m, knowledge, null, null)));
+            var hits = await knowledge.RecallAsync(q, limit ?? 50, ct, kind);
+            return Results.Ok(hits.Where(h => confirmed is null || h.Memory.IsConfirmed == confirmed)
+                .Select(h => MemoryView(h.Memory, knowledge, h.Score, h.Semantic)));
+        });
+        api.MapGet("/memory/status", async (KnowledgeService knowledge, ISettingsStore settings, CancellationToken ct) =>
+        {
+            var (total, confirmedCount, inferred) = knowledge.Memories.Counts();
+            return Results.Ok(new
+            {
+                total, confirmed = confirmedCount, inferred, entities = knowledge.Entities.Count(),
+                learning = settings.Current.Memory.LearnPatterns, enabled = settings.Current.Memory.Enabled,
+                semantic = await knowledge.Semantic.StatusAsync(KnowledgeService.MemoryOwner, total, ct),
+            });
+        });
+        api.MapGet("/memory/{id}", (string id, KnowledgeService knowledge) =>
+            knowledge.Memories.Get(id) is { } m ? Results.Ok(MemoryView(m, knowledge, null, null)) : Results.NotFound());
+        api.MapPost("/memory", (MemoryDto dto, KnowledgeService knowledge) =>
+            Guard(() => MemoryView(knowledge.Remember(new NewMemory(dto.Content, dto.Kind ?? MemoryKinds.Fact, dto.Subject, dto.Source ?? MemorySources.UserExplicit,
+                dto.Confidence, dto.Tags, Provenance: new MemoryProvenance("dashboard"))), knowledge, null, null)));
+        api.MapPut("/memory/{id}", (string id, MemoryDto dto, KnowledgeService knowledge) =>
+            Guard(() => knowledge.Edit(id, new MemoryUpdate(dto.Content, dto.Kind, dto.Subject, dto.Source, dto.Confidence, dto.Tags)) is { } m ? MemoryView(m, knowledge, null, null) : null));
+        api.MapPost("/memory/{id}/confirm", (string id, KnowledgeService knowledge, PatternLearner learner, ActivityLog log) =>
+        {
+            var m = knowledge.Memories.Confirm(id);
+            if (m is null) return Results.NotFound();
+            learner.MarkConfirmed(id);
+            log.Record(ActivityKinds.Memory, $"Confirmed: {m.Content}", status: "ok");
+            return Results.Ok(MemoryView(m, knowledge, null, null));
+        });
+        api.MapPost("/memory/{id}/reject", (string id, PatternLearner learner, KnowledgeService knowledge, ActivityLog log) =>
+        {
+            var m = knowledge.Memories.Get(id);
+            if (m is null || !learner.Reject(id)) return Results.NotFound();
+            log.Record(ActivityKinds.Memory, $"Rejected: {m.Content}", status: "ok");
+            return Results.Ok(new { rejected = id });
+        });
+        api.MapPost("/memory/learn", (PatternLearner learner, ActivityLog log) =>
+        {
+            var r = learner.Run(DateTimeOffset.Now, force: true);
+            log.Record(ActivityKinds.Memory, $"Pattern review: {r.Proposed} new, {r.Updated} updated", status: "ok");
+            return Results.Ok(r);
+        });
+        api.MapPost("/memory/reindex", async (KnowledgeService knowledge, CancellationToken ct) =>
+        {
+            knowledge.Semantic.Invalidate();
+            return Results.Ok(new { indexed = await knowledge.BackfillAsync(ct) });
+        });
         api.MapDelete("/memory/{id}", (string id, MemoryStore store) =>
             store.Delete(id) ? Results.Ok(new { deleted = id }) : Results.NotFound());
         api.MapDelete("/memory", (MemoryStore store, ActivityLog log, bool? confirm, string? kind) =>
@@ -119,6 +166,30 @@ public static class Api
             log.Record(ActivityKinds.Memory, $"Cleared {(kind ?? "all")} memory ({n} items)", status: "ok");
             return Results.Ok(new { deleted = n });
         });
+
+        api.MapGet("/entities", (EntityStore entities, string? type, string? q) =>
+            Results.Ok(entities.List(type, q).Select(e => new { e.Id, e.Type, e.Name, e.Aliases, e.Notes, e.Source, e.UpdatedAt, memories = entities.MemoryIdsOf(e.Id).Count })));
+        api.MapGet("/entities/{id}", (string id, KnowledgeService knowledge) =>
+            knowledge.Entities.Get(id) is { } e ? Results.Ok(ProfileView(knowledge.Profile(e), knowledge)) : Results.NotFound());
+        api.MapPost("/entities", (EntityDto dto, KnowledgeService knowledge) => Guard(() =>
+        {
+            var e = knowledge.Entities.Upsert(dto.Type ?? EntityTypes.Topic, dto.Name ?? "", MemorySources.UserExplicit);
+            knowledge.LinkExisting(e);
+            return e;
+        }));
+        api.MapPut("/entities/{id}", (string id, EntityDto dto, KnowledgeService knowledge) => Guard(() =>
+        {
+            var e = knowledge.Entities.Update(id, dto.Name, dto.Type, dto.Aliases, dto.Notes);
+            if (e is not null) knowledge.LinkExisting(e); // new aliases (e.g. the Arabic spelling) pick up more memories
+            return e;
+        }));
+        api.MapDelete("/entities/{id}", (string id, EntityStore entities) =>
+            entities.Delete(id) ? Results.Ok(new { deleted = id }) : Results.NotFound());
+        api.MapPost("/relations", (RelationDto dto, KnowledgeService knowledge) =>
+            Guard(() => knowledge.Relate(dto.From, dto.FromType ?? EntityTypes.Person, dto.Relation, dto.To, dto.ToType ?? EntityTypes.Organization,
+                MemorySources.UserExplicit, new MemoryProvenance("dashboard"))));
+        api.MapDelete("/relations/{id}", (string id, EntityStore entities) =>
+            entities.DeleteRelation(id) ? Results.Ok(new { deleted = id }) : Results.NotFound());
 
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
@@ -377,6 +448,22 @@ public static class Api
             userName = settings.General.UserName,
         };
     }
+
+    private static object MemoryView(MemoryItem m, KnowledgeService knowledge, double? score, bool? semantic) => new
+    {
+        m.Id, m.Kind, m.Content, m.Subject, m.Source, m.Confidence, m.Tags, m.CreatedAt, m.UpdatedAt, m.ExpiresAt, m.LastUsedAt, m.UseCount,
+        m.Provenance, m.ConfirmedAt, m.IsConfirmed, score, semantic,
+        entities = knowledge.Entities.EntitiesOf(m.Id).Select(e => new { e.Id, e.Name, e.Type }),
+    };
+
+    private static object ProfileView(EntityProfile p, KnowledgeService knowledge) => new
+    {
+        entity = p.Entity,
+        memories = p.Memories.Select(m => MemoryView(m, knowledge, null, null)),
+        relations = p.Relations,
+        tasks = p.Tasks,
+        reminders = p.Reminders,
+    };
 
     private static IResult Guard<T>(Func<T?> action)
     {

@@ -63,19 +63,27 @@ public sealed class ActivityLog(JarvisDatabase db, IEventBus events)
         return entry;
     }
 
-    public IReadOnlyList<ActivityEntry> Recent(int limit = 100, string? kind = null, string? status = null)
+    public IReadOnlyList<ActivityEntry> Recent(int limit = 100, string? kind = null, string? status = null) =>
+        Query(null, Math.Clamp(limit, 1, 1000), kind, status);
+
+    /// <summary>Entries since a point in time, newest first (used by the pattern learner).</summary>
+    public IReadOnlyList<ActivityEntry> Since(DateTimeOffset since, string? kind = null, int limit = 5000) =>
+        Query(since, Math.Clamp(limit, 1, 20000), kind, null);
+
+    private IReadOnlyList<ActivityEntry> Query(DateTimeOffset? since, int limit, string? kind, string? status)
     {
         using var conn = db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT id, ts, kind, tool, summary, risk, status, details, conversation_id, duration_ms
             FROM activity
-            WHERE ($kind IS NULL OR kind = $kind) AND ($status IS NULL OR status = $status)
+            WHERE ($kind IS NULL OR kind = $kind) AND ($status IS NULL OR status = $status) AND ($since IS NULL OR ts >= $since)
             ORDER BY id DESC LIMIT $limit;
             """;
         cmd.Parameters.AddWithValue("$kind", (object?)kind ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$status", (object?)status ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 1000));
+        cmd.Parameters.AddWithValue("$since", since is { } s ? JarvisDatabase.Format(s) : DBNull.Value);
+        cmd.Parameters.AddWithValue("$limit", limit);
         using var r = cmd.ExecuteReader();
         var list = new List<ActivityEntry>();
         while (r.Read())

@@ -37,15 +37,23 @@ public interface IMetricsSource
     double? TemperatureC();
 }
 
-/// <summary>Linux /proc and /sys readings (dev and CI); returns nulls elsewhere.</summary>
+/// <summary>CPU and memory on Linux (/proc) and Windows (kernel32); battery and temperature on Linux.</summary>
 public sealed class GenericMetricsSource : IMetricsSource
 {
     private (long Idle, long Total)? _lastCpu;
 
-    public string Name => OperatingSystem.IsLinux() ? "linux" : "generic";
+    public string Name => OperatingSystem.IsLinux() ? "linux" : OperatingSystem.IsWindows() ? "windows" : "generic";
 
     public double? CpuPercent()
     {
+        if (OperatingSystem.IsWindows())
+        {
+            if (!GetSystemTimes(out var idleW, out var kernel, out var user)) return null;
+            var lastWin = _lastCpu;
+            _lastCpu = (idleW, kernel + user); // kernel time includes idle time
+            if (lastWin is null || kernel + user == lastWin.Value.Total) return null;
+            return Math.Round(100.0 * (1 - (double)(idleW - lastWin.Value.Idle) / (kernel + user - lastWin.Value.Total)), 1);
+        }
         if (!OperatingSystem.IsLinux() || !File.Exists("/proc/stat")) return null;
         var parts = File.ReadLines("/proc/stat").First().Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(long.Parse).ToArray();
         var idle = parts[3] + (parts.Length > 4 ? parts[4] : 0);
@@ -58,15 +66,15 @@ public sealed class GenericMetricsSource : IMetricsSource
 
     public (double UsedGb, double TotalGb, double Percent)? Memory()
     {
-        if (!OperatingSystem.IsLinux() || !File.Exists("/proc/meminfo"))
+        if (OperatingSystem.IsWindows())
         {
-            // Any OS: the GC knows the machine's memory load.
-            var gc = GC.GetGCMemoryInfo();
-            if (gc.TotalAvailableMemoryBytes <= 0 || gc.MemoryLoadBytes <= 0) return null;
-            var totalGb = gc.TotalAvailableMemoryBytes / 1073741824.0;
-            var usedGb = gc.MemoryLoadBytes / 1073741824.0;
+            var mem = new MemoryStatusEx { Length = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MemoryStatusEx>() };
+            if (!GlobalMemoryStatusEx(ref mem) || mem.TotalPhys == 0) return null;
+            var totalGb = mem.TotalPhys / 1073741824.0;
+            var usedGb = (mem.TotalPhys - mem.AvailPhys) / 1073741824.0;
             return (usedGb, totalGb, Math.Round(100.0 * usedGb / totalGb, 1));
         }
+        if (!OperatingSystem.IsLinux() || !File.Exists("/proc/meminfo")) return null;
         var lines = File.ReadAllLines("/proc/meminfo");
         long Kb(string key) => long.TryParse(lines.FirstOrDefault(l => l.StartsWith(key))?.Split(' ', StringSplitOptions.RemoveEmptyEntries)[1], out var v) ? v : 0;
         var total = Kb("MemTotal:");
@@ -98,6 +106,19 @@ public sealed class GenericMetricsSource : IMetricsSource
     {
         try { return File.ReadAllText(path).Trim(); } catch { return null; }
     }
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct MemoryStatusEx
+    {
+        public uint Length, MemoryLoad;
+        public ulong TotalPhys, AvailPhys, TotalPageFile, AvailPageFile, TotalVirtual, AvailVirtual, AvailExtendedVirtual;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetSystemTimes(out long idle, out long kernel, out long user);
 }
 
 /// <summary>

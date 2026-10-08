@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Jarvis.Core.Events;
 using Jarvis.Core.Language;
@@ -46,7 +47,20 @@ public sealed record MemoryItem(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ExpiresAt,
     DateTimeOffset? LastUsedAt,
-    int UseCount);
+    int UseCount)
+{
+    /// <summary>Why and how this memory was stored.</summary>
+    public MemoryProvenance? Provenance { get; init; }
+    public DateTimeOffset? ConfirmedAt { get; init; }
+    /// <summary>Told or confirmed by the user (a fact) rather than inferred (a hint).</summary>
+    public bool IsConfirmed => Source is MemorySources.UserExplicit or MemorySources.UserConfirmed;
+}
+
+/// <summary>
+/// Where a memory came from: the surface ("chat", "voice", "dashboard", "learner", "ai"), the
+/// conversation and request that produced it, the user's own words, and for inferences the reason.
+/// </summary>
+public sealed record MemoryProvenance(string Via, string? ConversationId = null, string? TurnId = null, string? Quote = null, string? Reason = null, string? Tool = null);
 
 public sealed record NewMemory(
     string Content,
@@ -55,7 +69,8 @@ public sealed record NewMemory(
     string Source = MemorySources.UserExplicit,
     double? Confidence = null,
     string? Tags = null,
-    DateTimeOffset? ExpiresAt = null);
+    DateTimeOffset? ExpiresAt = null,
+    MemoryProvenance? Provenance = null);
 
 public sealed record MemoryUpdate(
     string? Content = null,
@@ -88,8 +103,8 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-                INSERT INTO memories (id, kind, content, subject, source, confidence, tags, search_text, created_at, updated_at, expires_at)
-                VALUES ($id, $kind, $content, $subject, $source, $conf, $tags, $search, $now, $now, $exp);
+                INSERT INTO memories (id, kind, content, subject, source, confidence, tags, search_text, created_at, updated_at, expires_at, provenance, confirmed_at)
+                VALUES ($id, $kind, $content, $subject, $source, $conf, $tags, $search, $now, $now, $exp, $prov, $confirmed);
                 """;
             cmd.Parameters.AddWithValue("$id", id);
             cmd.Parameters.AddWithValue("$kind", m.Kind);
@@ -101,6 +116,8 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
             cmd.Parameters.AddWithValue("$search", SearchText(m.Content, m.Subject, m.Tags));
             cmd.Parameters.AddWithValue("$now", now);
             cmd.Parameters.AddWithValue("$exp", m.ExpiresAt is { } e ? JarvisDatabase.Format(e) : DBNull.Value);
+            cmd.Parameters.AddWithValue("$prov", m.Provenance is null ? DBNull.Value : JsonSerializer.Serialize(m.Provenance, ProvJson));
+            cmd.Parameters.AddWithValue("$confirmed", m.Source == MemorySources.UserConfirmed ? now : DBNull.Value);
             cmd.ExecuteNonQuery();
         }
         events.Publish(EventTypes.MemoryChanged, new { action = "added", id });
@@ -151,11 +168,29 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
         return Get(id);
     }
 
+    /// <summary>The user confirmed an inferred memory: it becomes a fact JARVIS may rely on.</summary>
+    public MemoryItem? Confirm(string id)
+    {
+        var current = Get(id);
+        if (current is null) return null;
+        using (var conn = db.Open())
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "UPDATE memories SET source = $s, confidence = 1.0, confirmed_at = $now, updated_at = $now WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$s", current.Source == MemorySources.UserExplicit ? MemorySources.UserExplicit : MemorySources.UserConfirmed);
+            cmd.Parameters.AddWithValue("$now", JarvisDatabase.Now());
+            cmd.ExecuteNonQuery();
+        }
+        events.Publish(EventTypes.MemoryChanged, new { action = "confirmed", id });
+        return Get(id);
+    }
+
     public bool Delete(string id)
     {
         using var conn = db.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM memories WHERE id = $id;";
+        cmd.CommandText = "DELETE FROM memories WHERE id = $id; DELETE FROM memory_entities WHERE memory_id = $id; DELETE FROM embeddings WHERE owner_type = 'memory' AND owner_id = $id;";
         cmd.Parameters.AddWithValue("$id", id);
         var deleted = cmd.ExecuteNonQuery() > 0;
         if (deleted) events.Publish(EventTypes.MemoryChanged, new { action = "deleted", id });
@@ -167,22 +202,28 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
     {
         using var conn = db.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "DELETE FROM memories WHERE ($kind IS NULL OR kind = $kind);";
+        cmd.CommandText = """
+            DELETE FROM memory_entities WHERE memory_id IN (SELECT id FROM memories WHERE ($kind IS NULL OR kind = $kind));
+            DELETE FROM embeddings WHERE owner_type = 'memory' AND owner_id IN (SELECT id FROM memories WHERE ($kind IS NULL OR kind = $kind));
+            DELETE FROM memories WHERE ($kind IS NULL OR kind = $kind);
+            """;
         cmd.Parameters.AddWithValue("$kind", (object?)kind ?? DBNull.Value);
         var n = cmd.ExecuteNonQuery();
         events.Publish(EventTypes.MemoryChanged, new { action = "cleared", kind, count = n });
         return n;
     }
 
-    public IReadOnlyList<MemoryItem> List(string? kind = null, int limit = 200, int offset = 0)
+    public IReadOnlyList<MemoryItem> List(string? kind = null, int limit = 200, int offset = 0, bool? confirmed = null)
     {
         PurgeExpired();
         using var conn = db.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = $"""
             SELECT {Columns} FROM memories WHERE ($kind IS NULL OR kind = $kind)
+              AND ($confirmed IS NULL OR ($confirmed = 1 AND source IN ('user','confirmed')) OR ($confirmed = 0 AND source NOT IN ('user','confirmed')))
             ORDER BY updated_at DESC LIMIT $limit OFFSET $offset;
             """;
+        cmd.Parameters.AddWithValue("$confirmed", confirmed is null ? DBNull.Value : confirmed.Value ? 1 : 0);
         cmd.Parameters.AddWithValue("$kind", (object?)kind ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 1000));
         cmd.Parameters.AddWithValue("$offset", Math.Max(0, offset));
@@ -229,6 +270,26 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT COUNT(*) FROM memories;";
         return Convert.ToInt32(cmd.ExecuteScalar());
+    }
+
+    /// <summary>Memories by id, in the given order (missing ids are skipped).</summary>
+    public IReadOnlyList<MemoryItem> GetMany(IEnumerable<string> ids)
+    {
+        var list = new List<MemoryItem>();
+        foreach (var id in ids) if (Get(id) is { } m) list.Add(m);
+        return list;
+    }
+
+    public (int Total, int Confirmed, int Inferred) Counts()
+    {
+        using var conn = db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*), COALESCE(SUM(CASE WHEN source IN ('user','confirmed') THEN 1 ELSE 0 END), 0) FROM memories;";
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        var total = r.GetInt32(0);
+        var confirmed = r.GetInt32(1);
+        return (total, confirmed, total - confirmed);
     }
 
     private MemoryItem? FindExact(string content)
@@ -288,7 +349,13 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
     private static partial Regex WordRegex();
 
     private const string Columns =
-        "id, kind, content, subject, source, confidence, tags, created_at, updated_at, expires_at, last_used_at, use_count";
+        "id, kind, content, subject, source, confidence, tags, created_at, updated_at, expires_at, last_used_at, use_count, provenance, confirmed_at";
+
+    private static readonly JsonSerializerOptions ProvJson = new(JsonSerializerDefaults.Web)
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    };
 
     private static List<MemoryItem> ReadAll(SqliteCommand cmd)
     {
@@ -304,5 +371,15 @@ public sealed partial class MemoryStore(JarvisDatabase db, IEventBus events)
         JarvisDatabase.Parse(r.GetString(7)), JarvisDatabase.Parse(r.GetString(8)),
         r.IsDBNull(9) ? null : JarvisDatabase.Parse(r.GetString(9)),
         r.IsDBNull(10) ? null : JarvisDatabase.Parse(r.GetString(10)),
-        r.GetInt32(11));
+        r.GetInt32(11))
+    {
+        Provenance = r.IsDBNull(12) ? null : TryProvenance(r.GetString(12)),
+        ConfirmedAt = r.IsDBNull(13) ? null : JarvisDatabase.Parse(r.GetString(13)),
+    };
+
+    private static MemoryProvenance? TryProvenance(string json)
+    {
+        try { return JsonSerializer.Deserialize<MemoryProvenance>(json, ProvJson); }
+        catch (JsonException) { return null; }
+    }
 }

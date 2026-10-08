@@ -316,7 +316,7 @@ public sealed partial class ProjectBuildTool(ProjectLocator locator, RunCommandT
             return ToolResult.Fail(ctx.T($"I don't know how to {action} {project.Name} ({project.Kind} project).", $"معرفش أعمل {action} لـ{project.Name} (مشروع {project.Kind})."));
 
         // The approval for this tool covers running the command; the inner call must not ask again.
-        var inner = new ToolContext { Lang = ctx.Lang, Settings = ctx.Settings, ConversationId = ctx.ConversationId, CancellationToken = ctx.CancellationToken };
+        var inner = ctx.WithToken(ctx.CancellationToken);
         var run = await runner.ExecuteAsync(ToolArgs.From(new { command, cwd = project.Path, timeout_seconds = 900 }), inner).ConfigureAwait(false);
 
         var output = run.Data is null ? "" : JsonSerializer.Serialize(run.Data);
