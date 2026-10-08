@@ -85,7 +85,7 @@ export function Overview() {
               {reminders.data.slice(0, 6).map((r) => (
                 <li key={r.id} dir="auto">
                   <span>{r.text}</span>
-                  <span className="muted small">{formatTime(r.dueAt)}</span>
+                  <span className="muted small nowrap" dir="ltr">{formatTime(r.dueAt)}</span>
                 </li>
               ))}
             </ul>
@@ -99,7 +99,7 @@ export function Overview() {
               {activity.data.map((a) => (
                 <li key={a.id}>
                   <span className="truncate" dir="auto" title={a.summary}>{a.summary}</span>
-                  <span className="muted small">{timeAgo(a.timestamp)}</span>
+                  <span className="muted small nowrap" dir="ltr">{timeAgo(a.timestamp)}</span>
                 </li>
               ))}
             </ul>

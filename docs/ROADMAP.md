@@ -24,7 +24,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key |
 | AI router (no-AI / local / cloud) | Partial | Keyword task classes; no cost/latency model yet |
 | Egyptian Arabic replies | Working | Prompted; quality depends on the model (Qwen 2.5 7B+ recommended) |
-| Push-to-talk voice (Whisper) | Partial | Model download required; Arabic accuracy improves with `small` |
+| Push-to-talk voice (Whisper) | Partial | Model download required; verified end to end in CI with synthesized speech; Arabic accuracy improves with `small` |
 | Wake word “Jarvis” | Partial | VAD + Whisper keyword spotting; CPU-heavier than a dedicated model |
 | Spoken replies | Working | Windows voices; Arabic voice must be installed in Windows |
 | Presence (active app, idle, fullscreen, meeting via mic) | Working | No camera |

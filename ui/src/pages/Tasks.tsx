@@ -107,7 +107,7 @@ function Reminders({ reminders }: { reminders: Reminder[] }) {
           {reminders.map((r) => (
             <li key={r.id}>
               <div className="grow" dir="auto">{r.text}</div>
-              <span className="muted small">{formatTime(r.dueAt)} ({timeAgo(r.dueAt)})</span>
+              <span className="muted small nowrap" dir="ltr">{formatTime(r.dueAt)} ({timeAgo(r.dueAt)})</span>
               <button className="btn btn-ghost" onClick={() => del(`/reminders/${r.id}`)} aria-label="Cancel reminder"><X size={16} /></button>
             </li>
           ))}

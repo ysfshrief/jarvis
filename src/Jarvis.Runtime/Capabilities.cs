@@ -20,7 +20,7 @@ public static class Capabilities
         new("AI", "Local AI (Ollama / LM Studio / llama.cpp)", CapabilityStatus.Working, "Any OpenAI-compatible local server. Install Ollama and pull a model to enable conversation.", 1),
         new("AI", "Optional cloud AI (Anthropic, OpenAI-compatible)", CapabilityStatus.Working, "Off by default. Needs your own API key and 'Allow cloud AI'.", 1),
         new("AI", "Router (no-AI / local / cloud by task)", CapabilityStatus.Partial, "Keyword-based task classes; deterministic commands never use AI.", 1),
-        new("Voice", "Push-to-talk with local Whisper", windows ? CapabilityStatus.Partial : CapabilityStatus.Foundation, "Requires downloading a speech model in Settings → Voice. Arabic accuracy depends on model size.", 1),
+        new("Voice", "Push-to-talk with local Whisper", windows ? CapabilityStatus.Partial : CapabilityStatus.Foundation, "Requires downloading a speech model in Settings → Voice. Verified end to end on Windows in CI (speech → Whisper → command). Arabic accuracy depends on model size.", 1),
         new("Voice", "Wake word \"Jarvis\"", windows ? CapabilityStatus.Partial : CapabilityStatus.Foundation, "Off by default. Uses speech detection + Whisper keyword spotting; a dedicated low-power wake-word model is planned.", 1),
         new("Voice", "Spoken replies (Windows voices)", windows ? CapabilityStatus.Working : CapabilityStatus.Foundation, "Arabic speech needs an Arabic Windows voice installed.", 1),
         new("Computer", "Open/close apps, windows, processes", windows ? CapabilityStatus.Working : CapabilityStatus.Planned, "Start-menu apps (classic + Store), settings pages, folders, websites. English/Arabic names.", 2),
