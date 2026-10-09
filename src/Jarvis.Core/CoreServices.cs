@@ -85,6 +85,8 @@ public static class CoreServices
         services.TryAddSingleton<IAudioInput, NullAudioInput>();
         services.TryAddSingleton<ISpeechToText, NullSpeechToText>();
         services.TryAddSingleton<Meetings.IMeetingAudioSource, Meetings.NullMeetingAudioSource>();
+        services.TryAddSingleton<Vision.IScreenCapture, Vision.NullScreenCapture>();
+        services.TryAddSingleton<Vision.ICamera, Vision.NullCamera>();
         services.TryAddSingleton<IFileTrash, FolderTrash>();
         services.TryAddSingleton(new PlatformInfo("generic", Environment.OSVersion.ToString()));
 
@@ -129,6 +131,8 @@ public static class CoreServices
         services.AddSingleton<Web.BrowserService>();
         services.AddSingleton<Meetings.MeetingStore>();
         services.AddSingleton<Meetings.MeetingRecorder>();
+        AddTool<Vision.ScreenDescribeTool>(services);
+        AddTool<Vision.CameraLookTool>(services);
         AddTool<MeetingRecordStartTool>(services);
         AddTool<MeetingRecordStopTool>(services);
         AddTool<MeetingNotesTool>(services);

@@ -117,6 +117,8 @@ public sealed class PrivacySettings
 {
     /// <summary>Allow screenshots (by command or by the AI). Off blocks every screen capture tool.</summary>
     public bool AllowScreenCapture { get; set; } = true;
+    /// <summary>Let JARVIS take a single photo with the camera when you ask (it still asks every time). Off by default.</summary>
+    public bool AllowCamera { get; set; }
 }
 
 public sealed class GeneralSettings

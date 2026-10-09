@@ -19,7 +19,8 @@ builds, stronger isolation).
 | Email | Mailboxes are opened read-only; passwords/app passwords only in the encrypted secret store (never in settings, logs or API responses); an account is saved only after its credentials work. Nothing is ever sent automatically: sending is critical, always asks, and the approval shows the message. Email content is untrusted (see tainted requests above). |
 | Microphone privacy | Mic is open only for push-to-talk or when the wake word is enabled (off by default); state is shown on the orb and in the dashboard; audio is never stored. |
 | Meeting recording | Never automatic: starting is a critical action that asks every time and reminds you that everyone should know. Always visible while running (REC chip with Stop on every dashboard page, red dot on the orb, status API), stops by itself after the configured limit. Audio is transcribed locally and never written to disk; transcripts can be deleted. |
-| Camera | Not used. |
+| Camera | Off by default (Settings → Privacy). When allowed, `camera_look` is critical — it asks every time — takes a single still photo, keeps it in memory for the vision model only, and never records video; the dashboard flashes "Camera used" and Windows' camera light comes on. Presence detection never uses the camera. |
+| Operating other apps (UI Automation, mouse) | Pressing a control labelled send/delete/buy/publish/subscribe/… (EN/AR) and typing into password fields are critical; other presses and typing are sensitive. The control is re-read before acting, and the result is verified by reading the field back. |
 
 ## Known limitations (v0.x)
 

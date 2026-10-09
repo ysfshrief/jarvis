@@ -739,7 +739,9 @@ function Privacy({ s, set }: P) {
       <Card title="What JARVIS may see and hear">
         <Toggle label="Allow screen capture" hint="Screenshots by command or by the AI. Off blocks every screen-capture tool." checked={s.privacy.allowScreenCapture} onChange={(v) => set((x) => { x.privacy.allowScreenCapture = v; })} />
         <Toggle label="Wake word (always-on microphone)" hint="Off by default. When on, the top bar shows “Mic on”." checked={s.voice.wakeWordEnabled} onChange={(v) => set((x) => { x.voice.wakeWordEnabled = v; })} />
-        <div className="note">JARVIS has no camera access in this build. Presence uses only Windows signals (active window, idle time, fullscreen, whether another app is using the microphone).</div>
+        <Toggle label="Allow the camera (one photo when you ask)" hint="Off by default. Even when on, JARVIS asks every time, takes a single photo, never saves it and never records video. Windows' camera light turns on."
+          checked={s.privacy.allowCamera} onChange={(v) => set((x) => { x.privacy.allowCamera = v; })} />
+        <div className="note">Presence uses only Windows signals (active window, idle time, fullscreen, whether another app is using the microphone) — never the camera.</div>
       </Card>
       <Card title="What leaves this computer">
         <Toggle label="Allow cloud AI" hint="Off = conversations never leave this PC." checked={s.ai.allowCloud} onChange={(v) => set((x) => { x.ai.allowCloud = v; })} />

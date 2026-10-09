@@ -30,6 +30,8 @@ public sealed class ToolDefinition
     public bool RequiresInternet { get; init; }
     /// <summary>Captures what is on screen; blocked when Settings → Privacy disallows screen capture.</summary>
     public bool CapturesScreen { get; init; }
+    /// <summary>Uses the camera; blocked unless Settings → Privacy allows it, and always asks.</summary>
+    public bool UsesCamera { get; init; }
     /// <summary>
     /// Returns content written by someone else (web pages, emails). After such a call, sensitive actions
     /// in the same request always need approval, so instructions hidden in that content can't act alone.

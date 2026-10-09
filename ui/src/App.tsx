@@ -281,6 +281,7 @@ function TopBar({ onToggleCtx }: { onToggleCtx?: () => void }) {
         {presence && presence.state !== "Unknown" && <Chip ok={null} label={tr(presenceLabel(presence.state, presence.activeProcess))} />}
         {(status?.queuedActions ?? 0) > 0 && <Chip ok={false} label={`${status?.queuedActions} ${tr("queued")}`} />}
       </div>
+      <CameraFlash />
       {status?.recording && <RecChip rec={status.recording} onStop={async () => { await post("/meetings/stop"); await refresh(); }} />}
       <button className="btn btn-ghost btn-sm" onClick={togglePause} title={status?.paused ? "Resume JARVIS" : "Pause listening and voice"}>
         {status?.paused ? <Play size={14} /> : <Pause size={14} />} {tr(status?.paused ? "Resume" : "Pause")}
@@ -297,6 +298,15 @@ function TopBar({ onToggleCtx }: { onToggleCtx?: () => void }) {
       )}
     </header>
   );
+}
+
+/** Shown for a few seconds whenever JARVIS takes a photo, so camera use is never invisible. */
+function CameraFlash() {
+  const [until, setUntil] = useState(0);
+  useEvents(["camera."], () => setUntil(Date.now() + 6000));
+  const [, tick] = useState(0);
+  useEffect(() => { if (until > Date.now()) { const t = setTimeout(() => tick((x) => x + 1), until - Date.now() + 50); return () => clearTimeout(t); } }, [until]);
+  return until > Date.now() ? <div className="rec-chip" role="status"><span className="rec-dot" /> {tr("Camera used")}</div> : null;
 }
 
 /** Always visible while a meeting is recorded, with a one-click stop. */

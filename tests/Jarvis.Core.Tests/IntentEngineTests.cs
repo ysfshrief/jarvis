@@ -78,6 +78,8 @@ public class IntentEngineTests
     [InlineData("schedule a meeting with Ahmed tomorrow at 3pm", "calendar_add", "title", "Meeting with Ahmed tomorrow at 3pm")]
     [InlineData("add an appointment dentist on Sunday at 5pm", "calendar_add", "title", "dentist on Sunday at 5pm")]
     [InlineData("حط اجتماع مع سارة بكرة الساعة 11", "calendar_add", "title", "اجتماع مع سارة بكرة الساعة 11")]
+    [InlineData("what's on my screen?", "screen_describe", null, null)]
+    [InlineData("ايه اللي على الشاشة؟", "screen_describe", null, null)]
     [InlineData("record this meeting", "meeting_record_start", null, null)]
     [InlineData("سجل الاجتماع", "meeting_record_start", null, null)]
     [InlineData("stop recording", "meeting_record_stop", null, null)]

@@ -171,6 +171,9 @@ public static class WindowsPlatform
         services.AddSingleton<WindowsAudioInput>();
         services.AddSingleton<IAudioInput>(sp => sp.GetRequiredService<WindowsAudioInput>());
         services.AddSingleton<Jarvis.Core.Meetings.IMeetingAudioSource, WindowsMeetingAudioSource>();
+        services.AddSingleton<Jarvis.Core.Vision.IScreenCapture, WindowsScreenCapture>();
+        services.AddSingleton<Jarvis.Core.Vision.ICamera, WindowsCamera>();
+        services.AddSingleton<WindowsUiAutomation>();
         services.AddSingleton<INotificationSink, ToastNotificationSink>();
         services.AddSingleton<AppCatalog>();
         services.AddSingleton<Jarvis.Core.Monitoring.IMetricsSource, WindowsMetricsSource>();
@@ -195,6 +198,11 @@ public static class WindowsPlatform
         services.AddTool<TypeTextTool>();
         services.AddTool<SendKeysTool>();
         services.AddTool<WindowsSystemInfoTool>();
+        services.AddTool<UiReadTool>();
+        services.AddTool<UiClickTool>();
+        services.AddTool<UiTypeTool>();
+        services.AddTool<MouseClickTool>();
+        services.AddTool<MouseScrollTool>();
         return services;
     }
 }

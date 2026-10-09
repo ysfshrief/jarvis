@@ -220,6 +220,16 @@ speakers. Audio is cut into ~25 s chunks at pauses and transcribed with the same
 only the text is stored (schema v7). On stop (or after `MaxMinutes`) `MeetingNotes` extracts decisions,
 action items (owner, due date via `DatePhrases`) and open questions with EN/AR rules.
 
+## Operating other apps and seeing the screen
+
+`WindowsUiAutomation` walks the control view of a window with UI Automation (COM interop, no extra
+frameworks), numbers visible interactive controls and collects their text; `ui_click` uses Invoke, Toggle,
+SelectionItem or ExpandCollapse patterns before falling back to a real mouse click at the control's centre;
+`ui_type` sets values through the Value pattern (or focus + Unicode keystrokes) and reads the field back.
+`screen_describe` sends a downscaled screenshot to a vision-capable model through the router's vision role,
+or OCRs it when no such model exists. `camera_look` (opt-in, critical) captures one still with
+Windows.Media.Capture for the same vision path.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;

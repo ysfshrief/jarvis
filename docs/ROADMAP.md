@@ -30,7 +30,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Push-to-talk voice (Whisper) | Partial | Model download required; verified end to end in CI with synthesized speech; Arabic accuracy improves with `small` |
 | Wake word “Jarvis” | Partial | VAD + Whisper keyword spotting; CPU-heavier than a dedicated model |
 | Spoken replies | Working | Windows voices; Arabic voice must be installed in Windows |
-| Presence (active app, idle, fullscreen, meeting via mic) | Working | No camera |
+| Presence (active app, idle, fullscreen, meeting via mic) | Working | Never uses the camera |
 | Offline detection + queued internet actions | Working | |
 
 ## Interface ✅ (v0.2)
@@ -58,7 +58,9 @@ The same matrix is visible in the app under **System → What this build can do*
 | Files: search, list, read, write, move/copy, delete to Recycle Bin | Working |
 | Permission system (Safe/Sensitive/Critical, per-tool policies, approvals, audit) | Working |
 | Project awareness: find projects by name (or from the editor window), open in VS Code, build/test with the project's own build system, extract errors | Working |
-| **Next:** UI Automation (click buttons/read controls in other apps), mouse control | Planned |
+| UI Automation: read numbered controls and text of any app window, press buttons/menus/tabs/checkboxes, put text in fields with read-back verification | Working — tested on Windows CI against Notepad |
+| Risk per control (send/delete/buy/publish labels and password fields are critical); controls re-read before acting | Working |
+| Mouse click (identifies the control under the point first) and scroll | Working |
 
 ## Phase 3 — Memory ✅ (core)
 
@@ -130,7 +132,8 @@ The same matrix is visible in the app under **System → What this build can do*
 | Meeting recording: user-started (always asks), always visible (REC chip, red orb dot, status API), auto-stop after a limit; microphone + speakers (WASAPI loopback) on Windows; audio never stored | Working on Windows — capture needs real audio devices (CI has none) |
 | Local transcript in chunks with Whisper; decisions, action items with owner and due date, open questions (EN/AR); action items → tasks on your choice | Working — transcription verified on Windows CI with synthesized speech |
 | AI-written meeting summary | Working when a model is available (grounded on the transcript and extracted notes) |
-| Screen understanding with a local vision model | Planned — screenshots and Windows OCR already work |
+| "What's on my screen?" with a local vision model; OCR fallback with an honest note; blocked when screen capture is off | Working |
+| Camera: single photo on request for a vision question — off by default, asks every time, never saved, never video | Partial — needs a camera and a vision model; no camera in CI |
 
 ## Phase 8 — Personal adaptation
 

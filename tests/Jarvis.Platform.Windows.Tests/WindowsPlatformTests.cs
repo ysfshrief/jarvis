@@ -141,6 +141,47 @@ public sealed class WindowsPlatformTests : IDisposable
     }
 
     [Fact]
+    public async Task Ui_automation_reads_and_types_into_another_apps_controls()
+    {
+        foreach (var p in Process.GetProcessesByName("notepad")) { try { p.Kill(); } catch { } }
+        Process.Start(new ProcessStartInfo("notepad.exe") { UseShellExecute = true });
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline && !WindowManager.List().Any(w => w.ProcessName.Equals("notepad", StringComparison.OrdinalIgnoreCase))) await Task.Delay(250);
+
+            var (read, _) = await Run("ui_read", new { window = "notepad" });
+            _out.WriteLine(read.Message);
+            Assert.True(read.Success, read.Message);
+            var controls = System.Text.Json.JsonSerializer.SerializeToElement(read.Data).GetProperty("controls").EnumerateArray().Select(c => c.GetString()!).ToList();
+            _out.WriteLine(string.Join("\n", controls.Take(40)));
+            var field = controls.FirstOrDefault(c => c.Contains("] document") || c.Contains("] edit"));
+            Assert.NotNull(field);
+            var id = int.Parse(field![1..field.IndexOf(']')]);
+
+            var (typed, step) = await Run("ui_type", new { element = id, text = "Hello from JARVIS" });
+            _out.WriteLine(typed.Message + " " + System.Text.Json.JsonSerializer.Serialize(typed.Data));
+            Assert.True(typed.Success, typed.Message);
+            Assert.Equal(RiskLevel.Sensitive, step.Risk);
+            Assert.True(System.Text.Json.JsonSerializer.SerializeToElement(typed.Data).GetProperty("verified").GetBoolean(), "the text should be readable back from the field");
+        }
+        finally
+        {
+            foreach (var p in Process.GetProcessesByName("notepad")) { try { p.Kill(); } catch { } }
+        }
+    }
+
+    [Fact]
+    public async Task Screen_description_without_a_vision_model_falls_back_to_reading_text()
+    {
+        var (r, step) = await Run("screen_describe", new { });
+        _out.WriteLine(r.Message);
+        // No AI model in this test host: either OCR text (with an honest note) or a clear "needs a vision model".
+        Assert.True(r.Success ? r.Message.Contains("vision model") : r.Status == ToolStatus.NotFound, r.Message);
+        Assert.Equal("screen_describe", step.Tool);
+    }
+
+    [Fact]
     public async Task Screenshot_is_saved_as_png()
     {
         var (result, _) = await Run("screenshot", new { });

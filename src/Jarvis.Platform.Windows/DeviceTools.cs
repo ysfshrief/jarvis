@@ -117,6 +117,28 @@ public sealed class ScreenshotTool : ToolBase
             new { path, sizeBytes = info.Length }));
     }
 
+    /// <summary>The whole virtual screen as PNG bytes, scaled down so the long side is at most <paramref name="maxSide"/>.</summary>
+    public static byte[] CapturePng(int maxSide)
+    {
+        var x = Native.GetSystemMetrics(Native.SM_XVIRTUALSCREEN);
+        var y = Native.GetSystemMetrics(Native.SM_YVIRTUALSCREEN);
+        var w = Native.GetSystemMetrics(Native.SM_CXVIRTUALSCREEN);
+        var h = Native.GetSystemMetrics(Native.SM_CYVIRTUALSCREEN);
+        if (w <= 0 || h <= 0) throw new InvalidOperationException("No screen is available to capture.");
+        using var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+            g.CopyFromScreen(x, y, 0, 0, new Size(w, h), CopyPixelOperation.SourceCopy);
+        var scale = Math.Min(1.0, maxSide / (double)Math.Max(w, h));
+        using var ms = new MemoryStream();
+        if (scale < 1)
+        {
+            using var small = new Bitmap(bmp, new Size((int)(w * scale), (int)(h * scale)));
+            small.Save(ms, ImageFormat.Png);
+        }
+        else bmp.Save(ms, ImageFormat.Png);
+        return ms.ToArray();
+    }
+
     public static string Capture()
     {
         var x = Native.GetSystemMetrics(Native.SM_XVIRTUALSCREEN);
@@ -464,4 +486,10 @@ internal static class Clipboard
         }
         return false;
     }
+}
+
+public sealed class WindowsScreenCapture : Jarvis.Core.Vision.IScreenCapture
+{
+    public bool IsAvailable => Native.GetSystemMetrics(Native.SM_CXVIRTUALSCREEN) > 0;
+    public byte[] CapturePng(int maxSide = 1600) => ScreenshotTool.CapturePng(maxSide);
 }

@@ -91,6 +91,7 @@ public static partial class IntentEngine
         if (InboxCheck().IsMatch(t)) return new ToolIntent("inbox_check", new ToolArgs());
         if (NextMeeting().IsMatch(t)) return new ToolIntent("calendar_next", new ToolArgs());
         if (RecordMeeting().IsMatch(t)) return new ToolIntent("meeting_record_start", new ToolArgs());
+        if (ScreenLook().IsMatch(t)) return new ToolIntent("screen_describe", new ToolArgs());
         if (StopRecording().IsMatch(t)) return new ToolIntent("meeting_record_stop", new ToolArgs());
         if (MeetingNotesQ().IsMatch(t)) return new ToolIntent("meeting_notes", new ToolArgs(), PreferAi: true);
         if ((m = Agenda().Match(t)).Success)
@@ -317,6 +318,9 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:record|start recording|transcribe)(?: (?:this|the|my))? (?:meeting|call)$|^start (?:a )?meeting recording$|^(?:سجل|ابدا تسجيل|ابدأ تسجيل) (?:ال)?(?:اجتماع|ميتنج|مكالمه)(?: ده| دي)?$")]
     private static partial Regex RecordMeeting();
+
+    [GeneratedRegex(@"^(?:what(?:'s| is) on (?:my|the) screen|what am i looking at|(?:look at|describe|read) (?:my|the) screen|what do you see on (?:my|the) screen)\??$|^(?:شوف|اقرا|اوصف)(?: لي)? (?:ال)?شاشه\??$|^ايه اللي (?:على|علي) (?:ال)?شاشه\??$")]
+    private static partial Regex ScreenLook();
 
     [GeneratedRegex(@"^(?:stop|end|finish) (?:the )?(?:meeting )?recording$|^stop recording(?: the meeting)?$|^(?:وقف|اقفل|خلص) (?:ال)?تسجيل$")]
     private static partial Regex StopRecording();

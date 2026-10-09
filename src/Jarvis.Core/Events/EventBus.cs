@@ -88,6 +88,8 @@ public static class EventTypes
     public const string CalendarChanged = "calendar.changed";
     /// <summary>A meeting recording started, progressed, stopped or its notes are ready.</summary>
     public const string MeetingChanged = "meeting.changed";
+    /// <summary>The camera was just used (the UI flashes an indicator).</summary>
+    public const string CameraUsed = "camera.used";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";

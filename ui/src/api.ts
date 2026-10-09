@@ -356,7 +356,7 @@ export interface Settings {
   appearance: Appearance;
   sounds: SoundSettings;
   shortcuts: { commandConsole: string; pushToTalk: string; dashboard: string };
-  privacy: { allowScreenCapture: boolean };
+  privacy: { allowScreenCapture: boolean; allowCamera: boolean };
 }
 
 export interface Appearance {

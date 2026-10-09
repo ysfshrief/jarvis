@@ -29,6 +29,8 @@ public sealed class PermissionService
             return new(PermissionOutcome.Deny, risk, "This tool is blocked in your permission settings.");
         if (tool.CapturesScreen && !settings.Privacy.AllowScreenCapture)
             return new(PermissionOutcome.Deny, risk, "Screen capture is turned off in Settings → Privacy.");
+        if (tool.UsesCamera && !settings.Privacy.AllowCamera)
+            return new(PermissionOutcome.Deny, risk, "The camera is off in Settings → Privacy.");
 
         if (risk == RiskLevel.Critical)
             return new(PermissionOutcome.RequireApproval, risk, assessment.Reason ?? "Critical actions always need your approval.");
