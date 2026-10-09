@@ -143,6 +143,7 @@ public static class CoreServices
         AddTool<Learning.ResearchTopicTool>(services);
         AddTool<Learning.LearnFromSourceTool>(services);
         services.AddSingleton<Learning.TopicWatch>();
+        services.AddSingleton<Learning.ConversationDigest>();
         AddTool<Learning.TopicWatchTool>(services);
         AddTool<Learning.TopicUnwatchTool>(services);
         services.AddSingleton<Meetings.MeetingStore>();

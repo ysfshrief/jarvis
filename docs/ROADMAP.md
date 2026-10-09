@@ -74,7 +74,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | People, organisations, projects and relationships ("Ahmed works at CityCrep"), entity profiles with related tasks | Working |
 | Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real Ollama embedding model |
 | Documents linked to people and organisations (from the file index) | Working |
-| **Next:** conversation summarisation into memory | Planned |
+| Conversation digest (opt-in): when a conversation goes quiet, the model proposes lasting facts the user stated; each must quote the user's own words (verified against the transcript) and is saved unconfirmed for review | Working |
 
 ## Phase 4 — Web agent
 

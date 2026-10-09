@@ -174,6 +174,25 @@ public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner lear
     }
 }
 
+/// <summary>Reads quiet conversations for things worth remembering (opt-in), every ten minutes.</summary>
+public sealed class ConversationDigestService(Jarvis.Core.Learning.ConversationDigest digest, ILogger<ConversationDigestService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(2), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var r = await digest.RunAsync(DateTimeOffset.Now, stoppingToken);
+                if (r.Saved > 0) logger.LogInformation("Proposed {Saved} memories from {Count} conversation(s)", r.Saved, r.Conversations);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "Conversation digest failed"); }
+            await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+        }
+    }
+}
+
 /// <summary>Re-researches followed topics when they're due (checked every 15 minutes, only while online).</summary>
 public sealed class TopicWatchService(Jarvis.Core.Learning.TopicWatch watch, ILogger<TopicWatchService> logger) : BackgroundService
 {

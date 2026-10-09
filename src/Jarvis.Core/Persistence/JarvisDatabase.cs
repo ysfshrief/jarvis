@@ -551,5 +551,9 @@ public sealed class JarvisDatabase
             last_result TEXT
         );
         """,
+        // v13: when a conversation was last read for things worth remembering (opt-in digest).
+        """
+        ALTER TABLE conversations ADD COLUMN digested_at TEXT;
+        """,
     ];
 }

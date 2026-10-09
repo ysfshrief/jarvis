@@ -261,4 +261,64 @@ public class LearningTests
         Assert.Empty(web.Read);
         Assert.Null(watch.List().Single().LastRun); // still due when back online
     }
+
+    // ---- Conversation digest ----
+
+    [Fact]
+    public async Task Quiet_conversations_yield_only_quote_backed_unconfirmed_memories()
+    {
+        using var host = new TestHost(withModel: true);
+        var conv = host.Get<ConversationStore>();
+        conv.EnsureConversation("c1");
+        conv.Append("c1", "user", "Remind me to call Ahmed tomorrow.", "en", "text");
+        conv.Append("c1", "assistant", "Done. By the way, you might prefer morning meetings.", "en", "text");
+        conv.Append("c1", "user", "Sara is my co-founder at CityCrep, she handles all the finance stuff.", "en", "text");
+        conv.Append("c1", "user", "I never take calls before 10am.", "en", "text");
+        var digest = host.Get<ConversationDigest>();
+        var later = DateTimeOffset.Now.AddHours(2);
+
+        Assert.Equal(0, (await digest.RunAsync(later, default)).Conversations); // off by default
+        host.Settings.Update(s => s.Memory.SummarizeConversations = true);
+
+        host.Model.Reply("""
+            {"memories": [
+              {"content": "Sara is the user's co-founder at CityCrep and handles finance.", "kind": "person", "subject": "Sara", "quote": "Sara is my co-founder at CityCrep, she handles all the finance stuff"},
+              {"content": "The user doesn't take calls before 10am.", "kind": "preference", "subject": "calls", "quote": "I never take calls before 10am."},
+              {"content": "The user prefers morning meetings.", "kind": "preference", "subject": "meetings", "quote": "I prefer morning meetings"},
+              {"content": "The user's bank PIN is 1234.", "kind": "secret", "subject": "bank", "quote": "Remind me to call Ahmed"}
+            ]}
+            """);
+        var r = await digest.RunAsync(later, default);
+        Assert.Equal(1, r.Conversations);
+        Assert.Equal(2, r.Saved); // the assistant's suggestion and the unknown kind are dropped
+
+        var saved = host.Get<MemoryStore>().List(confirmed: false).Where(m => m.Provenance?.Via == ConversationDigest.Via).ToList();
+        Assert.Equal(2, saved.Count);
+        Assert.All(saved, m => Assert.Equal(MemorySources.Derived, m.Source));
+        Assert.Contains(saved, m => m.Subject == "Sara" && m.Provenance!.ConversationId == "c1");
+        Assert.DoesNotContain(saved, m => m.Content.Contains("morning"));
+        Assert.Contains("USER: Sara is my co-founder", host.Model.Requests.Last().Messages.Last().Content);
+
+        Assert.Equal(0, (await digest.RunAsync(later.AddHours(1), default)).Conversations); // done until it continues
+    }
+
+    [Fact]
+    public async Task Digest_waits_for_a_model_and_skips_short_chats()
+    {
+        using var host = new TestHost(s => s.Memory.SummarizeConversations = true);
+        var conv = host.Get<ConversationStore>();
+        conv.EnsureConversation("c2");
+        conv.Append("c2", "user", "I always fly Egyptair when I travel for work.", "en", "text");
+        conv.Append("c2", "user", "And I like aisle seats.", "en", "text");
+        var digest = host.Get<ConversationDigest>();
+        Assert.Equal(0, (await digest.RunAsync(DateTimeOffset.Now.AddHours(2), default)).Saved); // no model: nothing done…
+
+        using var withModel = new TestHost(s => s.Memory.SummarizeConversations = true, withModel: true);
+        var c = withModel.Get<ConversationStore>();
+        c.EnsureConversation("c3");
+        c.Append("c3", "user", "hi", "en", "text");
+        var r = await withModel.Get<ConversationDigest>().RunAsync(DateTimeOffset.Now.AddHours(2), default);
+        Assert.Equal(1, r.Conversations);
+        Assert.Empty(withModel.Model.Requests); // …and one line isn't worth a model call
+    }
 }

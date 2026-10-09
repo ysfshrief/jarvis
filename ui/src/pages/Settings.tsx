@@ -467,6 +467,8 @@ function MemorySettings({ s, set }: P) {
         checked={s.memory.learnPatterns} onChange={(v) => set((x) => { x.memory.learnPatterns = v; })} />
       <Toggle label="Learn my writing style" hint="Off by default. JARVIS reads the email you sent (your Sent folder, read-only, and drafts you approved) and proposes a description of how you write — greeting, sign-off, length, language — for drafts in your voice. You confirm or reject it in Memory → To review. Turning this off deletes the collected samples."
         checked={s.memory.learnWritingStyle} onChange={(v) => set((x) => { x.memory.learnWritingStyle = v; })} />
+      <Toggle label="Remember things from conversations" hint="Off by default. When a conversation has gone quiet, the AI picks out lasting things you said about yourself — preferences, people, projects, commitments. Each must quote your own words (checked), and each waits for you in Memory → To review."
+        checked={s.memory.summarizeConversations} onChange={(v) => set((x) => { x.memory.summarizeConversations = v; })} />
       <Field label="Delete conversations older than (days)" hint="0 keeps them forever.">
         <input className="input" type="number" min={0} value={s.memory.conversationRetentionDays} onChange={(e) => set((x) => { x.memory.conversationRetentionDays = Number(e.target.value); })} />
       </Field>

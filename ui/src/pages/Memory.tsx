@@ -315,6 +315,7 @@ function viaLabel(via: string) {
     case "dashboard": return "Added in the dashboard";
     case "learner": return "Noticed in your activity or the email you sent (opt-in learning)";
     case "research": return "Learned from a source — not verified";
+    case "summary": return "Picked out of a conversation — unconfirmed";
     default: return `Added via ${via}`;
   }
 }

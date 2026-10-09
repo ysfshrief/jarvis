@@ -288,6 +288,8 @@ public sealed class MemorySettings
     public bool LearnPatterns { get; set; }
     /// <summary>Learn how the user writes from email they sent (opt-in). Samples are deleted when turned off.</summary>
     public bool LearnWritingStyle { get; set; }
+    /// <summary>After a conversation goes quiet, propose durable facts the user stated (opt-in, unconfirmed, quote-checked).</summary>
+    public bool SummarizeConversations { get; set; }
 }
 
 public sealed class NotificationSettings
