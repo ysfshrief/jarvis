@@ -72,6 +72,8 @@ public sealed class ToolExecutor(
         // A paired phone can be lost or borrowed: what it asks for that changes anything is always confirmed.
         else if (decision.Outcome == PermissionOutcome.Allow && decision.Risk >= RiskLevel.Sensitive && ctx.Via == "remote")
             decision = decision with { Outcome = PermissionOutcome.RequireApproval, Reason = "Requested from a paired phone; confirming it's you." };
+        else if (decision.Outcome == PermissionOutcome.Allow && decision.Risk >= RiskLevel.Sensitive && ctx.Turn.ConfirmChanges is { } why)
+            decision = decision with { Outcome = PermissionOutcome.RequireApproval, Reason = why };
 
         if (decision.Outcome == PermissionOutcome.Deny)
         {

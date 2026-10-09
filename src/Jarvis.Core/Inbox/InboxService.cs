@@ -215,7 +215,7 @@ public sealed class InboxService(
 
     private Task NotifyAsync(InboxMessage m, CancellationToken ct)
     {
-        var ar = settings.Current.General.Language == "ar";
+        var ar = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current) == Jarvis.Core.Language.Lang.Ar;
         return notifications.PostAsync(new Notification
         {
             Title = ar ? $"إيميل مستعجل من {m.Sender}" : $"Urgent email from {m.Sender}",

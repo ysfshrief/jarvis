@@ -370,6 +370,22 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task Settings_patch_changes_only_what_was_sent()
+    {
+        var c = _f.Authed();
+        var store = _f.Services.GetRequiredService<Jarvis.Core.Settings.ISettingsStore>();
+        // Something else changes a setting while the Settings page is open (e.g. a speech model download).
+        store.Update(s => s.Voice.SttModel = "small");
+        var resp = await c.PatchAsync("/api/settings", new StringContent("""{"general":{"honorific":"Boss"},"security":{"pinHash":"forged"}}""", System.Text.Encoding.UTF8, "application/json"));
+        resp.EnsureSuccessStatusCode();
+        Assert.Equal("Boss", store.Current.General.Honorific);
+        Assert.Equal("small", store.Current.Voice.SttModel); // kept
+        Assert.NotEqual("forged", store.Current.Security.PinHash);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PatchAsync("/api/settings", new StringContent("""{"general":{"honorific":5}}""", System.Text.Encoding.UTF8, "application/json"))).StatusCode);
+        (await c.PatchAsync("/api/settings", new StringContent("""{"general":{"honorific":"Sir"}}""", System.Text.Encoding.UTF8, "application/json"))).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
     public async Task Paired_phone_reaches_only_the_companion_api_over_pinned_tls()
     {
         var c = _f.Authed();

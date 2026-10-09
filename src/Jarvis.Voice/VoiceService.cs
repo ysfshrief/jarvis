@@ -49,6 +49,7 @@ public sealed partial class VoiceService : BackgroundService
     private DateTimeOffset _followUpUntil;
     private TaskCompletionSource<AgentTurnResult?>? _pushToTalk;
     private bool _paused;
+    private bool _meeting; // a meeting is being recorded: the room isn't talking to JARVIS
     private string? _lastTranscript;
 
     public VoiceService(IAudioInput audio, ISpeechToText stt, ITextToSpeech tts, AgentOrchestrator agent,
@@ -67,6 +68,15 @@ public sealed partial class VoiceService : BackgroundService
         // Typed requests are spoken too when the user turned off "only speak for voice input".
         _events.Subscribe(e =>
         {
+            if (e.Type == EventTypes.MeetingChanged && RecordingFlag(e.Data) is { } recording)
+            {
+                lock (_gate)
+                {
+                    _meeting = recording;
+                    if (_mode == Mode.Wake) _segmenter.Reset();
+                }
+                return;
+            }
             if (e.Type != EventTypes.TurnCompleted || e.Data is not AgentTurnResult r || r.Source == InputSource.Voice) return;
             var v = _settings.Current.Voice;
             if (v.TtsEnabled && !v.SpeakOnlyForVoiceInput)
@@ -108,7 +118,20 @@ public sealed partial class VoiceService : BackgroundService
             _tts.Stop();
             StartCommandWindow(TimeSpan.FromSeconds(_settings.Current.Voice.MaxUtteranceSeconds + 5));
         }
-        using var reg = ct.Register(() => tcs.TrySetCanceled(ct));
+        using var reg = ct.Register(() =>
+        {
+            // Abandoned push-to-talk: close the microphone instead of listening until the deadline.
+            lock (_gate)
+            {
+                if (_pushToTalk == tcs && _mode == Mode.Command)
+                {
+                    _pushToTalk = null;
+                    _segmenter.Reset();
+                    ReturnToBaseMode();
+                }
+            }
+            tcs.TrySetCanceled(ct);
+        });
         return await tcs.Task.ConfigureAwait(false);
     }
 
@@ -142,8 +165,11 @@ public sealed partial class VoiceService : BackgroundService
         var previous = _state;
         var wasCapturing = _audio.IsCapturing;
         // Don't let JARVIS hear (and react to) its own voice.
-        if (wasCapturing) StopCapture();
-        SetState(VoiceState.Speaking);
+        lock (_gate)
+        {
+            if (wasCapturing) StopCapture();
+            SetState(VoiceState.Speaking);
+        }
         try
         {
             await _tts.SpeakAsync(ForSpeech(text), lang, ct).ConfigureAwait(false);
@@ -189,6 +215,7 @@ public sealed partial class VoiceService : BackgroundService
         }
 
         string command;
+        string? confirm = null;
         if (mode == Mode.Wake && DateTimeOffset.Now > _followUpUntil)
         {
             if (!WakeWordMatcher.TryMatch(text, s.WakeWords, out command))
@@ -207,11 +234,16 @@ public sealed partial class VoiceService : BackgroundService
         }
         else
         {
-            command = WakeWordMatcher.TryMatch(text, s.WakeWords, out var stripped) && stripped.Length > 1 ? stripped : text;
+            var addressed = WakeWordMatcher.TryMatch(text, s.WakeWords, out var stripped);
+            command = addressed && stripped.Length > 1 ? stripped : text;
+            // Heard in the follow-up window without "Jarvis": it might be someone else talking. Answering is fine;
+            // changing anything is confirmed first.
+            if (mode == Mode.Wake && !addressed)
+                confirm = "Heard without the wake word right after a reply — confirming it was meant for JARVIS.";
         }
 
         SetState(VoiceState.Thinking);
-        var result = await _agent.HandleAsync(new UserInput(command, null, InputSource.Voice), ct).ConfigureAwait(false);
+        var result = await _agent.HandleAsync(new UserInput(command, null, InputSource.Voice, confirm), ct).ConfigureAwait(false);
         CompletePushToTalk(result);
 
         lock (_gate)
@@ -234,6 +266,7 @@ public sealed partial class VoiceService : BackgroundService
         lock (_gate)
         {
             if (_mode == Mode.Off || _state is VoiceState.Speaking) return;
+            if (_mode == Mode.Wake && _meeting) return; // wake word is off while a meeting is recorded; push-to-talk still works
             if (_mode == Mode.Command && DateTimeOffset.Now > _commandDeadline && !_segmenter.InSpeech)
             {
                 _segmenter.Reset();
@@ -309,6 +342,14 @@ public sealed partial class VoiceService : BackgroundService
         var p = _pushToTalk;
         _pushToTalk = null;
         p?.TrySetResult(result);
+    }
+
+    private static bool? RecordingFlag(object? data)
+    {
+        if (data is null) return null;
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(data);
+        return json.ValueKind == System.Text.Json.JsonValueKind.Object && json.TryGetProperty("recording", out var r)
+            && r.ValueKind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False ? r.GetBoolean() : null;
     }
 
     private void EnsureUsable()

@@ -232,7 +232,7 @@ public sealed class CompanionServer(IServiceProvider sp, ISettingsStore settings
 
     private ToolContext Ctx(string? conversation) => new()
     {
-        Lang = settings.Current.General.Language == "ar" ? Jarvis.Core.Language.Lang.Ar : Jarvis.Core.Language.Lang.En,
+        Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current),
         Settings = settings.Current, ConversationId = conversation ?? "phone", Via = "phone",
     };
 }

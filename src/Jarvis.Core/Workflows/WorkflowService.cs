@@ -108,7 +108,7 @@ public sealed class WorkflowService(
     public async Task<int> CheckDueAsync(DateTimeOffset now, CancellationToken ct)
     {
         var sent = 0;
-        var ar = settings.Current.General.Language == "ar";
+        var ar = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current) == Jarvis.Core.Language.Lang.Ar;
         foreach (var wf in store.List())
         {
             foreach (var s in wf.Steps.Where(x => !StepStatus.IsClosed(x.Status)))

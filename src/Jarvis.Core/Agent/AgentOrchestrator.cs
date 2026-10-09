@@ -20,7 +20,9 @@ namespace Jarvis.Core.Agent;
 [JsonConverter(typeof(JsonStringEnumConverter<InputSource>))]
 public enum InputSource { Text, Voice, Api, Scheduler, Remote }
 
-public sealed record UserInput(string Text, string? ConversationId = null, InputSource Source = InputSource.Text);
+/// <param name="ConfirmChanges">Set when it isn't certain the user meant JARVIS (e.g. speech heard in the follow-up
+/// window without the wake word): anything sensitive it leads to is confirmed first, with this reason.</param>
+public sealed record UserInput(string Text, string? ConversationId = null, InputSource Source = InputSource.Text, string? ConfirmChanges = null);
 
 public sealed record AgentTurnResult
 {
@@ -122,6 +124,7 @@ public sealed class AgentOrchestrator(
             Lang = lang, Settings = s, ConversationId = conv.Id, TurnId = turnId, CancellationToken = ct,
             RequestText = text, Via = input.Source.ToString().ToLowerInvariant(),
         };
+        toolCtx.Turn.ConfirmChanges = input.ConfirmChanges;
 
         events.Publish(EventTypes.TurnStarted, new { conversationId = conv.Id, turnId, text, source = input.Source });
         Phase(toolCtx, TurnPhases.Understanding);

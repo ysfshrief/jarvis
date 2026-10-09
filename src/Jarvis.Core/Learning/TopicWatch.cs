@@ -79,7 +79,7 @@ public sealed class TopicWatch(JarvisDatabase db, IServiceProvider sp, Notificat
             var ctx = new ToolContext
             {
                 Settings = settings.Current, ConversationId = $"watch-{t.Id}", Via = "scheduler", CancellationToken = ct,
-                Lang = settings.Current.General.Language == "ar" ? Language.Lang.Ar : Language.Lang.En,
+                Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current),
             };
             string result;
             try

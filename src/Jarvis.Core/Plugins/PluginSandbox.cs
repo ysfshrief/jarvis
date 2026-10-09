@@ -16,7 +16,7 @@ public sealed record SandboxResult(bool Success, string Message, JsonNode? Data,
 /// permissions the user approved: HTTP only to listed hosts (never local addresses), storage only if granted,
 /// notifications only if granted. Time, statements, memory and recursion are all limited.
 /// </summary>
-public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, NotificationCenter notifications, ISettingsStore settings)
+public sealed class PluginSandbox(JarvisDatabase db, NotificationCenter notifications, ISettingsStore settings)
 {
     public static readonly TimeSpan TimeLimit = TimeSpan.FromSeconds(20);
     private const int MaxRequests = 20, MaxResponseBytes = 1_000_000, MaxStorageValue = 65_536, MaxStorageKeys = 500;
@@ -79,6 +79,29 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
 
     public const string NetworkOff = "the network is off during automatic checks";
 
+    // Plugins get their own client that never follows redirects by itself (see Fetch).
+    private static readonly HttpClient NoRedirects = new(new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        AutomaticDecompression = System.Net.DecompressionMethods.All,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    });
+
+    /// <summary>Reads at most the size limit, so a huge response is refused without being downloaded.</summary>
+    private static byte[] ReadCapped(HttpResponseMessage resp, CancellationToken ct)
+    {
+        using var stream = resp.Content.ReadAsStreamAsync(ct).GetAwaiter().GetResult();
+        using var ms = new MemoryStream();
+        var buffer = new byte[16384];
+        int n;
+        while ((n = stream.ReadAsync(buffer, ct).AsTask().GetAwaiter().GetResult()) > 0)
+        {
+            if (ms.Length + n > MaxResponseBytes) throw new PluginException("the response was too large.");
+            ms.Write(buffer, 0, n);
+        }
+        return ms.ToArray();
+    }
+
     public static string CheckStorage(string pluginId) => pluginId + "#check";
 
     private Engine Create(PluginManifest m, string code, bool sendAllowed, List<string> log, CancellationToken ct, bool networkAllowed, string storageId)
@@ -97,25 +120,42 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
             if (!networkAllowed) throw new PluginException(NetworkOff + ".");
             if (++requests > MaxRequests) throw new PluginException("too many web requests in one call.");
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) throw new PluginException($"'{url}' isn't a web address.");
+            // Redirects are followed here, one hop at a time, so every hop is held to the same rules as the first.
+            for (var hop = 0; ; hop++)
+            {
+                CheckTarget(uri, body is not null);
+                using var req = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, uri);
+                if (body is not null) req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+                req.Headers.UserAgent.ParseAdd($"JARVIS-plugin/{m.Id}");
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                using var resp = NoRedirects.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, timeout.Token).GetAwaiter().GetResult();
+                if ((int)resp.StatusCode is >= 300 and < 400 && resp.Headers.Location is { } next)
+                {
+                    if (body is not null) throw new PluginException($"{uri.Host} tried to redirect a send; it wasn't followed.");
+                    if (hop >= 4) throw new PluginException("too many redirects.");
+                    uri = next.IsAbsoluteUri ? next : new Uri(uri, next);
+                    continue;
+                }
+                if (resp.Content.Headers.ContentLength > MaxResponseBytes) throw new PluginException("the response was too large.");
+                var bytes = ReadCapped(resp, timeout.Token);
+                if (!resp.IsSuccessStatusCode) throw new PluginException($"{uri.Host} answered {(int)resp.StatusCode}.");
+                log.Add($"{(body is null ? "GET" : "POST")} {uri.Host}{uri.AbsolutePath}{(hop > 0 ? $" (after {hop} redirect(s))" : "")}");
+                return System.Text.Encoding.UTF8.GetString(bytes);
+            }
+        }
+
+        // Allowed host, https (or an allowed local test server), never a private address.
+        void CheckTarget(Uri uri, bool sending)
+        {
             var host = uri.Host.ToLowerInvariant();
             var local = host == "localhost" && settings.Current.Web.AllowLocalPages; // developers testing against a local server
-            var allowed = body is null ? m.Permissions.Http.Concat(m.Permissions.HttpSend) : m.Permissions.HttpSend;
+            var allowed = sending ? m.Permissions.HttpSend : m.Permissions.Http.Concat(m.Permissions.HttpSend);
             if (!allowed.Any(h => h.Equals(host, StringComparison.OrdinalIgnoreCase)) && !(local && allowed.Contains("localhost")))
-                throw new PluginException($"this plugin isn't allowed to {(body is null ? "read from" : "send to")} {host}.");
-            if (body is not null && !sendAllowed) throw new PluginException($"sending to {host} isn't allowed until you approve the plugin.");
+                throw new PluginException($"this plugin isn't allowed to {(sending ? "send to" : "read from")} {host}.");
+            if (sending && !sendAllowed) throw new PluginException($"sending to {host} isn't allowed until you approve the plugin.");
             if (uri.Scheme != "https" && !local) throw new PluginException("only https addresses are allowed.");
             if (!local && WebReadTool.IsPrivateAsync(uri, ct).GetAwaiter().GetResult()) throw new PluginException($"{host} points to a local address.");
-            using var req = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, uri);
-            if (body is not null) req.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
-            req.Headers.UserAgent.ParseAdd($"JARVIS-plugin/{m.Id}");
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(15));
-            using var resp = http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, timeout.Token).GetAwaiter().GetResult();
-            var bytes = resp.Content.ReadAsByteArrayAsync(timeout.Token).GetAwaiter().GetResult();
-            if (bytes.Length > MaxResponseBytes) throw new PluginException("the response was too large.");
-            if (!resp.IsSuccessStatusCode) throw new PluginException($"{host} answered {(int)resp.StatusCode}.");
-            log.Add($"{(body is null ? "GET" : "POST")} {uri.Host}{uri.AbsolutePath}");
-            return System.Text.Encoding.UTF8.GetString(bytes);
         }
 
         engine.SetValue("__get", new Func<string, string>(u => Fetch(u, null)));

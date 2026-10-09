@@ -69,6 +69,22 @@ function safeJson(text: string): unknown {
 export const get = <T,>(p: string) => api<T>("GET", p);
 export const post = <T,>(p: string, b?: unknown) => api<T>("POST", p, b ?? {});
 export const put = <T,>(p: string, b?: unknown) => api<T>("PUT", p, b ?? {});
+export const patch = <T,>(p: string, b?: unknown) => api<T>("PATCH", p, b ?? {});
+
+/** JSON merge patch (RFC 7396) of what changed from `before` to `after` — objects recurse, everything else is replaced whole. */
+export function mergePatch(before: unknown, after: unknown): Record<string, unknown> | undefined {
+  const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+  if (!isObj(before) || !isObj(after)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(after)) {
+    const a = before[key], b = after[key];
+    if (isObj(a) && isObj(b)) {
+      const sub = mergePatch(a, b);
+      if (sub && Object.keys(sub).length > 0) out[key] = sub;
+    } else if (JSON.stringify(a) !== JSON.stringify(b)) out[key] = b;
+  }
+  return out;
+}
 export const del = <T,>(p: string) => api<T>("DELETE", p);
 
 // ---------- Types mirrored from the runtime ----------

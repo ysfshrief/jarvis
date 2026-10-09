@@ -79,7 +79,13 @@ public sealed class BrowserTests : IDisposable
         s.Permissions.AutoApproveSensitive = autoApprove;
     });
 
-    private static bool HasBrowser(TestHost host) => host.Get<BrowserService>().Locate() is not null;
+    /// <summary>No browser installed → the test can't run here. Where one must exist (CI sets JARVIS_REQUIRE_BROWSER), that's a failure, not a pass.</summary>
+    private static bool HasBrowser(TestHost host)
+    {
+        if (host.Get<BrowserService>().Locate() is not null) return true;
+        Assert.True(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JARVIS_REQUIRE_BROWSER")), "JARVIS_REQUIRE_BROWSER is set but no Edge/Chrome/Chromium was found.");
+        return false;
+    }
 
     private static async Task<(ToolResult Result, ToolStep Step)> Run(TestHost host, ToolContext ctx, string tool, object args) =>
         await host.Get<ToolExecutor>().ExecuteAsync(tool, ToolArgs.From(args), ctx);

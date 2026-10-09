@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import {
   AtSign, Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Smartphone, Trash2, Undo2,
 } from "lucide-react";
-import { del, get, post, put, type BrowserStatus, type DevicesStatus, type PairingInfo, type InboxStatus, type MailAccountConfig, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
+import { del, get, mergePatch, patch, post, put, type BrowserStatus, type DevicesStatus, type PairingInfo, type InboxStatus, type MailAccountConfig, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
 import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, timeAgo, useLoad } from "../components/ui";
@@ -74,7 +74,8 @@ export function SettingsPage() {
 
   const save = async () => {
     try {
-      const result = await put<Settings>("/settings", draft);
+      // Only what changed is sent, so a change made elsewhere meanwhile (e.g. a downloaded speech model) is kept.
+      const result = await patch<Settings>("/settings", mergePatch(loaded.data, draft) ?? {});
       loaded.setData(result);
       setDraft(structuredClone(result));
       settingsStore.set(result);

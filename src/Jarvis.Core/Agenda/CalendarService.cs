@@ -119,7 +119,7 @@ public sealed class CalendarService(
         var sent = 0;
         foreach (var e in store.Between(now, now.AddMinutes(minutes)).Where(e => !e.AllDay && !e.Reminded && e.Start >= now))
         {
-            var ar = settings.Current.General.Language == "ar";
+            var ar = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current) == Jarvis.Core.Language.Lang.Ar;
             var inMin = Math.Max(1, (int)Math.Round((e.Start - now).TotalMinutes));
             var who = e.People.Take(3).ToList();
             await notifications.PostAsync(new Notifications.Notification

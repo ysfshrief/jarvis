@@ -224,17 +224,24 @@ public sealed class App : Application
         if (_quick is not null && _orb is not null) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
     }
 
+    // async void (a hotkey handler): every failure must be caught here, or it would take the whole shell down.
     private async void PushToTalk()
     {
-        if (_console is not null && (_console.IsVisible || await _console.ShowConsoleAsync()))
+        try
         {
-            try { await _core.PostAsync("/voice/listen"); }
-            catch (Exception ex) { _tray?.ShowBalloonTip(4000, "JARVIS", ex.Message, Forms.ToolTipIcon.Warning); }
-            return;
+            if (_console is not null && (_console.IsVisible || await _console.ShowConsoleAsync()))
+            {
+                await _core.PostAsync("/voice/listen");
+                return;
+            }
+            if (_quick is null || _orb is null) return;
+            if (!_quick.IsVisible) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
+            await _quick.ListenAsync();
         }
-        if (_quick is null || _orb is null) return;
-        if (!_quick.IsVisible) _quick.ShowNear(new Rect(_orb.Left, _orb.Top, _orb.Width, _orb.Height));
-        _ = _quick.ListenAsync();
+        catch (Exception ex)
+        {
+            _tray?.ShowBalloonTip(4000, "JARVIS", ex.Message, Forms.ToolTipIcon.Warning);
+        }
     }
 
     private void ToggleOrb()

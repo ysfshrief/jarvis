@@ -144,6 +144,8 @@ public sealed class TurnState
     /// <summary>What untrusted content was read during this request (e.g. "web_read: example.com"), if any.</summary>
     public string? UntrustedSource { get; set; }
     public bool UntrustedSeen => UntrustedSource is not null;
+    /// <summary>Why every sensitive action in this request must be confirmed, if the request may not be the user's.</summary>
+    public string? ConfirmChanges { get; set; }
 }
 
 /// <summary>Arguments of a tool call, backed by a JSON object (what AI models produce).</summary>

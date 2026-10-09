@@ -38,6 +38,7 @@ jobs:
       - name: Test core and runtime
         env:
           JARVIS_TEST_MAIL: 127.0.0.1
+          JARVIS_REQUIRE_BROWSER: "1"
         run: |
           dotnet test tests/Jarvis.Core.Tests -c Release --logger "console;verbosity=normal"
           dotnet test tests/Jarvis.Runtime.Tests -c Release --logger "console;verbosity=normal"

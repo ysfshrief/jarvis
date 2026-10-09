@@ -72,7 +72,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Provenance on every memory ("why is this here?"): surface, conversation, your words, or the evidence for an inference | Working |
 | Confirmed vs inferred: AI-initiated and learned items stay unconfirmed until you confirm or reject them | Working |
 | People, organisations, projects and relationships ("Ahmed works at CityCrep"), entity profiles with related tasks | Working |
-| Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real Ollama embedding model |
+| Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real embedding model (all-minilm, English); Arabic recall not yet verified |
 | Documents linked to people and organisations (from the file index) | Working |
 | Conversation digest (opt-in): when a conversation goes quiet, the model proposes lasting facts the user stated; each must quote the user's own words (verified against the transcript) and is saved unconfirmed for review | Working |
 
@@ -82,7 +82,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | --- | --- |
 | Web search (key-less) and page reading with untrusted-content handling | Partial — the key-less search can be rate-limited |
 | Browser agent: JARVIS's own visible Edge/Chrome window (separate profile) driven over the DevTools protocol — open, read text and numbered elements, click, type, press Enter, back, screenshot | Working — tested against a real browser in CI |
-| Per-element risk grading (EN/AR): send/buy/publish/delete/book/subscribe/account changes and POST forms are critical; password/payment fields critical; re-check before acting | Working |
+| Per-element risk grading (EN/AR): buttons that send/buy/publish/delete/book/subscribe/change accounts and POST forms are critical; password/payment fields critical; links are only navigation (a “Delete account” link is sensitive — the button on the next page is critical); re-check before acting | Working |
 | Tainted requests: after reading untrusted content, sensitive actions in that request always need approval | Working |
 | File downloads, multi-tab research, source ranking | Planned |
 
@@ -115,7 +115,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Sorting into urgent / needs reply / important / FYI / noise with the reason shown (EN/AR rules, VIP senders, known people/organisations); your corrections teach it per sender | Working |
 | Mail linked to people and organisations; urgent-mail alerts through the notification centre; inbox in the daily briefing; "check my email" works offline from the last sync | Working |
 | Drafts (yours or JARVIS's) — never sent automatically; sending is critical and always shows you the message first; replies thread correctly | Working |
-| AI-drafted replies (reads the email, saves a draft) | Partial — needs a local model; style learning from sent mail is planned |
+| AI-drafted replies (reads the email, saves a draft) | Partial — needs a local model; your confirmed writing style reaches the model as a preference; verified only with a test model |
 | Outlook.com / Microsoft 365 and Google sign-in (OAuth) | Planned — Microsoft no longer allows password sign-in for Outlook mail |
 | WhatsApp / Instagram / Messenger (business APIs only), X (paid API), LinkedIn (no API) | Shown honestly in Settings → Accounts; not connected |
 
@@ -132,7 +132,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Meeting recording: user-started (always asks), always visible (REC chip, red orb dot, status API), auto-stop after a limit; microphone + speakers (WASAPI loopback) on Windows; audio never stored | Working on Windows — capture needs real audio devices (CI has none) |
 | Local transcript in chunks with Whisper; decisions, action items with owner and due date, open questions (EN/AR); action items → tasks on your choice | Working — transcription verified on Windows CI with synthesized speech |
 | AI-written meeting summary | Working when a model is available (grounded on the transcript and extracted notes) |
-| "What's on my screen?" with a local vision model; OCR fallback with an honest note; blocked when screen capture is off | Working |
+| "What's on my screen?" with a local vision model; OCR fallback with an honest note; blocked when screen capture is off | Partial — OCR fallback and privacy gate verified on Windows; the vision-model path is not yet verified with a real model |
 | Camera: single photo on request for a vision question — off by default, asks every time, never saved, never video | Partial — needs a camera and a vision model; no camera in CI |
 
 ## Phase 8 — Personal adaptation

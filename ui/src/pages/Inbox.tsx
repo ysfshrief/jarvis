@@ -154,7 +154,7 @@ function Reader({ id, onBack, onError }: { id: string; onBack: () => void; onErr
     setAsking(true);
     setNote(null);
     try {
-      const r = await post<{ reply: string }>("/chat", { text: `Draft a reply to the email from ${m.fromName || m.fromAddress} titled “${m.subject}” (message id ${m.id}). Read it first, keep it short, and save it as a draft — don't send it.` });
+      const r = await post<{ reply: string }>("/chat", { text: `Draft a reply to email message ${m.id}. Read it first with inbox_read, keep it short, and save it as a draft — don't send it.` });
       setNote(r.reply);
       await d.reload();
     } catch (e) { onError(e); } finally { setAsking(false); }

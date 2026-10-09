@@ -32,6 +32,7 @@ export function ActivityPage() {
           </select>
         </div>
         {items.data?.length === 0 && <Empty>No activity matches.</Empty>}
+        <div className="table-wrap">
         <table className="table">
           <thead>
             <tr><th>When</th><th>Kind</th><th>What</th><th>Tool</th><th>Risk</th><th>Status</th><th>Time</th></tr>
@@ -57,6 +58,7 @@ export function ActivityPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
     </div>
   );

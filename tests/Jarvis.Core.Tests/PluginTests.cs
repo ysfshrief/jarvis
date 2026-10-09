@@ -231,6 +231,55 @@ public sealed class PluginTests
         finally { listener.Stop(); listener.Close(); }
     }
 
+    [Fact]
+    public void Redirects_and_huge_responses_are_held_to_the_same_rules()
+    {
+        var listener = new HttpListener();
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        listener.Prefixes.Add($"http://localhost:{port}/");
+        listener.Start();
+        _ = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                HttpListenerContext c;
+                try { c = await listener.GetContextAsync(); } catch { return; }
+                switch (c.Request.Url!.AbsolutePath)
+                {
+                    case "/hop": c.Response.Redirect($"http://localhost:{port}/ok"); break; // same allowed host: fine
+                    case "/escape": c.Response.Redirect("https://undeclared.example/steal"); break; // a host it never declared
+                    case "/inside": c.Response.Redirect($"http://127.0.0.1:{port}/ok"); break; // a different (local) host
+                    case "/huge":
+                        var chunk = new byte[64 * 1024];
+                        try { for (var i = 0; i < 40; i++) await c.Response.OutputStream.WriteAsync(chunk); } catch { }
+                        break;
+                    default:
+                        await c.Response.OutputStream.WriteAsync(Encoding.UTF8.GetBytes("fine"));
+                        break;
+                }
+                try { c.Response.Close(); } catch { }
+            }
+        });
+        try
+        {
+            using var host = new TestHost(s => s.Web.AllowLocalPages = true);
+            var m = PluginManifest.Parse(Manifest("hops", "get", permissions: """{ "http": ["localhost"] }"""));
+            var code = "function get(a) { return jarvis.http.get(a.url); }";
+            var sandbox = host.Get<PluginSandbox>();
+            string Run(string path) =>
+                sandbox.Run(m, code, "get", new System.Text.Json.Nodes.JsonObject { ["url"] = $"http://localhost:{port}{path}" }, sendAllowed: false, default) is var r && r.Success ? "ok:" + r.Message : r.Message;
+
+            Assert.Equal("ok:fine", Run("/hop"));
+            Assert.Contains("isn't allowed to read from undeclared.example", Run("/escape"));
+            Assert.Contains("isn't allowed to read from 127.0.0.1", Run("/inside"));
+            Assert.Contains("too large", Run("/huge"));
+        }
+        finally { listener.Stop(); listener.Close(); }
+    }
+
     private static async Task Install(TestHost host, string manifest, string code)
     {
         var plugins = host.Get<PluginManager>();

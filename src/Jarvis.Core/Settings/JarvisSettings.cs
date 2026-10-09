@@ -28,6 +28,20 @@ public sealed class JarvisSettings
     public CompanionSettings Companion { get; set; } = new();
 }
 
+public static class LanguagePolicy
+{
+    /// <summary>
+    /// The language for things JARVIS says on its own (reminders, alerts, dashboard actions) where there's no message
+    /// to detect it from: the reply-language setting, and with "auto" the language of the user's interface.
+    /// </summary>
+    public static Language.Lang Default(JarvisSettings s) => s.General.Language switch
+    {
+        "ar" => Language.Lang.Ar,
+        "en" => Language.Lang.En,
+        _ => s.Appearance.Language == "ar" ? Language.Lang.Ar : Language.Lang.En,
+    };
+}
+
 public sealed class CompanionSettings
 {
     /// <summary>Let paired phones on your network talk to JARVIS. Off by default: the API is otherwise this-PC-only.</summary>

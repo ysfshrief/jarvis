@@ -161,7 +161,7 @@ public static class Api
         // Research and learning from sources (both go through the tools, so permissions and the audit log apply).
         api.MapPost("/memory/research", async (ResearchDto dto, ToolExecutor executor, ISettingsStore settings, CancellationToken ct) =>
         {
-            var ctx = new ToolContext { Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard", CancellationToken = ct, Lang = settings.Current.General.Language == "ar" ? Jarvis.Core.Language.Lang.Ar : Jarvis.Core.Language.Lang.En };
+            var ctx = new ToolContext { Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard", CancellationToken = ct, Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current) };
             var (r, step) = string.IsNullOrWhiteSpace(dto.Source)
                 ? await executor.ExecuteAsync("research_topic", ToolArgs.From(new { topic = dto.Topic ?? "", sources = dto.Sources ?? 3 }), ctx)
                 : await executor.ExecuteAsync("learn_from_source", ToolArgs.From(new { source = dto.Source, topic = dto.Topic }), ctx);
@@ -230,7 +230,7 @@ public static class Api
             store.AddStep(id, new NewStep(dto.Title ?? "", DueAt: dto.Due, WaitingFor: dto.WaitingFor, RequiresApproval: dto.RequiresApproval ?? false))));
         api.MapPost("/workflows/{id}/steps/{stepId}/run", async (string id, string stepId, WorkflowRunner runner, ISettingsStore settings, CancellationToken ct) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "workflow-" + id, Via = "dashboard", CancellationToken = ct };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "workflow-" + id, Via = "dashboard", CancellationToken = ct };
             var (ok, message) = await runner.RunStepAsync(stepId, ctx);
             return Results.Ok(new { ok, message });
         });
@@ -365,7 +365,7 @@ public static class Api
         // Sending goes through the same tool, permission check and (always) approval as when the AI asks.
         api.MapPost("/inbox/drafts/{id}/send", async (string id, ToolExecutor executor, ISettingsStore settings) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var (result, step) = await executor.ExecuteAsync("inbox_send", ToolArgs.From(new { draft = id }), ctx);
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
@@ -402,7 +402,7 @@ public static class Api
         {
             var e = cal.Store.Get(id);
             if (e is null) return Results.NotFound();
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current };
             var b = cal.Prepare(e);
             return Results.Ok(new
             {
@@ -424,7 +424,7 @@ public static class Api
         // Starting goes through the tool, so the same always-ask approval applies to the dashboard button.
         api.MapPost("/meetings/start", async (MeetingStartDto dto, ToolExecutor executor, ISettingsStore settings) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var (result, step) = await executor.ExecuteAsync("meeting_record_start", ToolArgs.From(new { title = dto.Title }), ctx);
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
@@ -434,7 +434,7 @@ public static class Api
         {
             var m = store.Get(id);
             if (m?.Notes is null) return Results.NotFound();
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var created = 0;
             foreach (var i in dto.Items ?? [])
             {
@@ -452,7 +452,7 @@ public static class Api
         api.MapGet("/plugins/{id}", (string id, Jarvis.Core.Plugins.PluginManager plugins) => plugins.Get(id) is { } p ? Results.Ok(PluginView(p)) : Results.NotFound());
         api.MapPost("/plugins/generate", async (PluginGenerateDto dto, ToolExecutor executor, ISettingsStore settings) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var (result, _) = await executor.ExecuteAsync("plugin_create", ToolArgs.From(new { description = dto.Description ?? "" }), ctx);
             return Results.Ok(new { result.Success, result.Message, result.Data });
         });
@@ -473,13 +473,13 @@ public static class Api
         });
         api.MapPost("/plugins/{id}/install", async (string id, ToolExecutor executor, ISettingsStore settings) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var (result, step) = await executor.ExecuteAsync("plugin_install", ToolArgs.From(new { plugin = id }), ctx);
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
         api.MapPost("/plugins/{id}/update", async (string id, ToolExecutor executor, ISettingsStore settings) =>
         {
-            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var ctx = new ToolContext { Lang = Jarvis.Core.Settings.LanguagePolicy.Default(settings.Current), Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
             var (result, step) = await executor.ExecuteAsync("plugin_update", ToolArgs.From(new { plugin = id }), ctx);
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
@@ -597,6 +597,22 @@ public static class Api
             settings.Replace(incoming);
             events.Publish(EventTypes.SettingsChanged, new { });
             log.Record(ActivityKinds.System, "Settings updated", status: "ok");
+            return Results.Ok(settings.Current);
+        });
+        // A JSON merge patch (RFC 7396): only the fields that changed, applied to the settings as they are now.
+        api.MapPatch("/settings", (System.Text.Json.Nodes.JsonObject patch, ISettingsStore settings, IEventBus events, ActivityLog log) =>
+        {
+            if (patch["security"] is System.Text.Json.Nodes.JsonObject sec) sec.Remove("pinHash"); // only via /auth/pin
+            var current = System.Text.Json.JsonSerializer.SerializeToNode(settings.Current, System.Text.Json.JsonSerializerOptions.Web)!.AsObject();
+            MergePatch(current, patch);
+            JarvisSettings? next;
+            try { next = current.Deserialize<JarvisSettings>(System.Text.Json.JsonSerializerOptions.Web); }
+            catch (System.Text.Json.JsonException ex) { return Results.BadRequest(new { error = $"Invalid settings: {ex.Message}" }); }
+            if (next is null) return Results.BadRequest(new { error = "Invalid settings." });
+            next.Security.PinHash = settings.Current.Security.PinHash;
+            settings.Replace(next);
+            events.Publish(EventTypes.SettingsChanged, new { });
+            log.Record(ActivityKinds.System, "Settings updated", status: "ok", details: string.Join(", ", patch.Select(p => p.Key)));
             return Results.Ok(settings.Current);
         });
         api.MapGet("/secrets", (ISecretStore secrets) => Results.Ok(new { names = secrets.Names(), protection = secrets.ProtectionName }));
@@ -812,6 +828,16 @@ public static class Api
             permissions = Jarvis.Core.Plugins.PluginManager.Describe(u.Manifest),
         },
     };
+
+    private static void MergePatch(System.Text.Json.Nodes.JsonObject target, System.Text.Json.Nodes.JsonObject patch)
+    {
+        foreach (var (key, value) in patch.ToList())
+        {
+            if (value is null) { target.Remove(key); continue; }
+            if (value is System.Text.Json.Nodes.JsonObject sub && target[key] is System.Text.Json.Nodes.JsonObject existing) { MergePatch(existing, sub); continue; }
+            target[key] = value.DeepClone();
+        }
+    }
 
     private static IReadOnlyList<string> Addrs(string? s) =>
         (s ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
