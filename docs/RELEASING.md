@@ -13,6 +13,13 @@ Every push runs `.github/workflows/build.yml`:
 
 Version: `Directory.Build.props` `<Version>` + `.{run number}` for CI builds.
 
+## Milestone releases
+
+A push to the default branch whose commit message contains **`[release]`** is built with the exact version in
+`Directory.Build.props` (no run number) and, after every test and the smoke test pass, published as the GitHub
+Release `v<version>` with both files. An existing release is never replaced, so bump `<Version>` (and
+`installer/jarvis.iss`, `ui/package.json`) first.
+
 ## Tagged releases
 
 ```bash

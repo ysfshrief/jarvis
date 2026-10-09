@@ -369,7 +369,7 @@ public sealed class App : Application
                 _turnPhase = null;
                 if (!data.Bool("success"))
                 {
-                    _errorUntil = DateTime.UtcNow.AddSeconds(3);
+                    _errorUntil = DateTime.UtcNow.AddSeconds(4); // same as the dashboard orb
                     _errorTimer.Stop();
                     _errorTimer.Start();
                 }

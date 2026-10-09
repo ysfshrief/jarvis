@@ -246,6 +246,9 @@ public sealed class OrbWindow : Window
         _glow.Opacity = state == "offline" ? 0.3 : 1;
 
         if (_motion == "off") return;
+        // Windows' own "Show animations" switch (Accessibility → Visual effects) counts as reduced motion.
+        var reduced = _motion == "reduced" || !SystemParameters.ClientAreaAnimation;
+        if (reduced) return; // nothing moves; states stay distinct by colour, arc and wave visibility
         var ambient = _motion == "full" && state != "offline";
         if (ambient)
         {

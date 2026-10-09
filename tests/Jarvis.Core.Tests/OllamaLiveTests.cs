@@ -135,4 +135,128 @@ public class OllamaLiveTests
         Assert.StartsWith("ollama/", r.Model);
         Assert.False(string.IsNullOrWhiteSpace(r.Reply));
     }
+
+    private TestHost RealHost(Action<JarvisSettings>? more = null)
+    {
+        var host = new TestHost(s =>
+        {
+            s.Ai.Providers = [new ProviderConfig { Id = "ollama", Name = "Ollama", Kind = ProviderKinds.Ollama, BaseUrl = Url, IsLocal = true, Enabled = true }];
+            s.Ai.Roles = new() { [ModelRoles.General] = [new RoleBinding { Provider = "ollama", Model = Model }] };
+            s.Ai.RequestTimeoutSeconds = 300;
+            more?.Invoke(s);
+        });
+        host.Get<ProviderRegistry>().Factory = null;
+        host.Settings.Update(_ => { });
+        return host;
+    }
+
+    [OllamaFact]
+    public async Task Real_model_tool_call_is_executed_through_the_agent()
+    {
+        // Phrased so no deterministic command matches: the model has to choose the tool.
+        const string ask = "I keep forgetting to send the CityCrep invoice. Please put that on my task list.";
+        Assert.Null(Jarvis.Core.Agent.IntentEngine.Match(ask, DateTimeOffset.Now));
+        string? last = null;
+        for (var attempt = 0; attempt < 3; attempt++) // a 1.5B model doesn't always pick the tool on the first try
+        {
+            using var host = RealHost();
+            var r = await host.Say(ask);
+            last = $"{r.Reply} | steps: {string.Join(", ", r.Steps.Select(st => $"{st.Tool}:{st.Status}"))}";
+            var tasks = host.Get<Jarvis.Core.Tasks.TaskStore>().List();
+            if (r.Steps.Any(st => st.Tool == "task_create" && st.Status == ToolStatus.Ok) && tasks.Any(t => t.Title.Contains("invoice", StringComparison.OrdinalIgnoreCase)))
+                return; // the real model called the tool, JARVIS executed it, the task exists
+        }
+        Assert.Fail("The real model never created the task: " + last);
+    }
+
+    [OllamaFact]
+    public async Task Real_model_answers_in_arabic()
+    {
+        using var host = RealHost();
+        var r = await host.Say("مساء الخير يا جارفيس، قولي في جملة واحدة إزاي أركز في الشغل");
+        Assert.True(r.Success, r.Reply);
+        Assert.Equal("ai", r.Route);
+        Assert.Equal("ar", r.Lang);
+        var letters = r.Reply.Where(char.IsLetter).ToList();
+        var arabic = letters.Count(c => c is >= '\u0600' and <= '\u06FF');
+        Assert.True(letters.Count > 5 && arabic * 2 > letters.Count, $"Expected an Arabic reply, got: {r.Reply}");
+    }
+
+    private static string? VisionModel => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_VISION_MODEL");
+
+    /// <summary>A screen capture that returns a fixed picture: white, with a large red square in the middle.</summary>
+    private sealed class PictureScreen : Jarvis.Core.Vision.IScreenCapture
+    {
+        public bool IsAvailable => true;
+        public byte[] CapturePng(int maxSide = 1600) => RedSquarePng(256);
+    }
+
+    [OllamaFact]
+    public async Task Real_vision_model_describes_the_screen()
+    {
+        if (string.IsNullOrEmpty(VisionModel)) return; // CI sets JARVIS_OLLAMA_VISION_MODEL; nothing to check without one
+        using var host = RealHost(s => s.Ai.Roles[ModelRoles.Vision] = [new RoleBinding { Provider = "ollama", Model = VisionModel }]);
+        var tool = new Jarvis.Core.Vision.ScreenDescribeTool(new PictureScreen(), host.Get<ModelRouter>(), new Jarvis.Core.Files.NullOcrEngine(), host.Get<JarvisPaths>());
+        string? last = null;
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var r = await tool.ExecuteAsync(ToolArgs.From(new { question = "What color is the big square in the middle? Answer with one word." }), host.Ctx());
+            Assert.True(r.Success, r.Message);
+            last = r.Message;
+            if (r.Message.Contains("red", StringComparison.OrdinalIgnoreCase)) return; // the model really looked at the picture
+        }
+        Assert.Fail("The vision model didn't see the red square: " + last);
+    }
+
+    private static uint Crc32(byte[] data)
+    {
+        var crc = 0xFFFFFFFFu;
+        foreach (var b in data)
+        {
+            crc ^= b;
+            for (var k = 0; k < 8; k++) crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+        }
+        return ~crc;
+    }
+
+    /// <summary>A minimal PNG (RGB, zlib) so the test needs no imaging library.</summary>
+    internal static byte[] RedSquarePng(int size)
+    {
+        var raw = new byte[size * (1 + size * 3)];
+        for (var y = 0; y < size; y++)
+        {
+            var row = y * (1 + size * 3);
+            raw[row] = 0; // no filter
+            for (var x = 0; x < size; x++)
+            {
+                var inside = x >= size / 5 && x < size * 4 / 5 && y >= size / 5 && y < size * 4 / 5;
+                raw[row + 1 + x * 3] = 255;
+                raw[row + 2 + x * 3] = (byte)(inside ? 0 : 255);
+                raw[row + 3 + x * 3] = (byte)(inside ? 0 : 255);
+            }
+        }
+        using var png = new MemoryStream();
+        png.Write([137, 80, 78, 71, 13, 10, 26, 10]);
+        void Chunk(string type, byte[] data)
+        {
+            var len = BitConverter.GetBytes(data.Length); if (BitConverter.IsLittleEndian) Array.Reverse(len);
+            png.Write(len);
+            var td = System.Text.Encoding.ASCII.GetBytes(type).Concat(data).ToArray();
+            png.Write(td);
+            var crc = BitConverter.GetBytes(Crc32(td)); if (BitConverter.IsLittleEndian) Array.Reverse(crc);
+            png.Write(crc);
+        }
+        var ihdr = new byte[13];
+        var w = BitConverter.GetBytes(size); if (BitConverter.IsLittleEndian) Array.Reverse(w);
+        w.CopyTo(ihdr, 0); w.CopyTo(ihdr, 4);
+        ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+        Chunk("IHDR", ihdr);
+        using (var z = new MemoryStream())
+        {
+            using (var zs = new System.IO.Compression.ZLibStream(z, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) zs.Write(raw);
+            Chunk("IDAT", z.ToArray());
+        }
+        Chunk("IEND", []);
+        return png.ToArray();
+    }
 }

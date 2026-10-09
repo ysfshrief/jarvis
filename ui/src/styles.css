@@ -413,6 +413,22 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 @media (prefers-reduced-motion: reduce) {
   .orb .o-ticks, .orb .o-seg, .orb .o-particles, .orb .o-glow { animation: none; }
 }
+/* Reduced motion: nothing moves; every state stays recognisable by colour, brightness and shape alone. */
+:root[data-motion="reduced"] .orb .o-arc, :root[data-motion="reduced"] .orb .o-wave rect,
+:root[data-motion="reduced"] .tl-step.tl-active i, :root[data-motion="reduced"] .spin,
+:root[data-motion="reduced"] .typing i, :root[data-motion="reduced"] .cursor::after,
+:root[data-motion="reduced"] .rec-dot { animation: none; }
+:root[data-motion="reduced"] .orb[data-state="listening"] .o-wave rect,
+:root[data-motion="reduced"] .orb[data-state="speaking"] .o-wave rect { transform: scaleY(0.7); }
+:root[data-motion="reduced"] .orb[data-state="warning"] .o-glow,
+:root[data-motion="reduced"] .orb[data-state="error"] .o-glow { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .orb .o-arc, .orb .o-wave rect,
+  .tl-step.tl-active i, .spin,
+  .typing i, .cursor::after { animation: none; }
+  .orb[data-state="listening"] .o-wave rect,
+  .orb[data-state="speaking"] .o-wave rect { transform: scaleY(0.7); }
+}
 .orb-label { font: 600 0.7rem/1 var(--font-hud); letter-spacing: 0.3em; text-transform: uppercase; color: rgb(var(--orb-rgb, var(--accent-rgb))); text-align: center; }
 
 /* ---------- home ---------- */
