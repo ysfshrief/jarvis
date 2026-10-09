@@ -7,7 +7,7 @@ import { settingsStore } from "./settings";
 const AR: Record<string, string> = {
   // navigation
   Command: "القيادة", Work: "الشغل", Knowledge: "المعرفة", System: "النظام",
-  Overview: "الرئيسية", Assistant: "المساعد", Tasks: "المهام", Workflows: "المتابعات", Memory: "الذاكرة", Files: "الملفات", Inbox: "الإنبوكس", Calendar: "الأجندة", "Executive Inbox": "الإنبوكس التنفيذي", Urgent: "مستعجل", "Needs reply": "محتاج رد", Important: "مهم", FYI: "للعلم", Noise: "مش مهم", Drafts: "المسودات", Accounts: "الحسابات", Web: "الويب", Activity: "النشاط", Settings: "الإعدادات",
+  Overview: "الرئيسية", Assistant: "المساعد", Tasks: "المهام", Workflows: "المتابعات", Memory: "الذاكرة", Files: "الملفات", Inbox: "الإنبوكس", Calendar: "الأجندة", Meetings: "الاجتماعات", REC: "تسجيل", Stop: "وقف", "Executive Inbox": "الإنبوكس التنفيذي", Urgent: "مستعجل", "Needs reply": "محتاج رد", Important: "مهم", FYI: "للعلم", Noise: "مش مهم", Drafts: "المسودات", Accounts: "الحسابات", Web: "الويب", Activity: "النشاط", Settings: "الإعدادات",
   Console: "الكونسول",
   // top bar
   "Core link": "متصل بالنواة", Reconnecting: "بيعيد الاتصال", Online: "أونلاين", Offline: "أوفلاين", "AI ready": "الذكاء جاهز",

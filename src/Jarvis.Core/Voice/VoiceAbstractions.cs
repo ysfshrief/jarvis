@@ -74,3 +74,13 @@ public sealed class NullAudioInput : IAudioInput
     public void Start(int deviceIndex) => throw new InvalidOperationException("No microphone support on this platform.");
     public void Stop() { }
 }
+
+/// <summary>Used when no speech engine is installed (e.g. tests or a build without voice).</summary>
+public sealed class NullSpeechToText : ISpeechToText
+{
+    public string EngineName => "none";
+    public bool IsReady => false;
+    public string? StatusMessage => "Speech recognition isn't installed in this build.";
+    public Task<Transcript> TranscribeAsync(float[] samples, Language.Lang? hint, CancellationToken ct) =>
+        throw new InvalidOperationException(StatusMessage);
+}

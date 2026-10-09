@@ -39,6 +39,7 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    - `track the CityCrep deal` · `where are we with CityCrep?` · `what am I tracking` (workflows with steps, follow-ups and deadlines)
    - `schedule a meeting with Ahmed tomorrow at 3pm` · `what's on my calendar tomorrow` · `prepare me for my CityCrep meeting` ·
      `حط اجتماع مع سارة بكرة الساعة 11` (subscribe to your Google/Outlook calendar in **Settings → Accounts**)
+   - `record this meeting` → a REC indicator appears; `stop recording` → decisions and action items (`what did we decide?`)
    - after connecting email in **Settings → Accounts**: `check my email` · `شوف الإيميل` · then in the Inbox, reply or
      *Draft with JARVIS* — nothing is sent until you approve it
    - after turning on **Settings → Files**: `find documents about the renewal fee` · `what's my latest PDF` ·
@@ -53,7 +54,7 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    Arabic). Then press **Ctrl+Alt+Space** to talk, or turn on the **“Jarvis” wake word**.
 5. Double-click the orb for the **dashboard**: a HUD-style home with live system health, your priorities and
    upcoming reminders, the assistant (with live progress: understanding → analyzing → selecting tool →
-   executing → completed), executive inbox, calendar, tasks, workflows, memory, files, system monitor, activity log and a settings control center
+   executing → completed), executive inbox, calendar, meetings, tasks, workflows, memory, files, system monitor, activity log and a settings control center
    (appearance, sounds, shortcuts, privacy…). The interface is available in English and Arabic (right-to-left).
 
 ## What makes it different

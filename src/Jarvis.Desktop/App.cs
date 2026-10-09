@@ -274,6 +274,7 @@ public sealed class App : Application
                 _paused = s.Bool("paused");
                 _pendingApprovals = s.Int("pendingApprovals");
                 _voiceState = s?["voice"]?.Str("state") ?? "Idle";
+                _orb?.SetRecording(s?["recording"]?.Str("title"));
                 ApplyStatus();
             });
             await ApplySettingsAsync();
@@ -344,6 +345,9 @@ public sealed class App : Application
             case "voice.state":
                 _voiceState = data.Str("state") ?? "Idle";
                 UpdateOrb();
+                break;
+            case "meeting.changed":
+                if (data?["recording"] is not null) _orb?.SetRecording(data.Bool("recording") ? data.Str("title") ?? "a meeting" : null);
                 break;
             case "agent.turn.started":
                 _turnPhase = "understanding";

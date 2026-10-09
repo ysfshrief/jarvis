@@ -28,6 +28,7 @@ public sealed class OrbWindow : Window
     private readonly Ellipse _core = new() { IsHitTestVisible = false };
     private readonly Canvas _wave = new() { IsHitTestVisible = false };
     private readonly Ellipse _badge;
+    private readonly Ellipse _rec;
     private readonly Ellipse _hit = new() { Fill = new SolidColorBrush(Color.FromArgb(1, 0, 0, 0)), Cursor = Cursors.Hand };
     private readonly RotateTransform _ticksRot = new();
     private readonly RotateTransform _segRot = new();
@@ -64,8 +65,16 @@ public sealed class OrbWindow : Window
             Stroke = Brushes.White, StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed, IsHitTestVisible = false,
         };
+        // Recording indicator: a red dot that is always visible while a meeting is being recorded.
+        _rec = new Ellipse
+        {
+            Width = 14, Height = 14, Fill = new SolidColorBrush(Color.FromRgb(0xFF, 0x3B, 0x4E)),
+            Stroke = Brushes.White, StrokeThickness = 2, HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top, Visibility = Visibility.Collapsed, IsHitTestVisible = false,
+            Effect = new DropShadowEffect { Color = Color.FromRgb(0xFF, 0x3B, 0x4E), BlurRadius = 10, ShadowDepth = 0, Opacity = 0.9 },
+        };
         _root = new Grid();
-        foreach (var e in new UIElement[] { _glow, _ticks, _segments, _arc, _inner, _wave, _core, _badge, _hit }) _root.Children.Add(e);
+        foreach (var e in new UIElement[] { _glow, _ticks, _segments, _arc, _inner, _wave, _core, _badge, _rec, _hit }) _root.Children.Add(e);
         Content = _root;
         ToolTip = "JARVIS — click for the command console, double-click for the dashboard";
 
@@ -84,6 +93,21 @@ public sealed class OrbWindow : Window
     public string State => _state;
 
     public void SetAttention(bool on) => _badge.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool Recording { get; private set; }
+
+    /// <summary>Shows (and pulses) the red recording dot; the tooltip says what is being recorded.</summary>
+    public void SetRecording(string? title)
+    {
+        Recording = title is not null;
+        _rec.Visibility = Recording ? Visibility.Visible : Visibility.Collapsed;
+        _rec.BeginAnimation(OpacityProperty, Recording
+            ? new DoubleAnimation(1, 0.35, TimeSpan.FromSeconds(0.9)) { AutoReverse = true, RepeatBehavior = RepeatBehavior.Forever }
+            : null);
+        ToolTip = Recording
+            ? $"JARVIS — recording “{title}”. Open the dashboard or say “stop recording” to stop."
+            : "JARVIS — click for the command console, double-click for the dashboard";
+    }
 
     /// <summary>Applies Settings → Appearance (size, energy colour, motion).</summary>
     public void Configure(double size, string accent, string motion)
@@ -166,6 +190,7 @@ public sealed class OrbWindow : Window
 
         _hit.Width = _hit.Height = size;
         _badge.Margin = new Thickness(0, pad * 0.6, pad * 0.6, 0);
+        _rec.Margin = new Thickness(pad * 0.6, pad * 0.6, 0, 0);
     }
 
     /// <summary>Accepts the eight orb states (and the runtime's voice-state names).</summary>

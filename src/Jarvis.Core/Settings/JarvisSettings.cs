@@ -24,6 +24,15 @@ public sealed class JarvisSettings
     public WebSettings Web { get; set; } = new();
     public InboxSettings Inbox { get; set; } = new();
     public CalendarSettings Calendar { get; set; } = new();
+    public MeetingSettings Meetings { get; set; } = new();
+}
+
+public sealed class MeetingSettings
+{
+    /// <summary>Also record what you hear (the other people on a call), not just your microphone.</summary>
+    public bool CaptureSystemAudio { get; set; } = true;
+    /// <summary>Recording stops by itself after this long, so it can't be forgotten.</summary>
+    public int MaxMinutes { get; set; } = 180;
 }
 
 public sealed class CalendarSettings

@@ -83,6 +83,8 @@ public static class CoreServices
 
         services.TryAddSingleton<ITextToSpeech, NullTextToSpeech>();
         services.TryAddSingleton<IAudioInput, NullAudioInput>();
+        services.TryAddSingleton<ISpeechToText, NullSpeechToText>();
+        services.TryAddSingleton<Meetings.IMeetingAudioSource, Meetings.NullMeetingAudioSource>();
         services.TryAddSingleton<IFileTrash, FolderTrash>();
         services.TryAddSingleton(new PlatformInfo("generic", Environment.OSVersion.ToString()));
 
@@ -125,6 +127,11 @@ public static class CoreServices
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
         services.AddSingleton<Web.BrowserService>();
+        services.AddSingleton<Meetings.MeetingStore>();
+        services.AddSingleton<Meetings.MeetingRecorder>();
+        AddTool<MeetingRecordStartTool>(services);
+        AddTool<MeetingRecordStopTool>(services);
+        AddTool<MeetingNotesTool>(services);
         services.AddSingleton<Agenda.AgendaStore>();
         services.AddSingleton<Agenda.CalendarService>();
         AddTool<CalendarAgendaTool>(services);

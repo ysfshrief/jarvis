@@ -471,5 +471,21 @@ public sealed class JarvisDatabase
         );
         CREATE INDEX ix_event_entities_entity ON event_entities(entity_id);
         """,
+        // v7: recorded meetings (transcript and extracted notes; audio is never stored).
+        """
+        CREATE TABLE meetings (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            event_id TEXT,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            status TEXT NOT NULL,
+            transcript TEXT NOT NULL DEFAULT '',
+            notes TEXT,
+            audio_seconds REAL NOT NULL DEFAULT 0,
+            error TEXT
+        );
+        CREATE INDEX ix_meetings_started ON meetings(started_at);
+        """,
     ];
 }

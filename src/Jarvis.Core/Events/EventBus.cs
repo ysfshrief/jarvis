@@ -86,6 +86,8 @@ public static class EventTypes
     public const string InboxChanged = "inbox.changed";
     /// <summary>Calendars or events changed.</summary>
     public const string CalendarChanged = "calendar.changed";
+    /// <summary>A meeting recording started, progressed, stopped or its notes are ready.</summary>
+    public const string MeetingChanged = "meeting.changed";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";

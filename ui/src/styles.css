@@ -609,3 +609,11 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 .cal-time { min-width: 44px; padding-top: 2px; }
 .file-row.on { background: rgba(var(--accent-rgb), 0.1); }
 .cal-detail { align-self: start; position: sticky; top: 12px; }
+
+/* ---- Meetings / recording ---- */
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b4e; box-shadow: 0 0 10px #ff3b4e; display: inline-block; flex: none; animation: rec-pulse 1.2s ease-in-out infinite; }
+@keyframes rec-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+.rec-chip { display: inline-flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; border-radius: 6px; border: 1px solid rgba(255, 59, 78, 0.6); background: rgba(255, 59, 78, 0.12); color: #ff8b97; font: 600 0.74rem/1.4 var(--font-hud); letter-spacing: 0.14em; white-space: nowrap; }
+.rec-chip .btn { padding: 2px 8px; }
+.rec-card { border-color: rgba(255, 59, 78, 0.45); }

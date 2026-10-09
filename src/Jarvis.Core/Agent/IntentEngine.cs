@@ -90,6 +90,9 @@ public static partial class IntentEngine
         if (Briefing().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "today" }));
         if (InboxCheck().IsMatch(t)) return new ToolIntent("inbox_check", new ToolArgs());
         if (NextMeeting().IsMatch(t)) return new ToolIntent("calendar_next", new ToolArgs());
+        if (RecordMeeting().IsMatch(t)) return new ToolIntent("meeting_record_start", new ToolArgs());
+        if (StopRecording().IsMatch(t)) return new ToolIntent("meeting_record_stop", new ToolArgs());
+        if (MeetingNotesQ().IsMatch(t)) return new ToolIntent("meeting_notes", new ToolArgs(), PreferAi: true);
         if ((m = Agenda().Match(t)).Success)
             return new ToolIntent("calendar_agenda", m.Groups["w"].Success && m.Groups["w"].Value.Length > 0 ? ToolArgs.From(new { when = m.Groups["w"].Value.Trim() }) : new ToolArgs());
         if ((m = MeetingPrep().Match(t)).Success)
@@ -311,6 +314,15 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:what(?:'s| is)|when(?:'s| is)) my next (?:meeting|appointment|event|call)\??$|^(?:my )?next (?:meeting|appointment|event)\??$|^(?:الاجتماع|الميتنج|الميعاد) (?:الجاي|اللي جاي)(?: امتي| ايه)?\??$|^امتي (?:الاجتماع|الميتنج|الميعاد) (?:الجاي|اللي جاي)\??$")]
     private static partial Regex NextMeeting();
+
+    [GeneratedRegex(@"^(?:record|start recording|transcribe)(?: (?:this|the|my))? (?:meeting|call)$|^start (?:a )?meeting recording$|^(?:سجل|ابدا تسجيل|ابدأ تسجيل) (?:ال)?(?:اجتماع|ميتنج|مكالمه)(?: ده| دي)?$")]
+    private static partial Regex RecordMeeting();
+
+    [GeneratedRegex(@"^(?:stop|end|finish) (?:the )?(?:meeting )?recording$|^stop recording(?: the meeting)?$|^(?:وقف|اقفل|خلص) (?:ال)?تسجيل$")]
+    private static partial Regex StopRecording();
+
+    [GeneratedRegex(@"^(?:(?:show|give) me )?(?:the )?(?:meeting )?notes(?: from| of)?(?: the| my)?(?: last)?(?: meeting)?$|^what did we (?:decide|agree)(?: on)?(?: in the (?:last )?meeting)?\??$|^(?:the )?action items(?: from (?:the|my) (?:last )?meeting)?$|^(?:ايه )?(?:اللي )?(?:اتفقنا|قررنا) (?:عليه)?(?: في الاجتماع)?\??$|^(?:ملخص|نوت) (?:ال)?اجتماع$")]
+    private static partial Regex MeetingNotesQ();
 
     [GeneratedRegex(@"^(?:what(?:'s| is) on )?my (?:calendar|schedule|agenda)(?: for)?(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^what(?:'s| is) on my (?:calendar|schedule)(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^(?:do i have|have i got|any) (?:meetings?|events?|appointments?|calls?)(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^what (?:meetings|events) do i have(?<w> today| tomorrow| this week| (?:on )?\w+day)?\??$|^(?:عندي|فيه|في) (?:اجتماعات|اجتماع|مواعيد|ميعاد|ميتنجات|ميتنج)(?<w> النهارده| بكره| بعد بكره| الاسبوع ده| يوم \S+)?\??$|^(?:ايه )?(?:مواعيدي|جدولي|اجندتي)(?<w> النهارده| بكره| بعد بكره| الاسبوع ده| يوم \S+)?\??$")]
     private static partial Regex Agenda();

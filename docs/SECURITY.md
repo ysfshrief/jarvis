@@ -18,6 +18,7 @@ builds, stronger isolation).
 | File damage | Writes outside allowed folders are critical; system folders, credential files and JARVIS's own data are protected; deletes go to the Recycle Bin. |
 | Email | Mailboxes are opened read-only; passwords/app passwords only in the encrypted secret store (never in settings, logs or API responses); an account is saved only after its credentials work. Nothing is ever sent automatically: sending is critical, always asks, and the approval shows the message. Email content is untrusted (see tainted requests above). |
 | Microphone privacy | Mic is open only for push-to-talk or when the wake word is enabled (off by default); state is shown on the orb and in the dashboard; audio is never stored. |
+| Meeting recording | Never automatic: starting is a critical action that asks every time and reminds you that everyone should know. Always visible while running (REC chip with Stop on every dashboard page, red dot on the orb, status API), stops by itself after the configured limit. Audio is transcribed locally and never written to disk; transcripts can be deleted. |
 | Camera | Not used. |
 
 ## Known limitations (v0.x)

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   Activity as ActivityIcon, Brain, CheckSquare, Cpu, LayoutDashboard, Lock, MessageSquare, PanelRight, Pause, Play,
-  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch, Inbox as InboxIcon, CalendarDays,
+  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch, Inbox as InboxIcon, CalendarDays, Mic2,
 } from "lucide-react";
 import { get, getToken, onAuthProblem, post, setToken, type Status } from "./api";
 import { events, useEvents } from "./events";
@@ -13,6 +13,7 @@ import { WorkflowsPage } from "./pages/Workflows";
 import { FilesPage } from "./pages/Files";
 import { InboxPage } from "./pages/Inbox";
 import { CalendarPage } from "./pages/Calendar";
+import { MeetingsPage } from "./pages/Meetings";
 import { MemoryPage } from "./pages/Memory";
 import { ActivityPage } from "./pages/Activity";
 import { SystemPage } from "./pages/System";
@@ -40,6 +41,7 @@ const PAGES = [
   { id: "assistant", label: "Assistant", icon: MessageSquare, section: "Command" },
   { id: "inbox", label: "Inbox", icon: InboxIcon, section: "Work" },
   { id: "calendar", label: "Calendar", icon: CalendarDays, section: "Work" },
+  { id: "meetings", label: "Meetings", icon: Mic2, section: "Work" },
   { id: "tasks", label: "Tasks", icon: CheckSquare, section: "Work" },
   { id: "workflows", label: "Workflows", icon: Workflow, section: "Work" },
   { id: "memory", label: "Memory", icon: Brain, section: "Knowledge" },
@@ -122,7 +124,7 @@ export function App() {
   }, []);
 
   // Keep the header live without polling.
-  useEvents(["voice", "presence", "connectivity", "runtime", "approval", "tasks", "memory", "reminders", "queue", "ai.status"], (e) => {
+  useEvents(["voice", "presence", "connectivity", "runtime", "approval", "tasks", "memory", "reminders", "queue", "ai.status", "meeting."], (e) => {
     switch (e.type) {
       case "voice.state":
         setStatus((s) => (s?.voice ? { ...s, voice: { ...s.voice, state: e.data.state, microphoneActive: e.data.microphoneActive } } : s));
@@ -170,6 +172,7 @@ export function App() {
             {page === "assistant" && <Assistant />}
             {page === "inbox" && <InboxPage />}
             {page === "calendar" && <CalendarPage />}
+            {page === "meetings" && <MeetingsPage />}
             {page === "tasks" && <Tasks />}
             {page === "workflows" && <WorkflowsPage />}
             {page === "memory" && <MemoryPage />}
@@ -278,6 +281,7 @@ function TopBar({ onToggleCtx }: { onToggleCtx?: () => void }) {
         {presence && presence.state !== "Unknown" && <Chip ok={null} label={tr(presenceLabel(presence.state, presence.activeProcess))} />}
         {(status?.queuedActions ?? 0) > 0 && <Chip ok={false} label={`${status?.queuedActions} ${tr("queued")}`} />}
       </div>
+      {status?.recording && <RecChip rec={status.recording} onStop={async () => { await post("/meetings/stop"); await refresh(); }} />}
       <button className="btn btn-ghost btn-sm" onClick={togglePause} title={status?.paused ? "Resume JARVIS" : "Pause listening and voice"}>
         {status?.paused ? <Play size={14} /> : <Pause size={14} />} {tr(status?.paused ? "Resume" : "Pause")}
       </button>
@@ -292,6 +296,20 @@ function TopBar({ onToggleCtx }: { onToggleCtx?: () => void }) {
         </button>
       )}
     </header>
+  );
+}
+
+/** Always visible while a meeting is recorded, with a one-click stop. */
+function RecChip({ rec, onStop }: { rec: NonNullable<Status["recording"]>; onStop: () => void }) {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(t); }, []);
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(rec.startedAt).getTime()) / 1000));
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  return (
+    <div className="rec-chip" role="status" title={`Recording “${rec.title}” — ${rec.source}`}>
+      <span className="rec-dot" /> <span>{tr("REC")}</span> <span className="mono" dir="ltr">{clock}</span>
+      <button className="btn btn-sm" onClick={onStop}>{tr("Stop")}</button>
+    </div>
   );
 }
 

@@ -46,7 +46,8 @@ public static partial class DatePhrases
     public static WhenPhrase Parse(string text, DateTimeOffset now)
     {
         var today = DateOnly.FromDateTime(now.ToLocalTime().DateTime);
-        var rest = " " + ToWesternDigits(text) + " ";
+        // Sentence punctuation would hide "thursday." or "3pm," from the patterns below.
+        var rest = " " + Regex.Replace(ToWesternDigits(text), @"[,!?;؟،]|\.(?=\s|$)", " ") + " ";
         DateOnly? day = null;
         TimeOnly? time = null;
         TimeSpan? duration = null;

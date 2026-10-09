@@ -170,6 +170,7 @@ public static class WindowsPlatform
         services.AddSingleton<ITextToSpeech>(sp => sp.GetRequiredService<WindowsTextToSpeech>());
         services.AddSingleton<WindowsAudioInput>();
         services.AddSingleton<IAudioInput>(sp => sp.GetRequiredService<WindowsAudioInput>());
+        services.AddSingleton<Jarvis.Core.Meetings.IMeetingAudioSource, WindowsMeetingAudioSource>();
         services.AddSingleton<INotificationSink, ToastNotificationSink>();
         services.AddSingleton<AppCatalog>();
         services.AddSingleton<Jarvis.Core.Monitoring.IMetricsSource, WindowsMetricsSource>();

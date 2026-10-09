@@ -127,7 +127,9 @@ The same matrix is visible in the app under **System → What this build can do*
 | Meeting prep from real data: attendees (matched to known people/organisations), relationships and facts, tracked deals, open tasks, recent email, documents | Working |
 | Calendar page (week view, event detail with prep, add/remove local events) | Working |
 | Two-way sync / sending invites (Google, Microsoft, CalDAV) | Planned |
-| Meeting recording (user-started, always visible), transcripts, decisions and action items | Planned |
+| Meeting recording: user-started (always asks), always visible (REC chip, red orb dot, status API), auto-stop after a limit; microphone + speakers (WASAPI loopback) on Windows; audio never stored | Working on Windows — capture needs real audio devices (CI has none) |
+| Local transcript in chunks with Whisper; decisions, action items with owner and due date, open questions (EN/AR); action items → tasks on your choice | Working — transcription verified on Windows CI with synthesized speech |
+| AI-written meeting summary | Working when a model is available (grounded on the transcript and extracted notes) |
 | Screen understanding with a local vision model | Planned — screenshots and Windows OCR already work |
 
 ## Phase 8 — Personal adaptation

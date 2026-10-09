@@ -149,6 +149,8 @@ export interface VoiceStatus {
 }
 
 export interface Status {
+  recording?: { id: string; title: string; startedAt: string; source: string } | null;
+  recordingBlocker?: string | null;
   version: string;
   locked: boolean;
   pinSet: boolean;
@@ -488,3 +490,7 @@ export interface MeetingPrep {
   text: string; people: { name: string; known?: string | null; entityId?: string | null; facts: string[] }[]; workflows: { id: string; title: string }[];
   tasks: { id: string; title: string }[]; mail: { id: string; sender: string; subject: string; receivedAt: string }[]; files: { id: string; name: string }[];
 }
+export interface ActionItem { text: string; owner?: string | null; due?: string | null }
+export interface MeetingNotes { keyPoints: string[]; decisions: string[]; actionItems: ActionItem[]; openQuestions: string[] }
+export interface Meeting { id: string; title: string; eventId?: string | null; startedAt: string; endedAt?: string | null; status: string; transcript: string; notes?: MeetingNotes | null; audioSeconds: number; error?: string | null }
+export interface MeetingSummary { id: string; title: string; startedAt: string; endedAt?: string | null; status: string; audioSeconds: number; error?: string | null; actionItems: number; decisions: number }

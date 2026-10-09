@@ -77,6 +77,54 @@ public sealed class VoicePipelineTests(ITestOutputHelper output) : IDisposable
         foreach (var p in System.Diagnostics.Process.GetProcessesByName("CalculatorApp").Concat(System.Diagnostics.Process.GetProcessesByName("calc")).Concat(System.Diagnostics.Process.GetProcessesByName("win32calc"))) { try { p.Kill(); } catch { } }
     }
 
+    [Fact]
+    public async Task Spoken_meeting_is_transcribed_and_turned_into_notes()
+    {
+        if (SpeechSynthesizer.AllVoices.All(v => !v.Language.StartsWith("en")))
+        {
+            output.WriteLine("No English Windows voice installed; skipping.");
+            return;
+        }
+        var source = new PlaybackSource();
+        var sc = new ServiceCollection();
+        sc.AddLogging(b => b.SetMinimumLevel(LogLevel.Warning));
+        sc.AddJarvisCore(new JarvisPaths(_dataDir));
+        sc.AddWindowsPlatform();
+        sc.AddJarvisVoice();
+        sc.AddSingleton<Jarvis.Core.Meetings.IMeetingAudioSource>(source); // the speech below instead of a live microphone
+        using var sp = sc.BuildServiceProvider();
+        sp.GetRequiredService<ISettingsStore>().Update(s => { s.Voice.SttModel = "tiny"; s.Ai.Providers = []; });
+        var models = sp.GetRequiredService<SpeechModelManager>();
+        var cached = Path.Combine(ModelCache, "ggml-tiny.bin");
+        Directory.CreateDirectory(ModelCache);
+        if (!File.Exists(cached)) { await models.DownloadAsync("tiny", CancellationToken.None); File.Copy(models.PathFor("tiny"), cached, overwrite: true); }
+        else File.Copy(cached, models.PathFor("tiny"), overwrite: true);
+
+        var speech = await SynthesizeAsync("Thanks everyone. We decided to keep the monthly retainer. Ahmed will send the signed contract tomorrow.");
+        var recorder = sp.GetRequiredService<Jarvis.Core.Meetings.MeetingRecorder>();
+        var meeting = recorder.Start("Retainer review");
+        source.Play(speech);
+        var done = await recorder.StopAsync();
+        output.WriteLine($"Transcript: {done!.Transcript}");
+        Assert.Equal(Jarvis.Core.Meetings.MeetingStatus.Done, done.Status);
+        Assert.Contains("retainer", done.Transcript, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(done.Notes!.Decisions, d => d.Contains("decided", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(done.Notes.ActionItems, a => a.Text.Contains("contract", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private sealed class PlaybackSource : Jarvis.Core.Meetings.IMeetingAudioSource
+    {
+        public bool IsAvailable => true;
+        public string Description => "Synthesized speech";
+        public event Action<float[]>? FrameCaptured;
+        public void Start(bool includeSystemAudio) { }
+        public void Stop() { }
+        public void Play(float[] samples)
+        {
+            for (var i = 0; i < samples.Length; i += 480) FrameCaptured?.Invoke(samples.AsSpan(i, Math.Min(480, samples.Length - i)).ToArray());
+        }
+    }
+
     /// <summary>Windows TTS → WAV → 16 kHz mono float, the same format the microphone path produces.</summary>
     private static async Task<float[]> SynthesizeAsync(string text)
     {

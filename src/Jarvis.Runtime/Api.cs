@@ -398,6 +398,38 @@ public static class Api
             });
         });
 
+        // ---- Meetings ----
+        api.MapGet("/meetings", (Jarvis.Core.Meetings.MeetingStore store) =>
+            Results.Ok(store.List().Select(m => new { m.Id, m.Title, m.EventId, m.StartedAt, m.EndedAt, m.Status, m.AudioSeconds, m.Error, actionItems = m.Notes?.ActionItems.Count ?? 0, decisions = m.Notes?.Decisions.Count ?? 0 })));
+        api.MapGet("/meetings/{id}", (string id, Jarvis.Core.Meetings.MeetingStore store) => store.Get(id) is { } m ? Results.Ok(m) : Results.NotFound());
+        api.MapDelete("/meetings/{id}", (string id, Jarvis.Core.Meetings.MeetingStore store, Jarvis.Core.Meetings.MeetingRecorder rec) =>
+            rec.Current?.Id == id ? Results.BadRequest(new { error = "Stop the recording first." }) : store.Delete(id) ? Results.Ok() : Results.NotFound());
+        // Starting goes through the tool, so the same always-ask approval applies to the dashboard button.
+        api.MapPost("/meetings/start", async (MeetingStartDto dto, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var (result, step) = await executor.ExecuteAsync("meeting_record_start", ToolArgs.From(new { title = dto.Title }), ctx);
+            return Results.Ok(new { result.Success, result.Message, status = step.Status });
+        });
+        api.MapPost("/meetings/stop", async (Jarvis.Core.Meetings.MeetingRecorder rec) => Results.Ok(await rec.StopAsync() is { } m ? new { m.Id, m.Status } : null));
+        // Action items become tasks only when you choose them; each goes through task_create.
+        api.MapPost("/meetings/{id}/tasks", async (string id, MeetingTasksDto dto, Jarvis.Core.Meetings.MeetingStore store, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var m = store.Get(id);
+            if (m?.Notes is null) return Results.NotFound();
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var created = 0;
+            foreach (var i in dto.Items ?? [])
+            {
+                if (i < 0 || i >= m.Notes.ActionItems.Count) continue;
+                var a = m.Notes.ActionItems[i];
+                var title = a.Text.Length > 140 ? a.Text[..137] + "…" : a.Text;
+                var (r, _) = await executor.ExecuteAsync("task_create", ToolArgs.From(new { title, notes = $"From the meeting “{m.Title}” ({m.StartedAt:d MMM})", due = a.Due?.ToString("O") }), ctx);
+                if (r.Success) created++;
+            }
+            return Results.Ok(new { created });
+        });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>
@@ -618,6 +650,7 @@ public static class Api
         var secrets = sp.GetRequiredService<ISecretStore>();
         var paths = sp.GetRequiredService<JarvisPaths>();
         var agent = sp.GetRequiredService<AgentOrchestrator>();
+        var recorder = sp.GetRequiredService<Jarvis.Core.Meetings.MeetingRecorder>();
 
         var ai = settings.Ai.Providers.Where(p => p.Enabled).Select(p => new
         {
@@ -638,6 +671,9 @@ public static class Api
             uptimeSeconds = (long)(DateTimeOffset.Now - rs.StartedAt).TotalSeconds,
             paused = rs.Paused,
             online = conn.IsOnline,
+            // Always reported so every screen can show that a meeting is being recorded.
+            recording = recorder.Current is { } rec ? new { rec.Id, rec.Title, rec.StartedAt, source = recorder.SourceDescription } : null,
+            recordingBlocker = recorder.Blocker,
             presence = new { supported = presence.IsSupported, snapshot = presence.Current },
             voice = voice.Status,
             ai = new { allowCloud = settings.Ai.AllowCloud, providers = ai, anyAvailable = ai.Any(a => a.available == true && (a.IsLocal || settings.Ai.AllowCloud)) },
@@ -699,3 +735,5 @@ public sealed record HandledDto(bool Handled);
 public sealed record DraftDto(string? ReplyTo, string? To, string? Cc, string? Subject, string? Body, string? AccountId);
 public sealed record CalendarSubDto(string? Name, string? Url);
 public sealed record EventDto(string? Title, DateTimeOffset Start, DateTimeOffset? End, string? Location, string? Attendees);
+public sealed record MeetingStartDto(string? Title);
+public sealed record MeetingTasksDto(List<int>? Items);

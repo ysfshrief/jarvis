@@ -210,6 +210,16 @@ phrases for adding events and agenda questions. `Prepare` assembles a meeting br
 grounded intent, so a model, when present, writes from that brief rather than from imagination.
 `CalendarMonitorService` refreshes feeds and posts reminders through the notification centre.
 
+## Meetings
+
+`MeetingRecorder` starts only through `meeting_record_start`, which is graded critical on every call, so the
+user confirms each recording. While recording, `/api/status.recording` is set and `meeting.changed` events
+drive the REC chip in the dashboard and the red dot on the desktop orb. `IMeetingAudioSource` provides 16 kHz
+mono audio — on Windows `WindowsMeetingAudioSource` mixes the microphone with a WASAPI loopback capture of the
+speakers. Audio is cut into ~25 s chunks at pauses and transcribed with the same local Whisper engine as voice;
+only the text is stored (schema v7). On stop (or after `MaxMinutes`) `MeetingNotes` extracts decisions,
+action items (owner, due date via `DatePhrases`) and open questions with EN/AR rules.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;
