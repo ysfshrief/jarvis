@@ -95,6 +95,10 @@ public static partial class IntentEngine
         if (ListPlugins().IsMatch(t)) return new ToolIntent("plugin_list", new ToolArgs());
         if ((m = MakePlugin().Match(t)).Success)
             return new ToolIntent("plugin_create", ToolArgs.From(new { description = Original(rawText, m.Groups["x"].Value) }));
+        if ((m = WatchTopic().Match(t)).Success)
+            return new ToolIntent("research_watch", ToolArgs.From(new { topic = Original(rawText, m.Groups["x"].Value).TrimEnd('.', '?', '!') }));
+        if ((m = UnwatchTopic().Match(t)).Success)
+            return new ToolIntent("research_unwatch", ToolArgs.From(new { topic = Original(rawText, m.Groups["x"].Value).TrimEnd('.', '?', '!') }));
         if ((m = LearnFrom().Match(t)).Success)
             return new ToolIntent("learn_from_source", ToolArgs.From(new { source = Original(rawText, m.Groups["x"].Value).Trim('"', '\'') }));
         if ((m = Research().Match(t)).Success)
@@ -340,6 +344,12 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:learn|study|read and remember)(?: from)?(?: this| the)?(?: page| article| file| document| pdf)? (?<x>https?://\S+|""?[^""]+\.(?:pdf|docx?|pptx?|xlsx?|odt|txt|md|html?)""?)$|^اتعلم من (?<x>https?://\S+|.+\.(?:pdf|docx?|pptx?|xlsx?|odt|txt|md|html?))$")]
     private static partial Regex LearnFrom();
+
+    [GeneratedRegex(@"^(?:keep me (?:updated|posted) (?:on|about)|follow (?:the )?news (?:on|about)|watch (?:for )?news (?:on|about)|keep an eye on news about)(?: the)? (?<x>.{2,120})$|^(?:تابع(?:لي)?|تابعلي) (?:اخبار |أخبار )?(?<x>.{2,120})$|^(?:عرفني|قولي) (?:لو |كل ما )?(?:فيه|في) جديد (?:عن|في) (?<x>.{2,120})$")]
+    private static partial Regex WatchTopic();
+
+    [GeneratedRegex(@"^(?:stop following|stop watching|unfollow|stop updating me (?:on|about))(?: the)? (?<x>.{2,120})$|^(?:بطل|وقف) (?:تتابع|متابعة) (?<x>.{2,120})$")]
+    private static partial Regex UnwatchTopic();
 
     [GeneratedRegex(@"^(?:stop|end|finish) (?:the )?(?:meeting )?recording$|^stop recording(?: the meeting)?$|^(?:وقف|اقفل|خلص) (?:ال)?تسجيل$")]
     private static partial Regex StopRecording();

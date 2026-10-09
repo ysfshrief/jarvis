@@ -44,7 +44,7 @@ const AR: Record<string, string> = {
   "Not running": "مش شغال", Off: "مقفول", Remove: "شيل", paired: "اتربط", "last seen": "آخر ظهور", Port: "البورت",
   "Turn on the phone companion and save first.": "شغّل رفيق الموبايل واحفظ الأول.", "Remove this phone? It will need to pair again.": "تشيل الموبايل ده؟ هيحتاج يتربط تاني.",
   "Anything a phone asks for that changes something on this PC always waits for your confirmation, even if you normally allow it.": "أي حاجة الموبايل يطلبها وتغير حاجة على الكمبيوتر بتستنى تأكيدك دايماً، حتى لو عادةً بتسمح بيها.",
-  "Learn something": "اتعلم حاجة", Research: "ابحث", "Learn from it": "اتعلم منه", "Reading…": "بقرا…",
+  "Learn something": "اتعلم حاجة", Follow: "تابع", "Stop following": "وقف المتابعة", Research: "ابحث", "Learn from it": "اتعلم منه", "Reading…": "بقرا…",
   General: "عام", Security: "الأمان", Appearance: "الشكل", Shortcuts: "الاختصارات", "Tools & plugins": "الأدوات والإضافات", Privacy: "الخصوصية",
 };
 

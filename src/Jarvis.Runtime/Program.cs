@@ -75,6 +75,7 @@ try
     builder.Services.AddHostedService<ProviderWarmupService>();
     builder.Services.AddHostedService<KnowledgeIndexService>();
     builder.Services.AddHostedService<PatternLearnerService>();
+    builder.Services.AddHostedService<TopicWatchService>();
     builder.Services.AddHostedService<WorkflowMonitorService>();
     builder.Services.AddHostedService<FileIndexService>();
     builder.Services.AddHostedService<InboxSyncService>();

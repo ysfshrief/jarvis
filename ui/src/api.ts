@@ -511,3 +511,4 @@ export interface PluginView {
 export interface PairedDevice { id: string; name: string; createdAt: string; lastSeen: string | null; lastAddress: string | null; revokedAt: string | null }
 export interface DevicesStatus { enabled: boolean; running: boolean; port: number; error: string | null; addresses: string[]; devices: PairedDevice[] }
 export interface PairingInfo { code: string; expires: string; url: string; fingerprint: string; link: string; appLink: string }
+export interface WatchedTopic { id: string; topic: string; everyDays: number; createdAt: string; lastRun: string | null; nextRun: string; lastResult: string | null }

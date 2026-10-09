@@ -166,7 +166,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Source attribution: each fact is an unconfirmed note with the address/path it came from; the AI sees it labelled “unverified, from …” | Working |
 | Conflict detection: new facts are compared with related notes; contradictions are tagged and explained in Memory → To review; what you told JARVIS is never overwritten | Working — judged by the model, so it can miss subtle conflicts |
 | Source text is untrusted: passed as data, instruction-like “facts” are dropped, and anything sensitive later in the same request needs your confirmation | Working |
-| Scheduled re-research of tracked topics | Planned |
+| Following topics (“keep me updated on …”, «تابعلي …»): re-researched every N days while online; a notification only when there are genuinely new facts or contradictions | Working |
 
 ## Phase 11 — Phone companion
 

@@ -174,6 +174,25 @@ public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner lear
     }
 }
 
+/// <summary>Re-researches followed topics when they're due (checked every 15 minutes, only while online).</summary>
+public sealed class TopicWatchService(Jarvis.Core.Learning.TopicWatch watch, ILogger<TopicWatchService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var n = await watch.RunDueAsync(DateTimeOffset.Now, stoppingToken);
+                if (n > 0) logger.LogInformation("Looked into {Count} followed topic(s)", n);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "Topic watch failed"); }
+            await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
+        }
+    }
+}
+
 /// <summary>Checks tracked workflows once a minute for follow-ups and deadlines.</summary>
 public sealed class WorkflowMonitorService(Jarvis.Core.Workflows.WorkflowService workflows, ILogger<WorkflowMonitorService> logger) : BackgroundService
 {

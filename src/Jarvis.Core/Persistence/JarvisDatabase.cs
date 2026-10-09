@@ -539,5 +539,17 @@ public sealed class JarvisDatabase
         ALTER TABLE plugins ADD COLUMN update_hash TEXT;
         ALTER TABLE plugins ADD COLUMN update_report TEXT;
         """,
+        // v12: topics the user follows ("keep me updated on …").
+        """
+        CREATE TABLE watched_topics (
+            id TEXT PRIMARY KEY,
+            topic TEXT NOT NULL,
+            every_days INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            last_run TEXT,
+            next_run TEXT NOT NULL,
+            last_result TEXT
+        );
+        """,
     ];
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Brain, Check, ChevronDown, ChevronRight, GraduationCap, Link2, Pencil, Plus, RefreshCw, Save, Search, Sparkles, Trash2, Users, X } from "lucide-react";
-import { del, get, post, put, type Entity, type EntityProfile, type MemoryItem, type MemoryStatus } from "../api";
+import { del, get, post, put, type Entity, type EntityProfile, type MemoryItem, type MemoryStatus, type WatchedTopic } from "../api";
 import { useEvents } from "../events";
 import { Badge, Card, ConfirmButton, Empty, ErrorNote, formatTime, PageHead, Segmented, timeAgo, useLoad } from "../components/ui";
 import { tr } from "../lib/i18n";
@@ -268,6 +268,11 @@ function LearnCard({ onDone, onError }: { onDone: () => void; onError: (e: unkno
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string; status: string } | null>(null);
   const isSource = /^https?:\/\//i.test(text.trim()) || /^([a-z]:\\|\/|~)/i.test(text.trim());
+  const watched = useLoad(() => get<WatchedTopic[]>("/memory/watch"));
+  const follow = async () => {
+    try { await post("/memory/watch", { topic: text.trim(), everyDays: 7 }); setText(""); void watched.reload(); }
+    catch (e) { onError(e); }
+  };
   const run = async () => {
     setBusy(true);
     setResult(null);
@@ -286,7 +291,18 @@ function LearnCard({ onDone, onError }: { onDone: () => void; onError: (e: unkno
       <form className="row" onSubmit={(e) => { e.preventDefault(); if (text.trim().length > 1 && !busy) void run(); }}>
         <input className="input grow" dir="auto" value={text} onChange={(e) => setText(e.target.value)} placeholder={tr("e.g. CityCrep's competitors · https://… · C:\\Docs\\brief.pdf")} />
         <button className="btn btn-primary btn-sm" disabled={busy || text.trim().length < 2}>{busy ? tr("Reading…") : isSource ? tr("Learn from it") : tr("Research")}</button>
+        {!isSource && <button type="button" className="btn btn-sm" disabled={busy || text.trim().length < 2} onClick={follow} title={tr("Research it again every week and tell me when there's something new")}>{tr("Follow")}</button>}
       </form>
+      {(watched.data?.length ?? 0) > 0 && (
+        <ul className="list">
+          {watched.data!.map((w) => (
+            <li key={w.id}>
+              <span className="small grow" dir="auto"><strong>{w.topic}</strong> <span className="meta">every {w.everyDays} day(s) · {w.lastRun ? `last looked ${timeAgo(w.lastRun)}: ${w.lastResult ?? ""}` : "first look soon"}</span></span>
+              <button className="btn btn-ghost btn-sm" onClick={() => del(`/memory/watch/${w.id}`).then(() => watched.reload()).catch(onError)}><X size={13} /> {tr("Stop following")}</button>
+            </li>
+          ))}
+        </ul>
+      )}
       {result && <pre className={`note small${result.success ? "" : " warn"}`} dir="auto" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{result.message}</pre>}
     </Card>
   );

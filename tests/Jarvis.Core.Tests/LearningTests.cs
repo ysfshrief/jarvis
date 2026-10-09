@@ -211,4 +211,54 @@ public class LearningTests
         await host.Get<Inbox.InboxService>().CollectWritingSamplesAsync(default);
         Assert.Equal(0, samples.Count());
     }
+
+    // ---- Following topics ----
+
+    private const string AtlasFacts = """{"facts": [{"fact": "Atlas Corp opened an office in Alexandria in 2026.", "subject": "Atlas Corp", "source": 1}]}""";
+
+    [Fact]
+    public async Task Followed_topics_are_researched_when_due_and_only_new_facts_are_announced()
+    {
+        var web = new FakeSources();
+        web.Pages["https://news.example/atlas"] = ("Atlas news", Filler + " Atlas Corp opened an office in Alexandria in 2026.");
+        using var host = Host(web);
+        var watch = host.Get<TopicWatch>();
+        var notes = host.Get<Notifications.NotificationCenter>();
+
+        var (r, _) = await host.Get<ToolExecutor>().ExecuteAsync("research_watch", ToolArgs.From(new { topic = "Atlas Corp", every_days = 7 }), host.Ctx());
+        Assert.True(r.Success, r.Message);
+        var now = DateTimeOffset.Now;
+
+        host.Model.Reply(AtlasFacts);
+        Assert.Equal(1, await watch.RunDueAsync(now, default));
+        Assert.Contains(notes.Recent(10), n => n.Title == "New about Atlas Corp" && n.Body!.Contains("1 new fact"));
+        var t = watch.List().Single();
+        Assert.Equal("1 new fact(s), 0 conflict(s).", t.LastResult);
+        Assert.True(t.NextRun > now.AddDays(6));
+
+        Assert.Equal(0, await watch.RunDueAsync(now.AddHours(1), default)); // not due yet
+
+        // A week later the same facts are found again: nothing new, no notification.
+        host.Model.Reply(AtlasFacts);
+        var before = notes.Recent(50).Count;
+        Assert.Equal(1, await watch.RunDueAsync(now.AddDays(8), default));
+        Assert.Equal("Nothing new.", watch.List().Single().LastResult);
+        Assert.Equal(before, notes.Recent(50).Count);
+
+        Assert.True(watch.Remove("atlas")); // by part of the name
+        Assert.Empty(watch.List());
+    }
+
+    [Fact]
+    public async Task Followed_topics_wait_while_offline()
+    {
+        var web = new FakeSources();
+        using var host = Host(web);
+        var watch = host.Get<TopicWatch>();
+        watch.Add("Atlas Corp", 7);
+        host.Get<Connectivity.ConnectivityMonitor>().Set(false);
+        Assert.Equal(0, await watch.RunDueAsync(DateTimeOffset.Now, default));
+        Assert.Empty(web.Read);
+        Assert.Null(watch.List().Single().LastRun); // still due when back online
+    }
 }

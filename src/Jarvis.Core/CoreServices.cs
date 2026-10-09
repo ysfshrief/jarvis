@@ -142,6 +142,9 @@ public static class CoreServices
         services.AddSingleton<Learning.KnowledgeIngestion>();
         AddTool<Learning.ResearchTopicTool>(services);
         AddTool<Learning.LearnFromSourceTool>(services);
+        services.AddSingleton<Learning.TopicWatch>();
+        AddTool<Learning.TopicWatchTool>(services);
+        AddTool<Learning.TopicUnwatchTool>(services);
         services.AddSingleton<Meetings.MeetingStore>();
         services.AddSingleton<Meetings.MeetingRecorder>();
         AddTool<Vision.ScreenDescribeTool>(services);

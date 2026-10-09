@@ -167,6 +167,13 @@ public static class Api
                 : await executor.ExecuteAsync("learn_from_source", ToolArgs.From(new { source = dto.Source, topic = dto.Topic }), ctx);
             return Results.Ok(new { r.Success, r.Message, r.Data, status = r.Status.ToString() });
         });
+        api.MapGet("/memory/watch", (Jarvis.Core.Learning.TopicWatch watch) => Results.Ok(watch.List()));
+        api.MapPost("/memory/watch", (WatchDto dto, Jarvis.Core.Learning.TopicWatch watch) =>
+        {
+            try { return Results.Ok(watch.Add(dto.Topic ?? "", dto.EveryDays ?? 7)); }
+            catch (ArgumentException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+        api.MapDelete("/memory/watch/{id}", (string id, Jarvis.Core.Learning.TopicWatch watch) => watch.Remove(id) ? Results.Ok() : Results.NotFound());
         api.MapPost("/memory/reindex", async (KnowledgeService knowledge, CancellationToken ct) =>
         {
             knowledge.Semantic.Invalidate();
@@ -837,3 +844,4 @@ public sealed record PluginCheckDto(bool Network);
 public sealed record PluginEnableDto(bool Enabled);
 
 public sealed record ResearchDto(string? Topic, string? Source, int? Sources);
+public sealed record WatchDto(string? Topic, int? EveryDays);
