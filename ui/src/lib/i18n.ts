@@ -54,7 +54,28 @@ export function uiLang(): "en" | "ar" {
   return settingsStore.getSnapshot()?.appearance?.language === "ar" ? "ar" : "en";
 }
 
-/** Translate an interface string (English is the key). */
-export function tr(en: string): string {
-  return uiLang() === "ar" ? AR[en] ?? en : en;
+// Per-area dictionaries (src/lib/i18n/*.ts, each exporting a Record) are merged in; later files never override earlier keys.
+const PARTS = import.meta.glob<Record<string, Record<string, string>>>("./i18n/*.ts", { eager: true });
+for (const mod of Object.values(PARTS))
+  for (const dict of Object.values(mod))
+    for (const [en, ar] of Object.entries(dict)) if (!(en in AR)) AR[en] = ar;
+
+/**
+ * Translate an interface string (English is the key). `{name}` placeholders are filled from `vars`
+ * after translating, so a translation can move them: tr("Read {n} files", { n: 3 }).
+ */
+export function tr(en: string, vars?: Record<string, string | number>): string {
+  let out = uiLang() === "ar" ? AR[en] ?? en : en;
+  if (vars) for (const [k, v] of Object.entries(vars)) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+/** Translates plain strings and passes anything else (elements, numbers) through — for components' text props. */
+export function trNode<T>(node: T): T | string {
+  return typeof node === "string" ? tr(node) : node;
+}
+
+/** For tests and tooling: every English key that has an Arabic translation. */
+export function arabicKeys(): string[] {
+  return Object.keys(AR);
 }

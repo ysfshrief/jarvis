@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Risk } from "../api";
+import { tr, trNode } from "../lib/i18n";
 
 export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string }) {
   return (
     <section className={`card ${className}`}>
       {(title || actions) && (
         <header className="card-head">
-          {title && <h3>{title}</h3>}
+          {title && <h3>{trNode(title)}</h3>}
           {actions && <div className="card-actions">{actions}</div>}
         </header>
       )}
@@ -25,15 +26,16 @@ export function Badge({ children, tone = "neutral", title }: { children: ReactNo
 
 export function RiskBadge({ risk }: { risk: Risk | string }) {
   const tone = risk === "Critical" ? "bad" : risk === "Sensitive" ? "warn" : "good";
-  return <Badge tone={tone}>{risk}</Badge>;
+  return <Badge tone={tone}>{tr(String(risk))}</Badge>;
 }
 
 export function StatusDot({ ok, label }: { ok: boolean | null | undefined; label?: string }) {
-  return <span className={`dot ${ok === true ? "dot-ok" : ok === false ? "dot-bad" : "dot-unknown"}`} aria-label={label} title={label} />;
+  const l = label === undefined ? undefined : tr(label);
+  return <span className={`dot ${ok === true ? "dot-ok" : ok === false ? "dot-bad" : "dot-unknown"}`} aria-label={l} title={l} />;
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="empty">{children}</div>;
+  return <div className="empty">{trNode(children)}</div>;
 }
 
 export function ErrorNote({ error }: { error: unknown }) {
@@ -45,8 +47,8 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
   return (
     <label className="toggle-row">
       <span className="toggle-text">
-        <span>{label}</span>
-        {hint && <small>{hint}</small>}
+        <span>{tr(label)}</span>
+        {hint && <small>{tr(hint)}</small>}
       </span>
       <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="switch" aria-hidden />
@@ -57,9 +59,9 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="field">
-      <span className="field-label">{label}</span>
+      <span className="field-label">{tr(label)}</span>
       {children}
-      {hint && <small className="field-hint">{hint}</small>}
+      {hint && <small className="field-hint">{tr(hint)}</small>}
     </label>
   );
 }
@@ -111,7 +113,7 @@ export function ConfirmButton({ onConfirm, children, prompt, className = "btn bt
     <button
       className={className}
       onClick={() => {
-        if (window.confirm(prompt)) onConfirm();
+        if (window.confirm(tr(prompt))) onConfirm();
       }}
     >
       {children}
@@ -171,9 +173,9 @@ export function Meter({ value, tone }: { value: number; tone?: "warn" | "bad" })
 /** Segmented control for small enumerations. */
 export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: [T, string][]; onChange: (v: T) => void; label: string }) {
   return (
-    <div className="seg" role="radiogroup" aria-label={label}>
+    <div className="seg" role="radiogroup" aria-label={tr(label)}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>{text}</button>
+        <button key={v} type="button" role="radio" aria-checked={value === v} className={value === v ? "on" : ""} onClick={() => onChange(v)}>{tr(text)}</button>
       ))}
     </div>
   );
@@ -183,8 +185,8 @@ export function PageHead({ title, sub, actions }: { title: string; sub?: ReactNo
   return (
     <div className="page-head">
       <div>
-        <h2>{title}</h2>
-        {sub && <div className="sub">{sub}</div>}
+        <h2>{tr(title)}</h2>
+        {sub && <div className="sub" dir="auto">{trNode(sub)}</div>}
       </div>
       {actions && <div className="row wrap">{actions}</div>}
     </div>
