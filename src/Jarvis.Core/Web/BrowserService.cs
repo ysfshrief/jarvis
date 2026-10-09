@@ -237,7 +237,8 @@ public sealed class BrowserService(JarvisPaths paths, ISettingsStore settings, I
             var psi = new ProcessStartInfo(exe) { UseShellExecute = false, RedirectStandardError = true, RedirectStandardOutput = true };
             foreach (var a in LaunchArgs()) psi.ArgumentList.Add(a);
             _process = Process.Start(psi) ?? throw new CdpException("The browser didn't start.");
-            _process.ErrorDataReceived += (_, _) => { };
+            var stderr = new System.Collections.Concurrent.ConcurrentQueue<string>();
+            _process.ErrorDataReceived += (_, e) => { if (e.Data is { Length: > 0 } line) { stderr.Enqueue(line); while (stderr.Count > 8) stderr.TryDequeue(out string? _); } };
             _process.OutputDataReceived += (_, _) => { };
             _process.BeginErrorReadLine();
             _process.BeginOutputReadLine();
@@ -245,7 +246,13 @@ public sealed class BrowserService(JarvisPaths paths, ISettingsStore settings, I
             var deadline = DateTime.UtcNow.AddSeconds(20);
             while ((cdp = await TryConnectAsync(portFile, ct).ConfigureAwait(false)) is null)
             {
-                if (_process.HasExited) throw new CdpException("The browser closed right after starting. If a JARVIS browser window is already open, close it and try again.");
+                if (_process.HasExited)
+                {
+                    var why = string.Join(" | ", stderr).Trim();
+                    logger.LogWarning("Browser exited at start (code {Code}): {Stderr}", _process.ExitCode, why);
+                    throw new CdpException("The browser closed right after starting. If a JARVIS browser window is already open, close it and try again." +
+                                           (why.Length > 0 ? $" (Browser said: {(why.Length > 300 ? why[..300] + "…" : why)})" : ""));
+                }
                 if (DateTime.UtcNow > deadline) throw new CdpException("The browser didn't open its control channel in time.");
                 await Task.Delay(150, ct).ConfigureAwait(false);
             }

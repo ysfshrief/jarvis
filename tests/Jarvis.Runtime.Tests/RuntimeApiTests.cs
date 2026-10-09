@@ -323,4 +323,32 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
         Assert.False(await indexer.IndexFileAsync(Path.Combine(_f.DataDir, "jarvis.db"), default));
         try { Directory.Delete(dir, true); } catch { }
     }
+
+    [Fact]
+    public async Task Inbox_api_lists_honest_connector_status_and_validates_accounts()
+    {
+        var c = _f.Authed();
+        var status = await c.GetFromJsonAsync<JsonElement>("/api/inbox/status");
+        Assert.Equal(0, status.GetProperty("accounts").GetArrayLength());
+        var connectors = status.GetProperty("connectors").EnumerateArray().ToDictionary(x => x.GetProperty("id").GetString()!, x => x.GetProperty("status").GetString());
+        Assert.Equal("supported", connectors["imap"]);
+        Assert.Equal("not possible", connectors["linkedin"]);
+        Assert.Contains("gmail", status.GetProperty("presets").EnumerateArray().Select(p => p.GetProperty("id").GetString()));
+
+        // Bad input and unreachable servers are refused, and nothing is stored.
+        var bad = await c.PostAsJsonAsync("/api/inbox/accounts", new { preset = "custom", address = "not-an-address", password = "x" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        var unreachable = await c.PostAsJsonAsync("/api/inbox/accounts", new
+        {
+            preset = "custom", address = "me@example.invalid", password = "x",
+            config = new { imapHost = "127.0.0.1", imapPort = 1, imapSecurity = "none", smtpHost = "127.0.0.1", smtpPort = 1, smtpSecurity = "none", username = "me", folder = "INBOX" },
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, unreachable.StatusCode);
+        Assert.Contains("reach", (await unreachable.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("error").GetString());
+        Assert.Equal(0, (await c.GetFromJsonAsync<JsonElement>("/api/inbox/status")).GetProperty("accounts").GetArrayLength());
+        Assert.DoesNotContain(await c.GetFromJsonAsync<JsonElement>("/api/secrets") is var sec ? sec.GetProperty("names").EnumerateArray().Select(n => n.GetString()) : [], n => n!.StartsWith("mail."));
+
+        // Drafting needs an account; sending an unknown draft goes through the tool and fails cleanly.
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/inbox/drafts", new { to = "a@b.com", subject = "x", body = "y" })).StatusCode);
+    }
 }

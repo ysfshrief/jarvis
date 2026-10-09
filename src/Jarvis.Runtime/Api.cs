@@ -287,6 +287,72 @@ public static class Api
         }));
         api.MapPost("/browser/close", async (Jarvis.Core.Web.BrowserService browser) => { await browser.CloseAsync(); return Results.Ok(); });
 
+        // ---- Executive inbox ----
+        api.MapGet("/inbox/status", (Jarvis.Core.Inbox.InboxService inbox) => Results.Ok(new
+        {
+            accounts = inbox.Store.Accounts().Select(a => new { a.Id, a.Kind, a.Address, a.DisplayName, a.Enabled, a.Status, a.StatusMessage, a.LastSync, config = a.Config }),
+            counts = inbox.Store.Counts(),
+            drafts = inbox.Store.Drafts().Count,
+            presets = Jarvis.Core.Inbox.MailCatalog.Presets,
+            connectors = Jarvis.Core.Inbox.MailCatalog.Connectors,
+        }));
+        api.MapPost("/inbox/accounts", async (MailAccountDto dto, Jarvis.Core.Inbox.InboxService inbox, CancellationToken ct) =>
+        {
+            var preset = Jarvis.Core.Inbox.MailCatalog.Presets.FirstOrDefault(p => p.Id == dto.Preset);
+            var cfg = dto.Config ?? preset?.Config ?? new Jarvis.Core.Inbox.MailAccountConfig();
+            if (string.IsNullOrWhiteSpace(cfg.Username)) cfg = cfg with { Username = dto.Address ?? "" };
+            try
+            {
+                var a = await inbox.AddAccountAsync(Jarvis.Core.Inbox.ImapSmtpConnector.KindName, dto.Address ?? "", dto.DisplayName, cfg, dto.Password ?? "", ct);
+                _ = Task.Run(() => inbox.SyncAsync(CancellationToken.None, a.Id));
+                return Results.Ok(new { a.Id, a.Address, a.Status });
+            }
+            catch (Exception ex) when (ex is ArgumentException or Jarvis.Core.Inbox.MailConnectorException)
+            {
+                return Results.BadRequest(new { error = ex.Message });
+            }
+        });
+        api.MapDelete("/inbox/accounts/{id}", (string id, Jarvis.Core.Inbox.InboxService inbox) => inbox.RemoveAccount(id) ? Results.Ok() : Results.NotFound());
+        api.MapPost("/inbox/sync", async (Jarvis.Core.Inbox.InboxService inbox, CancellationToken ct) => Results.Ok(await inbox.SyncAsync(ct)));
+        api.MapGet("/inbox/messages", (Jarvis.Core.Inbox.InboxService inbox, string? category, string? q, bool? all, int? limit) =>
+            Results.Ok((q is { Length: > 0 } ? inbox.Store.Search(q, limit ?? 100) : inbox.Store.List(category, all ?? false, limit ?? 100))
+                .Select(m => m with { Body = "" })));
+        api.MapGet("/inbox/messages/{id}", (string id, Jarvis.Core.Inbox.InboxService inbox, KnowledgeService knowledge) =>
+        {
+            var m = inbox.Store.Get(id);
+            if (m is null) return Results.NotFound();
+            return Results.Ok(new
+            {
+                message = m,
+                entities = inbox.Store.EntityIdsOf(id).Select(knowledge.Entities.Get).OfType<Entity>(),
+                drafts = inbox.Store.Drafts(null).Where(d => d.ReplyToId == id),
+                fromSender = inbox.Store.FromSender(m.FromAddress, 6).Where(x => x.Id != id).Select(x => x with { Body = "" }),
+            });
+        });
+        api.MapPost("/inbox/messages/{id}/category", (string id, CategoryDto dto, Jarvis.Core.Inbox.InboxService inbox) =>
+            Guard(() => inbox.Recategorize(id, dto.Category ?? "") ? new { ok = true } : null));
+        api.MapPost("/inbox/messages/{id}/handled", (string id, HandledDto dto, Jarvis.Core.Inbox.InboxService inbox) =>
+            inbox.Store.SetHandled(id, dto.Handled) ? Results.Ok() : Results.NotFound());
+        api.MapGet("/inbox/drafts", (Jarvis.Core.Inbox.InboxService inbox, string? status) => Results.Ok(inbox.Store.Drafts(status ?? Jarvis.Core.Inbox.DraftStatus.Draft)));
+        api.MapPost("/inbox/drafts", (DraftDto dto, Jarvis.Core.Inbox.InboxService inbox) => Guard(() => dto.ReplyTo is { Length: > 0 }
+            ? inbox.DraftReply(dto.ReplyTo, dto.Body ?? "", "you")
+            : inbox.DraftNew(Addrs(dto.To), Addrs(dto.Cc), dto.Subject ?? "", dto.Body ?? "", "you", dto.AccountId)));
+        api.MapPut("/inbox/drafts/{id}", (string id, DraftDto dto, Jarvis.Core.Inbox.InboxService inbox) =>
+            Guard(() => inbox.Store.UpdateDraft(id, dto.To is null ? null : Addrs(dto.To), dto.Cc is null ? null : Addrs(dto.Cc), dto.Subject, dto.Body)));
+        api.MapDelete("/inbox/drafts/{id}", (string id, Jarvis.Core.Inbox.InboxService inbox) =>
+        {
+            if (inbox.Store.GetDraft(id) is not { Status: Jarvis.Core.Inbox.DraftStatus.Draft or Jarvis.Core.Inbox.DraftStatus.Failed }) return Results.NotFound();
+            inbox.Store.SetDraftStatus(id, Jarvis.Core.Inbox.DraftStatus.Discarded);
+            return Results.Ok();
+        });
+        // Sending goes through the same tool, permission check and (always) approval as when the AI asks.
+        api.MapPost("/inbox/drafts/{id}/send", async (string id, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var (result, step) = await executor.ExecuteAsync("inbox_send", ToolArgs.From(new { draft = id }), ctx);
+            return Results.Ok(new { result.Success, result.Message, status = step.Status });
+        });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>
@@ -565,6 +631,9 @@ public static class Api
         reminders = p.Reminders,
     };
 
+    private static IReadOnlyList<string> Addrs(string? s) =>
+        (s ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     private static IResult Guard<T>(Func<T?> action)
     {
         try
@@ -578,3 +647,8 @@ public static class Api
         }
     }
 }
+
+public sealed record MailAccountDto(string? Preset, string? Address, string? DisplayName, string? Password, Jarvis.Core.Inbox.MailAccountConfig? Config);
+public sealed record CategoryDto(string? Category);
+public sealed record HandledDto(bool Handled);
+public sealed record DraftDto(string? ReplyTo, string? To, string? Cc, string? Subject, string? Body, string? AccountId);

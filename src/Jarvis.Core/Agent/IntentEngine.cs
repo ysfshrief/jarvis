@@ -88,6 +88,7 @@ public static partial class IntentEngine
         if (ListTasks().IsMatch(t)) return new ToolIntent("task_list", new ToolArgs());
         if (Priorities().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "priorities" }));
         if (Briefing().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "today" }));
+        if (InboxCheck().IsMatch(t)) return new ToolIntent("inbox_check", new ToolArgs());
         if ((m = CompleteTask().Match(t)).Success)
             return new ToolIntent("task_complete", ToolArgs.From(new { title = m.Groups["x"].Value.Trim() }));
 
@@ -292,6 +293,9 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:(?:what's|whats|what is) (?:happening|going on|on|up)(?: for me)? today|what(?:'s| is) my day(?: look(?:ing)? like)?|how(?:'s| is) my day(?: looking)?|brief me|(?:give me )?(?:my |a |the )?(?:daily |morning )?briefing|my day|today|(?:ايه|إيه) (?:اللي ورايا|ورايا|اخبار يومي|اللي عندي) (?:النهارده|انهارده)|يومي عامل ايه|لخصلي يومي|(?:اديني |عايز )?(?:ال)?ملخص (?:ال)?يوم)$")]
     private static partial Regex Briefing();
+
+    [GeneratedRegex(@"^(?:check|show|open|read)(?: me)? (?:my )?(?:e-?mails?|inbox|mail)(?: for me)?$|^(?:any|do i have any|did i get any) (?:new |urgent |important )?(?:e-?mails?|mail)(?: today)?\??$|^what(?:'s| is) (?:important|urgent|new) in my (?:inbox|e-?mails?|mail)\??$|^(?:my )?(?:inbox|e-?mails?)\??$|^(?:شوف|شوفلي|افتح|اقرا|اقرالي)(?: لي)? (?:ال)?(?:ايميل|ايميلات|ميل|انبوكس|بريد)(?:ي)?$|^(?:في|فيه|جالي) (?:اي )?(?:ايميلات|ايميل|رسايل) (?:جديده|مهمه|مستعجله)\??$|^ايه (?:الجديد|المهم) في (?:الايميل|الانبوكس|الميل)\??$")]
+    private static partial Regex InboxCheck();
 
     [GeneratedRegex(@"^(?:mark (?:the )?(?:task )?(?<x>.+?) (?:as )?(?:done|complete|completed|finished)|complete (?:the )?task (?<x>.+)|(?:خلص|خلصت|علم علي) (?:مهمه|تاسك) (?<x>.+))$")]
     private static partial Regex CompleteTask();

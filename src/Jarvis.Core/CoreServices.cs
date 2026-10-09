@@ -125,6 +125,15 @@ public static class CoreServices
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
         services.AddSingleton<Web.BrowserService>();
+        services.AddSingleton<Inbox.InboxStore>();
+        services.AddSingleton<Inbox.IMailConnector, Inbox.ImapSmtpConnector>();
+        services.AddSingleton<Inbox.InboxService>();
+        AddTool<InboxCheckTool>(services);
+        AddTool<InboxListTool>(services);
+        AddTool<InboxReadTool>(services);
+        AddTool<InboxDraftTool>(services);
+        AddTool<InboxSendTool>(services);
+        AddTool<InboxCategorizeTool>(services);
         AddTool<BrowserOpenTool>(services);
         AddTool<BrowserReadTool>(services);
         AddTool<BrowserClickTool>(services);

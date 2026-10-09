@@ -336,6 +336,7 @@ export interface Settings {
     inputDeviceIndex: number;
   };
   permissions: { autoApproveSensitive: boolean; toolOverrides: Record<string, string>; approvalTimeoutSeconds: number };
+  inbox: { syncMinutes: number; initialDays: number; notifyUrgent: boolean; vipSenders: string[] };
   web: { browserEnabled: boolean; browserPath: string; headless: boolean; allowLocalPages: boolean };
   files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
   memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean };
@@ -461,3 +462,18 @@ export interface FileComparison {
   older: IndexedFile; newer: IndexedFile; added: number; removed: number; unchanged: number; identical: boolean; addedLines: string[]; removedLines: string[];
 }
 export interface BrowserStatus { enabled: boolean; browserPath?: string | null; running: boolean; url?: string | null }
+export type MailCategory = "urgent" | "important" | "needs_response" | "fyi" | "noise";
+export interface MailAccountConfig { imapHost: string; imapPort: number; imapSecurity: string; smtpHost: string; smtpPort: number; smtpSecurity: string; username: string; folder: string }
+export interface MailAccount { id: string; kind: string; address: string; displayName?: string | null; enabled: boolean; status: string; statusMessage?: string | null; lastSync?: string | null; config: MailAccountConfig }
+export interface MailPreset { id: string; name: string; config: MailAccountConfig; note: string }
+export interface ConnectorInfo { id: string; name: string; status: string; how: string; note: string }
+export interface InboxStatus { accounts: MailAccount[]; counts: Record<MailCategory, number>; drafts: number; presets: MailPreset[]; connectors: ConnectorInfo[] }
+export interface InboxMessage {
+  id: string; accountId: string; fromName?: string | null; fromAddress: string; to: string[]; cc: string[]; subject: string; snippet: string; body: string;
+  receivedAt: string; isRead: boolean; bulk: boolean; category: MailCategory; categorySource: string; reason?: string | null; handled: boolean;
+}
+export interface MailDraft {
+  id: string; accountId: string; replyToId?: string | null; to: string[]; cc: string[]; subject: string; body: string; status: string; createdBy: string;
+  createdAt: string; updatedAt: string; sentAt?: string | null; error?: string | null;
+}
+export interface MessageDetail { message: InboxMessage; entities: Entity[]; drafts: MailDraft[]; fromSender: InboxMessage[] }

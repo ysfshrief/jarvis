@@ -593,3 +593,10 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 .diff-del { color: var(--bad); }
 .file-preview { white-space: pre-wrap; overflow-wrap: anywhere; font: 0.82rem/1.55 var(--font-mono); max-height: 420px; overflow: auto; margin: 0; color: var(--muted); }
 .btn.back { align-self: flex-start; }
+
+/* ---- Inbox ---- */
+.file-row.unread strong { color: var(--text); }
+.file-row.unread::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 7px; flex: none; box-shadow: 0 0 8px var(--accent); }
+.note.warn { border-color: rgba(var(--warn-rgb), 0.4); color: var(--warn); }
+.mail-body { color: var(--text); font-family: var(--font-ui); font-size: 0.92rem; }
+.draft + .draft { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }

@@ -133,6 +133,10 @@ public sealed class SettingsStore : ISettingsStore
         s.Shortcuts ??= new();
         s.Privacy ??= new();
         s.Web ??= new();
+        s.Inbox ??= new();
+        s.Inbox.VipSenders ??= [];
+        s.Inbox.SyncMinutes = Math.Clamp(s.Inbox.SyncMinutes, 1, 240);
+        s.Inbox.InitialDays = Math.Clamp(s.Inbox.InitialDays, 1, 365);
         s.Web.BrowserPath ??= "";
         if (s.Appearance.Theme is not ("dark" or "light" or "auto")) s.Appearance.Theme = "dark";
         if (s.Appearance.Accent is not ("cyan" or "amber" or "violet" or "green")) s.Appearance.Accent = "cyan";

@@ -186,6 +186,18 @@ that changed under an approval can't escalate it. Tools that return page text se
 `ReadsUntrustedContent`; `ToolExecutor` then marks the request (`ToolContext.Turn`) and requires approval for
 any sensitive or critical action for the rest of it.
 
+## Executive inbox
+
+`InboxService` syncs each connected account through an `IMailConnector` — today `ImapSmtpConnector`
+(MailKit), which opens the inbox **read-only** so reading never changes the mailbox. Passwords live only in
+`ISecretStore` (`mail.<account>.password`); account settings hold hosts and ports. New mail is classified by
+`InboxClassifier` — deterministic, explainable EN/AR rules (bulk headers, automated senders, urgency words,
+direct questions, VIP senders, known people/organisations from the entity store) — and your corrections
+become per-sender rules. Messages (schema v5, `mail_messages` + FTS) link to entities. Drafts are stored
+locally; `inbox_send` is the only path to SMTP, is graded critical on every call, and shows the message text in
+the approval. Inbox tools that return mail content set `ReadsUntrustedContent`, so anything the model proposes
+after reading an email needs approval in that request. `InboxSyncService` checks every few minutes while online.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;

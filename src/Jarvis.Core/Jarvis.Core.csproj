@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Anthropic" Version="12.54.1" />
+    <PackageReference Include="MailKit" Version="4.18.1" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="AngleSharp" Version="1.8.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />

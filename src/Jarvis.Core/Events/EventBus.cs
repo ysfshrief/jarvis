@@ -82,6 +82,8 @@ public static class EventTypes
     public const string FilesIndexChanged = "files.index";
     /// <summary>JARVIS's browser opened, navigated or closed.</summary>
     public const string BrowserChanged = "browser.changed";
+    /// <summary>Mail accounts, messages or drafts changed.</summary>
+    public const string InboxChanged = "inbox.changed";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";

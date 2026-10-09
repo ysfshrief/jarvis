@@ -109,7 +109,13 @@ The same matrix is visible in the app under **System → What this build can do*
 | Key points (extracted sentences, labelled as such); AI summaries written from the document's real text when a model is available | Working |
 | Version detection by name stem (v2, final, dates, "- Copy") and line-level comparison | Working |
 | Files dashboard: index status, search with snippets, latest files, detail with key points, linked people/organisations, compare with earlier version | Working |
-| Gmail and Outlook via official APIs (OAuth), unified inbox classification, drafting, approval-based sending | Planned |
+| Executive inbox over IMAP/SMTP (Gmail app password, Yahoo, iCloud, Zoho, company servers); read-only sync; password only in the encrypted secret store | Working — verified in CI against a real mail server (GreenMail) |
+| Sorting into urgent / needs reply / important / FYI / noise with the reason shown (EN/AR rules, VIP senders, known people/organisations); your corrections teach it per sender | Working |
+| Mail linked to people and organisations; urgent-mail alerts through the notification centre; inbox in the daily briefing; "check my email" works offline from the last sync | Working |
+| Drafts (yours or JARVIS's) — never sent automatically; sending is critical and always shows you the message first; replies thread correctly | Working |
+| AI-drafted replies (reads the email, saves a draft) | Partial — needs a local model; style learning from sent mail is planned |
+| Outlook.com / Microsoft 365 and Google sign-in (OAuth) | Planned — Microsoft no longer allows password sign-in for Outlook mail |
+| WhatsApp / Instagram / Messenger (business APIs only), X (paid API), LinkedIn (no API) | Shown honestly in Settings → Accounts; not connected |
 
 ## Phase 7 — Vision & meeting intelligence
 

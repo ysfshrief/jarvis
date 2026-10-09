@@ -230,3 +230,24 @@ public sealed class FileIndexService(Jarvis.Core.Files.FileIndexer indexer, ISet
         }
     }
 }
+
+/// <summary>Checks connected mail accounts every few minutes while online.</summary>
+public sealed class InboxSyncService(Jarvis.Core.Inbox.InboxService inbox, ISettingsStore settings, Jarvis.Core.Connectivity.IConnectivity connectivity, ILogger<InboxSyncService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (connectivity.IsOnline && inbox.HasAccounts) await inbox.SyncAsync(stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Inbox sync failed");
+            }
+            await Task.Delay(TimeSpan.FromMinutes(settings.Current.Inbox.SyncMinutes), stoppingToken);
+        }
+    }
+}

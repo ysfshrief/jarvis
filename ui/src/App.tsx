@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   Activity as ActivityIcon, Brain, CheckSquare, Cpu, LayoutDashboard, Lock, MessageSquare, PanelRight, Pause, Play,
-  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch,
+  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch, Inbox as InboxIcon,
 } from "lucide-react";
 import { get, getToken, onAuthProblem, post, setToken, type Status } from "./api";
 import { events, useEvents } from "./events";
@@ -11,6 +11,7 @@ import { Assistant } from "./pages/Assistant";
 import { Tasks } from "./pages/Tasks";
 import { WorkflowsPage } from "./pages/Workflows";
 import { FilesPage } from "./pages/Files";
+import { InboxPage } from "./pages/Inbox";
 import { MemoryPage } from "./pages/Memory";
 import { ActivityPage } from "./pages/Activity";
 import { SystemPage } from "./pages/System";
@@ -36,6 +37,7 @@ export const useStatus = () => useContext(Ctx);
 const PAGES = [
   { id: "overview", label: "Overview", icon: LayoutDashboard, section: "Command" },
   { id: "assistant", label: "Assistant", icon: MessageSquare, section: "Command" },
+  { id: "inbox", label: "Inbox", icon: InboxIcon, section: "Work" },
   { id: "tasks", label: "Tasks", icon: CheckSquare, section: "Work" },
   { id: "workflows", label: "Workflows", icon: Workflow, section: "Work" },
   { id: "memory", label: "Memory", icon: Brain, section: "Knowledge" },
@@ -164,6 +166,7 @@ export function App() {
           <div className="page">
             {page === "overview" && <Overview />}
             {page === "assistant" && <Assistant />}
+            {page === "inbox" && <InboxPage />}
             {page === "tasks" && <Tasks />}
             {page === "workflows" && <WorkflowsPage />}
             {page === "memory" && <MemoryPage />}

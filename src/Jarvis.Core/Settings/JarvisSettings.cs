@@ -22,6 +22,19 @@ public sealed class JarvisSettings
     public ShortcutSettings Shortcuts { get; set; } = new();
     public PrivacySettings Privacy { get; set; } = new();
     public WebSettings Web { get; set; } = new();
+    public InboxSettings Inbox { get; set; } = new();
+}
+
+public sealed class InboxSettings
+{
+    /// <summary>How often connected mail accounts are checked.</summary>
+    public int SyncMinutes { get; set; } = 5;
+    /// <summary>How far back the first sync goes.</summary>
+    public int InitialDays { get; set; } = 14;
+    /// <summary>Notify (through the notification centre) when an urgent message arrives.</summary>
+    public bool NotifyUrgent { get; set; } = true;
+    /// <summary>Addresses or domains whose mail is always at least important.</summary>
+    public List<string> VipSenders { get; set; } = [];
 }
 
 public sealed class WebSettings

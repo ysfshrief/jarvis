@@ -77,6 +77,7 @@ try
     builder.Services.AddHostedService<PatternLearnerService>();
     builder.Services.AddHostedService<WorkflowMonitorService>();
     builder.Services.AddHostedService<FileIndexService>();
+    builder.Services.AddHostedService<InboxSyncService>();
 
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     {

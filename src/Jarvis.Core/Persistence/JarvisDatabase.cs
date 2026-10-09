@@ -347,5 +347,88 @@ public sealed class JarvisDatabase
         );
         CREATE INDEX ix_file_entities_entity ON file_entities(entity_id);
         """,
+        // v5: executive inbox (accounts, mail_messages, drafts, learned sender categories).
+        """
+        CREATE TABLE mail_accounts (
+            id TEXT PRIMARY KEY,
+            kind TEXT NOT NULL,
+            address TEXT NOT NULL,
+            display_name TEXT,
+            config TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL,
+            status_message TEXT,
+            last_sync TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE mail_messages (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            external_id TEXT NOT NULL,
+            folder TEXT,
+            message_id_header TEXT,
+            in_reply_to TEXT,
+            thread_key TEXT,
+            from_name TEXT,
+            from_addr TEXT NOT NULL,
+            to_addrs TEXT,
+            cc_addrs TEXT,
+            subject TEXT,
+            snippet TEXT,
+            body TEXT,
+            received_at TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            bulk INTEGER NOT NULL DEFAULT 0,
+            category TEXT NOT NULL,
+            category_source TEXT NOT NULL,
+            reason TEXT,
+            handled INTEGER NOT NULL DEFAULT 0,
+            search_text TEXT NOT NULL,
+            UNIQUE (account_id, external_id)
+        );
+        CREATE INDEX ix_mail_messages_received ON mail_messages(received_at);
+        CREATE INDEX ix_mail_messages_category ON mail_messages(category, handled);
+        CREATE VIRTUAL TABLE mail_messages_fts USING fts5(search_text, content='mail_messages', content_rowid='rowid');
+        CREATE TRIGGER mail_messages_ai AFTER INSERT ON mail_messages BEGIN
+            INSERT INTO mail_messages_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+        END;
+        CREATE TRIGGER mail_messages_ad AFTER DELETE ON mail_messages BEGIN
+            INSERT INTO mail_messages_fts(mail_messages_fts, rowid, search_text) VALUES ('delete', old.rowid, old.search_text);
+        END;
+        CREATE TRIGGER mail_messages_au AFTER UPDATE OF search_text ON mail_messages BEGIN
+            INSERT INTO mail_messages_fts(mail_messages_fts, rowid, search_text) VALUES ('delete', old.rowid, old.search_text);
+            INSERT INTO mail_messages_fts(rowid, search_text) VALUES (new.rowid, new.search_text);
+        END;
+
+        CREATE TABLE message_entities (
+            message_id TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            PRIMARY KEY (message_id, entity_id)
+        );
+
+        CREATE TABLE drafts (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL,
+            reply_to_id TEXT,
+            to_addrs TEXT NOT NULL,
+            cc_addrs TEXT,
+            subject TEXT NOT NULL,
+            body TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            sent_at TEXT,
+            error TEXT
+        );
+        CREATE INDEX ix_drafts_status ON drafts(status);
+
+        CREATE TABLE mail_sender_rules (
+            address TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        """,
     ];
 }

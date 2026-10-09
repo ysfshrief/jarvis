@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
+  AtSign, Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
 } from "lucide-react";
-import { del, get, post, put, type BrowserStatus, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
+import { del, get, post, put, type BrowserStatus, type InboxStatus, type MailAccountConfig, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
 import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, useLoad } from "../components/ui";
@@ -10,6 +10,7 @@ import { applyAppearance, settingsStore } from "../lib/settings";
 import { playCue, type SoundKind } from "../lib/sounds";
 import { tr } from "../lib/i18n";
 import { ClearIndexButton, FilesIndexHint } from "./Files";
+import { ConnectorTable } from "./Inbox";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
@@ -17,6 +18,7 @@ const SECTIONS = [
   { id: "ai", label: "AI", icon: Cpu },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "files", label: "Files", icon: FolderSearch },
+  { id: "accounts", label: "Accounts", icon: AtSign },
   { id: "web", label: "Web", icon: Globe },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
@@ -102,6 +104,7 @@ export function SettingsPage() {
           {section === "ai" && <Ai {...p} />}
           {section === "memory" && <MemorySettings {...p} />}
           {section === "files" && <FilesSettings {...p} />}
+          {section === "accounts" && <AccountsSettings {...p} />}
           {section === "web" && <WebSettings {...p} />}
           {section === "security" && <Security {...p} />}
           {section === "notifications" && <Notifications {...p} />}
@@ -836,6 +839,95 @@ function WebSettings({ s, set }: P) {
           </div>
         )}
       </Card>
+    </>
+  );
+}
+
+function AccountsSettings({ s, set }: P) {
+  const st = useLoad(() => get<InboxStatus>("/inbox/status"));
+  useEvents(["inbox."], () => void st.reload());
+  const [preset, setPreset] = useState("gmail");
+  const [address, setAddress] = useState("");
+  const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [cfg, setCfg] = useState<MailAccountConfig | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [ok, setOk] = useState<string | null>(null);
+  const p = st.data?.presets.find((x) => x.id === preset);
+  const config = cfg ?? p?.config;
+  const connect = async () => {
+    setBusy(true);
+    setError(null);
+    setOk(null);
+    try {
+      await post("/inbox/accounts", { preset, address, displayName: name || null, password, config: preset === "custom" || cfg ? config : null });
+      setOk(`Connected ${address}. Checking your inbox now.`);
+      setAddress(""); setPassword(""); setName(""); setCfg(null);
+      await st.reload();
+    } catch (e) { setError(e); } finally { setBusy(false); setPassword(""); }
+  };
+  const setC = (patch: Partial<MailAccountConfig>) => setCfg({ ...(config as MailAccountConfig), ...patch });
+  return (
+    <>
+      <Card title="Email accounts">
+        {st.data?.accounts.length ? (
+          <ul className="list">
+            {st.data.accounts.map((a) => (
+              <li key={a.id}>
+                <span className="grow" style={{ display: "flex", flexDirection: "column" }}>
+                  <span className="row" style={{ gap: 8 }}><strong dir="ltr">{a.address}</strong> <Badge tone={a.status === "connected" ? "good" : a.status === "error" ? "bad" : "neutral"}>{a.status}</Badge></span>
+                  <span className="small muted">{a.statusMessage ?? (a.lastSync ? `Checked ${new Date(a.lastSync).toLocaleString()}` : "Not checked yet")} · {a.config.imapHost}</span>
+                </span>
+                <ConfirmButton className="btn btn-ghost btn-sm" prompt={`Disconnect ${a.address}? Its synced mail and drafts are removed from JARVIS (nothing changes in your mailbox).`}
+                  onConfirm={async () => { await del(`/inbox/accounts/${a.id}`); void st.reload(); }}><Trash2 size={13} /> Disconnect</ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="small muted">No email connected yet.</p>}
+      </Card>
+      <Card title="Connect email">
+        <div className="form-grid">
+          <Field label="Provider" hint={p?.note}>
+            <select className="input" value={preset} onChange={(e) => { setPreset(e.target.value); setCfg(null); }}>
+              {st.data?.presets.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Email address"><input className="input" dir="ltr" type="email" autoComplete="off" value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
+          <Field label="Your name (for sent mail)"><input className="input" dir="auto" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Password or app password" hint="Stored encrypted on this PC only; never shown again.">
+            <input className="input" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+        </div>
+        {config && (
+          <details open={preset === "custom"}>
+            <summary className="small muted">Server settings</summary>
+            <div className="form-grid" style={{ marginTop: 8 }}>
+              <Field label="IMAP server"><input className="input mono" dir="ltr" value={config.imapHost} onChange={(e) => setC({ imapHost: e.target.value })} /></Field>
+              <Field label="IMAP port"><input className="input" type="number" value={config.imapPort} onChange={(e) => setC({ imapPort: Number(e.target.value) })} /></Field>
+              <Field label="IMAP security"><select className="input" value={config.imapSecurity} onChange={(e) => setC({ imapSecurity: e.target.value })}><option value="ssl">SSL/TLS</option><option value="starttls">STARTTLS</option><option value="none">None</option></select></Field>
+              <Field label="SMTP server"><input className="input mono" dir="ltr" value={config.smtpHost} onChange={(e) => setC({ smtpHost: e.target.value })} /></Field>
+              <Field label="SMTP port"><input className="input" type="number" value={config.smtpPort} onChange={(e) => setC({ smtpPort: Number(e.target.value) })} /></Field>
+              <Field label="SMTP security"><select className="input" value={config.smtpSecurity} onChange={(e) => setC({ smtpSecurity: e.target.value })}><option value="ssl">SSL/TLS</option><option value="starttls">STARTTLS</option><option value="none">None</option></select></Field>
+              <Field label="Username" hint="Usually the email address."><input className="input mono" dir="ltr" value={config.username} onChange={(e) => setC({ username: e.target.value })} /></Field>
+            </div>
+          </details>
+        )}
+        <div className="row"><button className="btn btn-primary btn-sm" disabled={busy || !address.includes("@") || !password} onClick={connect}>{busy ? "Testing the connection…" : "Connect"}</button></div>
+        {ok && <p className="small">{ok}</p>}
+        <ErrorNote error={error} />
+      </Card>
+      <Card title="Inbox">
+        <div className="form-grid">
+          <Field label="Check every (minutes)"><input className="input" type="number" min={1} value={s.inbox.syncMinutes} onChange={(e) => set((x) => { x.inbox.syncMinutes = Number(e.target.value); })} /></Field>
+          <Field label="First sync goes back (days)"><input className="input" type="number" min={1} value={s.inbox.initialDays} onChange={(e) => set((x) => { x.inbox.initialDays = Number(e.target.value); })} /></Field>
+        </div>
+        <Toggle label="Tell me about urgent mail" hint="Through the notification centre, so meetings and quiet hours still hold it." checked={s.inbox.notifyUrgent} onChange={(v) => set((x) => { x.inbox.notifyUrgent = v; })} />
+        <Field label="VIP senders" hint="One address or domain per line; their mail is always at least important.">
+          <textarea className="input mono" rows={3} dir="ltr" value={s.inbox.vipSenders.join("\n")} onChange={(e) => set((x) => { x.inbox.vipSenders = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean); })} />
+        </Field>
+      </Card>
+      {st.data && <ConnectorTable s={st.data} />}
     </>
   );
 }
