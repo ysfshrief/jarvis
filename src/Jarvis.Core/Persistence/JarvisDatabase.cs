@@ -532,5 +532,12 @@ public sealed class JarvisDatabase
         );
         CREATE INDEX ix_writing_samples_time ON writing_samples(written_at DESC);
         """,
+        // v11: a pending update for an installed plugin (checked and approved separately; the old version keeps running).
+        """
+        ALTER TABLE plugins ADD COLUMN update_status TEXT;
+        ALTER TABLE plugins ADD COLUMN update_source TEXT;
+        ALTER TABLE plugins ADD COLUMN update_hash TEXT;
+        ALTER TABLE plugins ADD COLUMN update_report TEXT;
+        """,
     ];
 }

@@ -154,7 +154,8 @@ The same matrix is visible in the app under **System → What this build can do*
 | Risk never lower than declared; anything that can send data is at least sensitive; plugin tools can never shadow built-in tools; every call goes through the normal permission/approval/audit path | Working |
 | Tamper protection: approved code is fingerprinted and held in memory; changed files stop the plugin loading | Working |
 | Plugins page: create, import, checks, permissions, code, install, disable, remove | Working |
-| Plugin updates (new version replacing an installed one with a permission diff) | Planned |
+| Plugin updates: a newer version (written by JARVIS or imported) waits beside the installed one, gets the same checks, shows a plain-language diff (new hosts, sending, storage, notifications, tools, risk changes) and replaces it only with critical approval; storage is kept; edits after the check block it | Working |
+| Plugin checks run in throwaway storage, so they never touch a plugin's real data | Working |
 
 ## Phase 10 — Continuous learning
 

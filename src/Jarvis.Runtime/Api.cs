@@ -470,6 +470,13 @@ public static class Api
             var (result, step) = await executor.ExecuteAsync("plugin_install", ToolArgs.From(new { plugin = id }), ctx);
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
+        api.MapPost("/plugins/{id}/update", async (string id, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var (result, step) = await executor.ExecuteAsync("plugin_update", ToolArgs.From(new { plugin = id }), ctx);
+            return Results.Ok(new { result.Success, result.Message, status = step.Status });
+        });
+        api.MapDelete("/plugins/{id}/update", (string id, Jarvis.Core.Plugins.PluginManager plugins) => plugins.DiscardUpdate(id) ? Results.Ok() : Results.NotFound());
         api.MapPost("/plugins/{id}/enabled", (string id, PluginEnableDto dto, Jarvis.Core.Plugins.PluginManager plugins) =>
         {
             try { plugins.SetEnabled(id, dto.Enabled); return Results.Ok(); }
@@ -792,6 +799,11 @@ public static class Api
         id = p.Id, manifest = p.Manifest, p.Status, p.Source, p.Code, p.Report, p.Error, p.CreatedAt, p.InstalledAt,
         permissions = Jarvis.Core.Plugins.PluginManager.Describe(p.Manifest),
         tools = p.Manifest.Tools.Select(t => new { t.Name, toolName = p.Manifest.ToolName(t), risk = p.Manifest.EffectiveRisk(t).ToString().ToLowerInvariant(), t.Description }),
+        update = p.Update is not { } u ? null : new
+        {
+            manifest = u.Manifest, u.Status, u.Source, u.Code, u.Report, u.Changes, u.MorePermissions,
+            permissions = Jarvis.Core.Plugins.PluginManager.Describe(u.Manifest),
+        },
     };
 
     private static IReadOnlyList<string> Addrs(string? s) =>

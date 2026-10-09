@@ -55,6 +55,7 @@ export function PluginsPage() {
                 <strong className="ellipsis">{p.manifest.name} <span className="meta">{p.manifest.version}</span></strong>
                 <span className="small muted ellipsis" dir="auto">{p.manifest.description}</span>
               </span>
+              {p.update && <Badge tone={p.update.morePermissions ? "warn" : "info"}>update {p.update.manifest.version}</Badge>}
               <Badge tone={tone(p.status)}>{p.status}</Badge>
             </button>
           </li>
@@ -79,9 +80,42 @@ function Import({ onDone, onError }: { onDone: (id: string) => void; onError: (e
   );
 }
 
+/** A newer version waiting: what changes (permissions first), its checks, and approve/discard. The old version keeps running. */
+function UpdateCard({ id, x, onMsg, onDone, onError }: { id: string; x: PluginView; onMsg: (m: string) => void; onDone: () => void; onError: (e: unknown) => void }) {
+  const u = x.update!;
+  const [showCode, setShowCode] = useState(false);
+  const check = (network: boolean) => post(`/plugins/${id}/check`, { network }).then(onDone).catch(onError);
+  const apply = async () => { try { const r = await post<{ message: string }>(`/plugins/${id}/update`, {}); onMsg(r.message); onDone(); } catch (e) { onError(e); } };
+  const hosts = [...u.manifest.permissions.http, ...u.manifest.permissions.httpSend];
+  return (
+    <Card title={`Update to ${u.manifest.version}`} actions={<Badge tone={tone(u.status)}>{u.status}</Badge>}>
+      {u.morePermissions && <div className="note warn small">This version asks for more than the one you approved.</div>}
+      <ul className="bullets small">{u.changes.map((c, i) => <li key={i} className={c.startsWith("NEW") ? "bad" : undefined}>{c}</li>)}</ul>
+      <p className="small muted">{u.permissions}</p>
+      {u.report && (
+        <ul className="list">
+          {u.report.problems.map((pr, i) => <li key={`p${i}`}><span className="small grow bad">{pr}</span></li>)}
+          {u.report.tests.map((t, i) => (
+            <li key={i}><span className="small grow"><span className="mono">{t.tool}</span> — {t.detail}</span>
+              <Badge tone={t.passed ? "good" : t.skipped ? "warn" : "bad"}>{t.passed ? "pass" : t.skipped ? "needs network" : "fail"}</Badge></li>
+          ))}
+        </ul>
+      )}
+      <div className="row wrap">
+        <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> Check</button>
+        {hosts.length > 0 && u.report?.tests.some((t) => t.skipped) && <button className="btn btn-sm" onClick={() => check(true)}><FlaskConical size={14} /> Run tests (reads from {hosts.join(", ")})</button>}
+        {u.status === "ready" && <button className="btn btn-primary btn-sm" onClick={apply}><ShieldCheck size={14} /> Update…</button>}
+        <button className="btn btn-ghost btn-sm" onClick={() => setShowCode((s) => !s)}><Code2 size={14} /> {showCode ? "Hide new code" : "Show new code"}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => del(`/plugins/${id}/update`).then(onDone).catch(onError)}><Trash2 size={13} /> Discard update</button>
+      </div>
+      {showCode && <pre className="file-preview" dir="ltr">{u.code}</pre>}
+    </Card>
+  );
+}
+
 function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onError: (e: unknown) => void }) {
   const p = useLoad(() => get<PluginView>(`/plugins/${id}`), [id]);
-  const approvals = useApprovals().filter((a) => a.tool === "plugin_install");
+  const approvals = useApprovals().filter((a) => a.tool === "plugin_install" || a.tool === "plugin_update");
   const [msg, setMsg] = useState<string | null>(null);
   const [showCode, setShowCode] = useState(false);
   useEvents(["plugins."], () => void p.reload());
@@ -116,6 +150,7 @@ function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onErr
           {x.report.tests.length === 0 && x.report.problems.length === 0 && <p className="small muted">It has no tests.</p>}
         </Card>
       )}
+      {x.update && <UpdateCard id={id} x={x} onMsg={setMsg} onDone={() => void p.reload()} onError={onError} />}
       {approvals.map((a) => <div key={a.id} className="reply-card"><ApprovalCard approval={a} /></div>)}
       <div className="row wrap">
         {(x.status === "draft" || x.status === "failed" || x.status === "ready") && <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> Re-check</button>}

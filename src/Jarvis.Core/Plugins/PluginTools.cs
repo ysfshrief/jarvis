@@ -81,6 +81,21 @@ public sealed class PluginCreateTool(PluginGenerator generator, PluginManager pl
             var (manifest, code) = await generator.GenerateAsync(args.RequireString("description"), ctx.CancellationToken).ConfigureAwait(false);
             var draft = plugins.SaveDraft(manifest, code, "generated");
             var checkd = plugins.Check(draft.Id, ctx.CancellationToken);
+            if (checkd.Update is { } u)
+            {
+                // A new version of something already installed: the old one keeps running until the user approves.
+                var ok = u.Report?.Ok == true;
+                return new ToolResult
+                {
+                    Success = ok,
+                    Message = ok
+                        ? ctx.T($"I wrote version {u.Manifest.Version} of “{u.Manifest.Name}” and it passed its checks. What changes: {string.Join("; ", u.Changes)}. Version {checkd.Manifest.Version} keeps running until you approve the update in Plugins.",
+                                $"كتبت نسخة {u.Manifest.Version} من «{u.Manifest.Name}» وعدّت الاختبارات. اللي هيتغير: {string.Join("؛ ", u.Changes)}. نسخة {checkd.Manifest.Version} شغالة لحد ما توافق على التحديث في الإضافات.")
+                        : ctx.T($"I wrote version {u.Manifest.Version} of “{u.Manifest.Name}”, but it didn't pass its checks; the installed version is unchanged.",
+                                $"كتبت نسخة {u.Manifest.Version} من «{u.Manifest.Name}» بس معدّتش الاختبارات؛ النسخة المتركبة زي ما هي."),
+                    Data = new { plugin = checkd.Id, update = u.Manifest.Version, u.Status, u.Changes, u.Report },
+                };
+            }
             var r = checkd.Report!;
             var summary = r.Ok
                 ? ctx.T($"I wrote the “{checkd.Manifest.Name}” plugin and it passed its checks. {PluginManager.Describe(checkd.Manifest)} It's not installed — review it in Plugins and approve if you want it.",
@@ -124,6 +139,38 @@ public sealed class PluginInstallTool(PluginManager plugins) : ToolBase
     }
 }
 
+public sealed class PluginUpdateTool(PluginManager plugins) : ToolBase
+{
+    public override ToolDefinition Definition { get; } = new()
+    {
+        Name = "plugin_update",
+        Category = "plugins",
+        Risk = RiskLevel.Critical,
+        Description = "Replace an installed plugin with its checked update. Always asks the user, showing what changes.",
+        Parameters = [new("plugin", "string", "Plugin id.", true)],
+    };
+
+    // Changing what an installed capability can do is always the user's call, even when nothing new is asked for.
+    public override RiskAssessment Assess(ToolArgs args, ToolContext ctx)
+    {
+        var p = plugins.Get(args.RequireString("plugin"));
+        if (p?.Update is not { } u) return new(RiskLevel.Critical, "Update a plugin");
+        return new(RiskLevel.Critical, $"Update “{p.Manifest.Name}” {p.Manifest.Version} → {u.Manifest.Version}",
+            (u.MorePermissions ? "It asks for more than before. " : "") + string.Join("; ", u.Changes) + ". " + PluginManager.Describe(u.Manifest));
+    }
+
+    public override Task<ToolResult> ExecuteAsync(ToolArgs args, ToolContext ctx)
+    {
+        try
+        {
+            var p = plugins.ApplyUpdate(args.RequireString("plugin"));
+            return Task.FromResult(ToolResult.Ok(ctx.T($"Updated “{p.Manifest.Name}” to {p.Manifest.Version}.", $"حدّثت «{p.Manifest.Name}» لنسخة {p.Manifest.Version}."),
+                new { plugin = p.Id, version = p.Manifest.Version }));
+        }
+        catch (PluginException ex) { return Task.FromResult(ToolResult.Fail(ex.Message)); }
+    }
+}
+
 public sealed class PluginListTool(PluginManager plugins) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
@@ -139,7 +186,7 @@ public sealed class PluginListTool(PluginManager plugins) : ToolBase
     {
         var list = plugins.List();
         if (list.Count == 0) return Task.FromResult(ToolResult.Ok(ctx.T("No plugins yet. Ask me to make one, e.g. “make a plugin that converts currencies”.", "مفيش إضافات لسه. اطلب مني أعمل واحدة، مثلاً «اعمل إضافة تحول العملات».")));
-        return Task.FromResult(ToolResult.Ok(string.Join("\n", list.Select(p => $"• {p.Manifest.Name} {p.Manifest.Version} — {p.Status}")),
+        return Task.FromResult(ToolResult.Ok(string.Join("\n", list.Select(p => $"• {p.Manifest.Name} {p.Manifest.Version} — {p.Status}{(p.Update is { } u ? $" (update {u.Manifest.Version}: {u.Status})" : "")}")),
             new { plugins = list.Select(p => new { p.Id, p.Manifest.Name, p.Status }) }));
     }
 }

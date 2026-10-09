@@ -33,7 +33,12 @@ public sealed record PluginInfo(
     DateTimeOffset CreatedAt, DateTimeOffset? InstalledAt)
 {
     public string Id => Manifest.Id;
+    /// <summary>A newer version waiting for checks and approval; the installed version keeps running meanwhile.</summary>
+    public PluginUpdate? Update { get; init; }
 }
+
+/// <summary>A pending update and what it would change, in plain words.</summary>
+public sealed record PluginUpdate(PluginManifest Manifest, string Code, string Status, string Source, PluginReport? Report, IReadOnlyList<string> Changes, bool MorePermissions);
 
 /// <summary>
 /// The plugin lifecycle: a draft (written by JARVIS from your description, or imported) is validated, its
@@ -56,7 +61,7 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
         var m = PluginManifest.Parse(manifestJson);
         if (!System.Text.RegularExpressions.Regex.IsMatch(m.Id, "^[a-z0-9][a-z0-9-]{1,39}$")) throw new PluginException("The plugin id is invalid (lowercase letters, digits and dashes).");
         if (Encoding.UTF8.GetByteCount(code) > MaxCodeBytes) throw new PluginException("The plugin code is too large (100 KB max).");
-        if (Get(m.Id) is { Status: PluginStatus.Installed or PluginStatus.Disabled }) throw new PluginException($"“{m.Name}” is already installed. Remove it first to replace it.");
+        if (Get(m.Id) is { Status: PluginStatus.Installed or PluginStatus.Disabled } installed) return SaveUpdate(installed, m, code, source);
         var dir = Path.Combine(Root, m.Id);
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "plugin.json"), JsonSerializer.Serialize(m, PluginManifest.Json));
@@ -87,15 +92,44 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
     public PluginInfo Check(string id, CancellationToken ct, bool allowNetwork = false)
     {
         var p = Get(id) ?? throw new PluginException("No such plugin.");
-        if (p.Status is PluginStatus.Installed or PluginStatus.Disabled) throw new PluginException("It's already installed.");
+        if (p.Status is PluginStatus.Installed or PluginStatus.Disabled)
+        {
+            if (p.Update is null) throw new PluginException("It's already installed.");
+            var updateReport = RunChecks(p.Update.Manifest, p.Update.Code, allowNetwork, ct);
+            Exec("UPDATE plugins SET update_status = $s, update_report = $r, updated_at = $t WHERE id = $id;", c =>
+            {
+                c.Parameters.AddWithValue("$id", id);
+                c.Parameters.AddWithValue("$s", updateReport.Ok ? PluginStatus.Ready : PluginStatus.Failed);
+                c.Parameters.AddWithValue("$r", JsonSerializer.Serialize(updateReport, Json));
+                c.Parameters.AddWithValue("$t", JarvisDatabase.Now());
+            });
+            Changed();
+            return Get(id)!;
+        }
+        var report = RunChecks(p.Manifest, p.Code, allowNetwork, ct);
+        Exec("UPDATE plugins SET status = $s, report = $r, error = NULL, updated_at = $t WHERE id = $id;", c =>
+        {
+            c.Parameters.AddWithValue("$id", id);
+            c.Parameters.AddWithValue("$s", report.Ok ? PluginStatus.Ready : PluginStatus.Failed);
+            c.Parameters.AddWithValue("$r", JsonSerializer.Serialize(report, Json));
+            c.Parameters.AddWithValue("$t", JarvisDatabase.Now());
+        });
+        Changed();
+        return Get(id)!;
+    }
+
+    private PluginReport RunChecks(PluginManifest manifest, string code, bool allowNetwork, CancellationToken ct)
+    {
+        var p = (Manifest: manifest, Code: code);
         var problems = p.Manifest.Problems().ToList();
         var tests = new List<TestOutcome>();
+        sandbox.ClearStorage(PluginSandbox.CheckStorage(manifest.Id));
         if (problems.Count == 0) problems.AddRange(sandbox.Check(p.Manifest, p.Code));
         if (problems.Count == 0)
         {
             foreach (var t in p.Manifest.Tests)
             {
-                var r = sandbox.Run(p.Manifest, p.Code, t.Tool, t.Args, sendAllowed: false, ct, networkAllowed: allowNetwork);
+                var r = sandbox.Run(p.Manifest, p.Code, t.Tool, t.Args, sendAllowed: false, ct, networkAllowed: allowNetwork, storageId: PluginSandbox.CheckStorage(p.Manifest.Id));
                 if (!r.Success && r.Message.StartsWith(PluginSandbox.NetworkOff, StringComparison.Ordinal))
                 {
                     tests.Add(new TestOutcome(t.Tool, false, "Needs the network — run the tests after reviewing the hosts.", r.Log, Skipped: true));
@@ -106,16 +140,8 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
                 tests.Add(new TestOutcome(t.Tool, passed, passed ? r.Message : r.Success ? $"expected “{t.Expect}”, got: {Short(text)}" : r.Message, r.Log));
             }
         }
-        var report = new PluginReport(problems, tests, DateTimeOffset.Now, allowNetwork);
-        Exec("UPDATE plugins SET status = $s, report = $r, error = NULL, updated_at = $t WHERE id = $id;", c =>
-        {
-            c.Parameters.AddWithValue("$id", id);
-            c.Parameters.AddWithValue("$s", report.Ok ? PluginStatus.Ready : PluginStatus.Failed);
-            c.Parameters.AddWithValue("$r", JsonSerializer.Serialize(report, Json));
-            c.Parameters.AddWithValue("$t", JarvisDatabase.Now());
-        });
-        Changed();
-        return Get(id)!;
+        sandbox.ClearStorage(PluginSandbox.CheckStorage(manifest.Id)); // each check starts clean and leaves nothing behind
+        return new PluginReport(problems, tests, DateTimeOffset.Now, allowNetwork);
     }
 
     /// <summary>Installs a ready plugin. Only the critical plugin_install tool calls this, after your approval.</summary>
@@ -134,6 +160,122 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
         activity.Record(ActivityKinds.System, $"Plugin installed: {p.Manifest.Name} {p.Manifest.Version}", status: "ok", details: Describe(p.Manifest));
         Changed();
         return Get(id)!;
+    }
+
+    private PluginInfo SaveUpdate(PluginInfo installed, PluginManifest m, string code, string source)
+    {
+        if (!IsNewer(m.Version, installed.Manifest.Version))
+            throw new PluginException($"“{installed.Manifest.Name}” {installed.Manifest.Version} is installed; an update needs a higher version than that (got {m.Version}).");
+        var dir = Path.Combine(Root, m.Id, "update");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "plugin.json"), JsonSerializer.Serialize(m, PluginManifest.Json));
+        File.WriteAllText(Path.Combine(dir, "main.js"), code);
+        Exec("UPDATE plugins SET update_status = 'draft', update_source = $s, update_hash = $h, update_report = NULL, updated_at = $t WHERE id = $id;", c =>
+        {
+            c.Parameters.AddWithValue("$id", m.Id);
+            c.Parameters.AddWithValue("$s", source);
+            c.Parameters.AddWithValue("$h", Hash(m, code));
+            c.Parameters.AddWithValue("$t", JarvisDatabase.Now());
+        });
+        activity.Record(ActivityKinds.System, $"Plugin update saved: {m.Name} {installed.Manifest.Version} → {m.Version}", status: "ok", details: source);
+        Changed();
+        return Get(m.Id)!;
+    }
+
+    /// <summary>
+    /// Replaces an installed plugin with its checked update. Only the critical plugin_update tool calls this, after
+    /// the user saw what changes. Its storage is kept; its tools are reloaded from the newly approved code.
+    /// </summary>
+    public PluginInfo ApplyUpdate(string id)
+    {
+        var p = Get(id) ?? throw new PluginException("No such plugin.");
+        var u = p.Update ?? throw new PluginException("There's no update waiting for this plugin.");
+        if (u.Status != PluginStatus.Ready) throw new PluginException("Only an update that passed its checks can be installed.");
+        var hash = Hash(u.Manifest, u.Code);
+        if (hash != UpdateHash(id)) throw new PluginException("The update's files changed after it was checked. Check it again.");
+        var dir = Path.Combine(Root, id);
+        UnloadTools(p.Manifest);
+        File.WriteAllText(Path.Combine(dir, "plugin.json"), JsonSerializer.Serialize(u.Manifest, PluginManifest.Json));
+        File.WriteAllText(Path.Combine(dir, "main.js"), u.Code);
+        try { Directory.Delete(Path.Combine(dir, "update"), true); } catch (IOException) { }
+        Exec("""
+            UPDATE plugins SET name = $n, version = $v, code_hash = $h, approved_hash = $h, report = update_report, error = NULL,
+                source = update_source, update_status = NULL, update_source = NULL, update_hash = NULL, update_report = NULL, updated_at = $t
+            WHERE id = $id;
+            """, c =>
+        {
+            c.Parameters.AddWithValue("$id", id);
+            c.Parameters.AddWithValue("$n", u.Manifest.Name);
+            c.Parameters.AddWithValue("$v", u.Manifest.Version);
+            c.Parameters.AddWithValue("$h", hash);
+            c.Parameters.AddWithValue("$t", JarvisDatabase.Now());
+        });
+        var updated = Get(id)!;
+        if (updated.Status == PluginStatus.Installed) Load(updated);
+        activity.Record(ActivityKinds.System, $"Plugin updated: {u.Manifest.Name} {p.Manifest.Version} → {u.Manifest.Version}", status: "ok", details: string.Join("; ", u.Changes));
+        Changed();
+        return updated;
+    }
+
+    public bool DiscardUpdate(string id)
+    {
+        var p = Get(id);
+        if (p?.Update is null) return false;
+        try { Directory.Delete(Path.Combine(Root, id, "update"), true); } catch (IOException) { }
+        Exec("UPDATE plugins SET update_status = NULL, update_source = NULL, update_hash = NULL, update_report = NULL WHERE id = $id;", c => c.Parameters.AddWithValue("$id", id));
+        Changed();
+        return true;
+    }
+
+    /// <summary>What an update changes, permissions first. <c>More</c> is true when it may do anything new.</summary>
+    public static (IReadOnlyList<string> Changes, bool More) Diff(PluginManifest from, PluginManifest to)
+    {
+        var list = new List<string>();
+        var more = false;
+        void Hosts(IReadOnlyCollection<string> a, IReadOnlyCollection<string> b, string verb)
+        {
+            foreach (var h in b.Except(a, StringComparer.OrdinalIgnoreCase)) { list.Add($"NEW: may {verb} {h}"); more = true; }
+            foreach (var h in a.Except(b, StringComparer.OrdinalIgnoreCase)) list.Add($"no longer {verb} {h}");
+        }
+        Hosts(from.Permissions.Http, to.Permissions.Http, "read from");
+        Hosts(from.Permissions.HttpSend, to.Permissions.HttpSend, "SEND data to");
+        if (!from.Permissions.Storage && to.Permissions.Storage) { list.Add("NEW: may keep its own storage"); more = true; }
+        if (from.Permissions.Storage && !to.Permissions.Storage) list.Add("no longer uses storage");
+        if (!from.Permissions.Notify && to.Permissions.Notify) { list.Add("NEW: may show notifications"); more = true; }
+        if (from.Permissions.Notify && !to.Permissions.Notify) list.Add("no longer shows notifications");
+        foreach (var t in to.Tools)
+        {
+            var old = from.Tools.FirstOrDefault(o => o.Name == t.Name);
+            var risk = to.EffectiveRisk(t);
+            if (old is null) { list.Add($"new tool {t.Name} ({risk.ToString().ToLowerInvariant()})"); more = true; }
+            else if (from.EffectiveRisk(old) != risk)
+            {
+                list.Add($"{t.Name}: {from.EffectiveRisk(old).ToString().ToLowerInvariant()} → {risk.ToString().ToLowerInvariant()}");
+                if (risk < from.EffectiveRisk(old)) more = true; // a lower grade means fewer confirmations
+            }
+        }
+        foreach (var t in from.Tools.Where(o => to.Tools.All(n => n.Name != o.Name))) list.Add($"removed tool {t.Name}");
+        if (list.Count == 0) list.Add("Same permissions and tools as the installed version.");
+        list.Insert(0, $"version {from.Version} → {to.Version}");
+        return (list, more);
+    }
+
+    internal static bool IsNewer(string candidate, string current)
+    {
+        static int[] Parts(string v) => v.Split('-', '+')[0].Split('.').Select(x => int.TryParse(x, out var n) ? n : 0).Concat([0, 0, 0]).Take(3).ToArray();
+        var a = Parts(candidate);
+        var b = Parts(current);
+        for (var i = 0; i < 3; i++) if (a[i] != b[i]) return a[i] > b[i];
+        return false;
+    }
+
+    private string? UpdateHash(string id)
+    {
+        using var conn = db.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT update_hash FROM plugins WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteScalar() as string;
     }
 
     public void SetEnabled(string id, bool enabled)
@@ -184,7 +326,7 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
         var list = new List<PluginInfo>();
         using var conn = db.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT id, status, source, report, error, created_at, installed_at FROM plugins ORDER BY created_at;";
+        cmd.CommandText = "SELECT id, status, source, report, error, created_at, installed_at, update_status, update_source, update_report FROM plugins ORDER BY created_at;";
         using var r = cmd.ExecuteReader();
         while (r.Read())
         {
@@ -202,9 +344,24 @@ public sealed class PluginManager(JarvisPaths paths, JarvisDatabase db, PluginSa
                 logger.LogWarning("Plugin {Id} files are unreadable: {Error}", id, ex.Message);
                 continue;
             }
+            PluginUpdate? update = null;
+            if (!r.IsDBNull(7))
+            {
+                try
+                {
+                    var um = PluginManifest.Parse(File.ReadAllText(Path.Combine(dir, "update", "plugin.json")));
+                    var (changes, more) = Diff(manifest, um);
+                    update = new PluginUpdate(um, File.ReadAllText(Path.Combine(dir, "update", "main.js")), r.GetString(7), r.IsDBNull(8) ? "" : r.GetString(8),
+                        r.IsDBNull(9) ? null : JsonSerializer.Deserialize<PluginReport>(r.GetString(9), Json), changes, more);
+                }
+                catch (Exception ex) when (ex is IOException or PluginException or UnauthorizedAccessException)
+                {
+                    logger.LogWarning("Plugin {Id} update files are unreadable: {Error}", id, ex.Message);
+                }
+            }
             list.Add(new PluginInfo(manifest, r.GetString(1), r.GetString(2), code,
                 r.IsDBNull(3) ? null : JsonSerializer.Deserialize<PluginReport>(r.GetString(3), Json), r.IsDBNull(4) ? null : r.GetString(4),
-                DateTimeOffset.Parse(r.GetString(5)), r.IsDBNull(6) ? null : DateTimeOffset.Parse(r.GetString(6))));
+                DateTimeOffset.Parse(r.GetString(5)), r.IsDBNull(6) ? null : DateTimeOffset.Parse(r.GetString(6))) { Update = update });
         }
         return list;
     }

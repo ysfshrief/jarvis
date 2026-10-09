@@ -135,6 +135,7 @@ public static class CoreServices
         services.AddSingleton<Plugins.PluginGenerator>();
         AddTool<Plugins.PluginCreateTool>(services);
         AddTool<Plugins.PluginInstallTool>(services);
+        AddTool<Plugins.PluginUpdateTool>(services);
         AddTool<Plugins.PluginListTool>(services);
         services.AddSingleton<Learning.IResearchSources, Learning.ToolResearchSources>();
         services.AddSingleton<Learning.WritingSamples>();

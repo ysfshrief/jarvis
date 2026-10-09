@@ -79,7 +79,7 @@ public sealed class PluginTests
         Assert.Equal(RiskLevel.Safe, step.Risk);
         await exec.ExecuteAsync("plugin_text_tools_note", ToolArgs.From(new { text = "a" }), host.Ctx());
         var (second, _) = await exec.ExecuteAsync("plugin_text_tools_note", ToolArgs.From(new { text = "b" }), host.Ctx());
-        Assert.Contains("note 3", second.Message); // the test run during the check counted as the first
+        Assert.Contains("note 2", second.Message); // checks ran in throwaway storage, so real use starts from zero
 
         plugins.SetEnabled("text-tools", false);
         Assert.Null(host.Get<IToolRegistry>().Find("plugin_text_tools_word_count"));
@@ -230,4 +230,89 @@ public sealed class PluginTests
         }
         finally { listener.Stop(); listener.Close(); }
     }
+
+    private static async Task Install(TestHost host, string manifest, string code)
+    {
+        var plugins = host.Get<PluginManager>();
+        var d = plugins.SaveDraft(manifest, code, "imported");
+        Assert.Equal(PluginStatus.Ready, plugins.Check(d.Id, default).Status);
+        var t = host.Get<ToolExecutor>().ExecuteAsync("plugin_install", ToolArgs.From(new { plugin = d.Id }), host.Ctx());
+        await host.AnswerNextApproval(approve: true);
+        Assert.True((await t).Result.Success);
+    }
+
+    [Fact]
+    public async Task Updates_are_checked_shown_as_a_permission_diff_and_need_approval()
+    {
+        using var host = new TestHost(s => s.Permissions.AutoApproveSensitive = true);
+        await Install(host, TextToolsManifest, TextToolsCode);
+        var plugins = host.Get<PluginManager>();
+        var exec = host.Get<ToolExecutor>();
+        await exec.ExecuteAsync("plugin_text_tools_note", ToolArgs.From(new { text = "kept" }), host.Ctx());
+
+        // Version 1.1.0 asks to read from a website and changes how words are counted.
+        var v11 = TextToolsManifest.Replace("\"1.0.0\"", "\"1.1.0\"").Replace("\"storage\": true", "\"storage\": true, \"http\": [\"api.example.com\"]");
+        var code11 = TextToolsCode.Replace("n + \" words\"", "n + \" words (v1.1)\"");
+        var saved = plugins.SaveDraft(v11, code11, "imported");
+        Assert.Equal(PluginStatus.Installed, saved.Status); // the installed version keeps running
+        Assert.Equal("draft", saved.Update!.Status);
+        Assert.True(saved.Update.MorePermissions);
+        Assert.Contains("NEW: may read from api.example.com", saved.Update.Changes);
+        Assert.Contains("version 1.0.0 → 1.1.0", saved.Update.Changes);
+
+        Assert.Equal(PluginStatus.Ready, plugins.Check("text-tools", default).Update!.Status);
+        var (still, _) = await exec.ExecuteAsync("plugin_text_tools_word_count", ToolArgs.From(new { text = "a b" }), host.Ctx());
+        Assert.Equal("2 words", still.Message); // old code until approved
+
+        var refused = exec.ExecuteAsync("plugin_update", ToolArgs.From(new { plugin = "text-tools" }), host.Ctx());
+        var ask = await host.AnswerNextApproval(approve: false);
+        Assert.Equal(RiskLevel.Critical, ask.Risk);
+        Assert.Contains("It asks for more than before", ask.Reason);
+        Assert.Contains("api.example.com", ask.Reason);
+        Assert.Equal(ToolStatus.Denied, (await refused).Result.Status);
+
+        var apply = exec.ExecuteAsync("plugin_update", ToolArgs.From(new { plugin = "text-tools" }), host.Ctx());
+        await host.AnswerNextApproval(approve: true);
+        Assert.True((await apply).Result.Success);
+        var updated = plugins.Get("text-tools")!;
+        Assert.Equal("1.1.0", updated.Manifest.Version);
+        Assert.Null(updated.Update);
+        var (now, _) = await exec.ExecuteAsync("plugin_text_tools_word_count", ToolArgs.From(new { text = "a b" }), host.Ctx());
+        Assert.Equal("2 words (v1.1)", now.Message);
+        var (note, _) = await exec.ExecuteAsync("plugin_text_tools_note", ToolArgs.From(new { text = "again" }), host.Ctx());
+        Assert.Equal("Saved note 2.", note.Message); // storage kept across the update
+        Assert.Equal(0, plugins.LoadInstalled() - 1); // still loads after a restart: the new code is the approved code
+    }
+
+    [Fact]
+    public async Task Updates_must_be_newer_and_failing_or_changed_ones_are_not_applied()
+    {
+        using var host = new TestHost();
+        await Install(host, TextToolsManifest, TextToolsCode);
+        var plugins = host.Get<PluginManager>();
+        Assert.Throws<PluginException>(() => plugins.SaveDraft(TextToolsManifest, TextToolsCode, "imported")); // same version
+
+        var broken = plugins.SaveDraft(TextToolsManifest.Replace("\"1.0.0\"", "\"1.0.1\""), TextToolsCode.Replace("n + \" words\"", "\"none\""), "imported");
+        Assert.Equal(PluginStatus.Failed, plugins.Check(broken.Id, default).Update!.Status);
+        Assert.Throws<PluginException>(() => plugins.ApplyUpdate("text-tools"));
+
+        // A good update whose files are edited after the check isn't applied.
+        plugins.SaveDraft(TextToolsManifest.Replace("\"1.0.0\"", "\"1.0.2\""), TextToolsCode, "imported");
+        plugins.Check("text-tools", default);
+        File.AppendAllText(Path.Combine(plugins.Root, "text-tools", "update", "main.js"), "\nfunction extra() {}");
+        Assert.Throws<PluginException>(() => plugins.ApplyUpdate("text-tools"));
+        Assert.Equal("1.0.0", plugins.Get("text-tools")!.Manifest.Version);
+
+        Assert.True(plugins.DiscardUpdate("text-tools"));
+        Assert.Null(plugins.Get("text-tools")!.Update);
+    }
+
+    [Theory]
+    [InlineData("1.0.1", "1.0.0", true)]
+    [InlineData("1.10.0", "1.9.0", true)]
+    [InlineData("2.0.0", "10.0.0", false)]
+    [InlineData("1.0.0", "1.0.0", false)]
+    [InlineData("1.0", "1.0.0", false)]
+    public void Compares_versions(string candidate, string current, bool newer) =>
+        Assert.Equal(newer, PluginManager.IsNewer(candidate, current));
 }

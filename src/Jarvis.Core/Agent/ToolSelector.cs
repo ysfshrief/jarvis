@@ -38,7 +38,7 @@ public static class ToolSelector
         (["record", "recording", "transcript", "decide", "action items", "meeting notes", "سجل", "التسجيل", "اتفقنا"],
             ["meeting_record_start", "meeting_record_stop", "meeting_notes"]),
         (["research", "learn about", "read up", "learn from", "sources", "اتعلم", "بحث عن"], ["research_topic", "learn_from_source"]),
-        (["plugin", "extension", "add-on", "make a tool", "new skill", "اضافه", "بلجن"], ["plugin_create", "plugin_install", "plugin_list"]),
+        (["plugin", "extension", "add-on", "make a tool", "new skill", "اضافه", "بلجن"], ["plugin_create", "plugin_install", "plugin_update", "plugin_list"]),
         (["calendar", "schedule", "meeting", "appointment", "agenda", "event", "call", "tomorrow", "today", "prepare", "اجتماع", "ميتنج", "ميعاد", "مواعيد", "اجنده", "بكره", "جهزني"],
             ["calendar_agenda", "calendar_next", "calendar_add", "calendar_delete", "meeting_prep"]),
         (["who", "works at", "relationship", "manager", "client", "مين", "شغال", "مدير", "عميل"], ["memory_relate"]),

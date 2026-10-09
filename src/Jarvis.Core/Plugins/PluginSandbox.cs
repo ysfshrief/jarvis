@@ -44,7 +44,7 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
         var problems = new List<string>();
         try
         {
-            var engine = Create(m, code, sendAllowed: false, [], CancellationToken.None, networkAllowed: false);
+            var engine = Create(m, code, sendAllowed: false, [], CancellationToken.None, networkAllowed: false, CheckStorage(m.Id));
             foreach (var t in m.Tools)
                 if (engine.Evaluate($"typeof {t.Name}").AsString() != "function") problems.Add($"the code doesn't define function {t.Name}(args).");
         }
@@ -53,12 +53,13 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
     }
 
     /// <summary>Runs one tool. <paramref name="sendAllowed"/> is false for pre-approval tests: nothing can be sent anywhere.</summary>
-    public SandboxResult Run(PluginManifest m, string code, string tool, JsonObject args, bool sendAllowed, CancellationToken ct, bool networkAllowed = true)
+    /// <param name="storageId">Where its storage lives; checks use a throwaway namespace so they never touch real data.</param>
+    public SandboxResult Run(PluginManifest m, string code, string tool, JsonObject args, bool sendAllowed, CancellationToken ct, bool networkAllowed = true, string? storageId = null)
     {
         var log = new List<string>();
         try
         {
-            var engine = Create(m, code, sendAllowed, log, ct, networkAllowed);
+            var engine = Create(m, code, sendAllowed, log, ct, networkAllowed, storageId ?? m.Id);
             engine.SetValue("__args", args.ToJsonString());
             var json = engine.Evaluate($"JSON.stringify((function () {{ const r = {tool}(JSON.parse(__args)); return r === undefined ? null : r; }})())").AsString();
             var node = JsonNode.Parse(json);
@@ -78,7 +79,9 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
 
     public const string NetworkOff = "the network is off during automatic checks";
 
-    private Engine Create(PluginManifest m, string code, bool sendAllowed, List<string> log, CancellationToken ct, bool networkAllowed)
+    public static string CheckStorage(string pluginId) => pluginId + "#check";
+
+    private Engine Create(PluginManifest m, string code, bool sendAllowed, List<string> log, CancellationToken ct, bool networkAllowed, string storageId)
     {
         var requests = 0;
         var engine = new Engine(o => o
@@ -117,8 +120,8 @@ public sealed class PluginSandbox(HttpClient http, JarvisDatabase db, Notificati
 
         engine.SetValue("__get", new Func<string, string>(u => Fetch(u, null)));
         engine.SetValue("__post", new Func<string, string, string>((u, b) => Fetch(u, b)));
-        engine.SetValue("__sget", new Func<string, string?>(k => m.Permissions.Storage ? StorageGet(m.Id, k) : throw new PluginException("this plugin has no storage permission.")));
-        engine.SetValue("__sset", new Action<string, string?>((k, v) => { if (!m.Permissions.Storage) throw new PluginException("this plugin has no storage permission."); StorageSet(m.Id, k, v); }));
+        engine.SetValue("__sget", new Func<string, string?>(k => m.Permissions.Storage ? StorageGet(storageId, k) : throw new PluginException("this plugin has no storage permission.")));
+        engine.SetValue("__sset", new Action<string, string?>((k, v) => { if (!m.Permissions.Storage) throw new PluginException("this plugin has no storage permission."); StorageSet(storageId, k, v); }));
         engine.SetValue("__notify", new Action<string>(t =>
         {
             if (!m.Permissions.Notify) throw new PluginException("this plugin has no notification permission.");

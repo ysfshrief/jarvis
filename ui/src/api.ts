@@ -502,6 +502,10 @@ export interface PluginView {
   permissions: string;
   manifest: { id: string; name: string; version: string; description: string; author?: string | null; permissions: { http: string[]; httpSend: string[]; notify: boolean; storage: boolean } };
   tools: { name: string; toolName: string; risk: string; description: string }[];
+  update?: {
+    manifest: PluginView["manifest"]; status: string; source: string; code: string; report?: PluginReport | null;
+    changes: string[]; morePermissions: boolean; permissions: string;
+  } | null;
 }
 
 export interface PairedDevice { id: string; name: string; createdAt: string; lastSeen: string | null; lastAddress: string | null; revokedAt: string | null }
