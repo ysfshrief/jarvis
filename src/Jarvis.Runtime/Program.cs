@@ -79,6 +79,9 @@ try
     builder.Services.AddHostedService<FileIndexService>();
     builder.Services.AddHostedService<InboxSyncService>();
     builder.Services.AddHostedService<CalendarMonitorService>();
+    builder.Services.AddSingleton<CompanionCertificate>();
+    builder.Services.AddSingleton<CompanionServer>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<CompanionServer>());
 
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     {
@@ -94,7 +97,7 @@ try
     // Port: settings (or --port), falling forward if something else already uses it.
     var settingsPeek = new SettingsStore(paths, new Microsoft.Extensions.Logging.Abstractions.NullLogger<SettingsStore>());
     var requestedPort = int.TryParse(ArgValue(args, "--port"), out var p) ? p : settingsPeek.Current.Runtime.Port;
-    var port = FindFreePort(requestedPort);
+    var port = FindFreePort(requestedPort, avoid: settingsPeek.Current.Companion.Port); // never take the phone companion's port
     builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Loopback, port));
 
     var app = builder.Build();
@@ -151,10 +154,11 @@ static string? ArgValue(string[] args, string name)
 static string ShortHash(string s) =>
     Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(s.ToLowerInvariant())))[..12];
 
-static int FindFreePort(int preferred)
+static int FindFreePort(int preferred, int avoid)
 {
     for (var candidate = preferred; candidate < preferred + 20; candidate++)
     {
+        if (candidate == avoid) continue;
         try
         {
             var l = new TcpListener(IPAddress.Loopback, candidate);

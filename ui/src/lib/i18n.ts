@@ -39,6 +39,11 @@ const AR: Record<string, string> = {
   // pages
   "Every switch here changes how JARVIS behaves right away once saved.": "كل اختيار هنا بيغير تصرف جارفيس أول ما تحفظ.",
   "Save changes": "احفظ التغييرات", Discard: "تجاهل", "Unsaved changes": "تغييرات مش محفوظة", Saved: "اتحفظ",
+  Devices: "الأجهزة", "Phone companion": "رفيق الموبايل", "Pair a phone": "اربط موبايل", "Paired phones": "الموبايلات المربوطة", "Show pairing code": "اعرض كود الربط",
+  "Allow paired phones": "اسمح للموبايلات المربوطة", "Phones may approve or refuse actions": "الموبايل يقدر يوافق أو يرفض", "No phones paired.": "مفيش موبايلات مربوطة.",
+  "Not running": "مش شغال", Off: "مقفول", Remove: "شيل", paired: "اتربط", "last seen": "آخر ظهور", Port: "البورت",
+  "Turn on the phone companion and save first.": "شغّل رفيق الموبايل واحفظ الأول.", "Remove this phone? It will need to pair again.": "تشيل الموبايل ده؟ هيحتاج يتربط تاني.",
+  "Anything a phone asks for that changes something on this PC always waits for your confirmation, even if you normally allow it.": "أي حاجة الموبايل يطلبها وتغير حاجة على الكمبيوتر بتستنى تأكيدك دايماً، حتى لو عادةً بتسمح بيها.",
   General: "عام", Security: "الأمان", Appearance: "الشكل", Shortcuts: "الاختصارات", "Tools & plugins": "الأدوات والإضافات", Privacy: "الخصوصية",
 };
 

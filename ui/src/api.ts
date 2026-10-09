@@ -340,6 +340,7 @@ export interface Settings {
   permissions: { autoApproveSensitive: boolean; toolOverrides: Record<string, string>; approvalTimeoutSeconds: number };
   calendar: { reminderMinutes: number; syncMinutes: number };
   inbox: { syncMinutes: number; initialDays: number; notifyUrgent: boolean; vipSenders: string[] };
+  companion: { enabled: boolean; port: number; allowApprovals: boolean };
   web: { browserEnabled: boolean; browserPath: string; headless: boolean; allowLocalPages: boolean };
   files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
   memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean };
@@ -502,3 +503,7 @@ export interface PluginView {
   manifest: { id: string; name: string; version: string; description: string; author?: string | null; permissions: { http: string[]; httpSend: string[]; notify: boolean; storage: boolean } };
   tools: { name: string; toolName: string; risk: string; description: string }[];
 }
+
+export interface PairedDevice { id: string; name: string; createdAt: string; lastSeen: string | null; lastAddress: string | null; revokedAt: string | null }
+export interface DevicesStatus { enabled: boolean; running: boolean; port: number; error: string | null; addresses: string[]; devices: PairedDevice[] }
+export interface PairingInfo { code: string; expires: string; url: string; fingerprint: string; link: string; appLink: string }

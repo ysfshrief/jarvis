@@ -368,4 +368,65 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/calendar/events", new { title = "", start = DateTimeOffset.Now })).StatusCode);
         (await c.DeleteAsync($"/api/calendar/events/{id}")).EnsureSuccessStatusCode();
     }
+
+    [Fact]
+    public async Task Paired_phone_reaches_only_the_companion_api_over_pinned_tls()
+    {
+        var c = _f.Authed();
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsync("/api/devices/pairing", null)).StatusCode); // off by default
+
+        var free = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        free.Start();
+        var port = ((IPEndPoint)free.LocalEndpoint).Port;
+        free.Stop();
+        await SetCompanion(c, true, port);
+        try
+        {
+            var pairing = await (await c.PostAsync("/api/devices/pairing", null)).Content.ReadFromJsonAsync<JsonElement>();
+            var fingerprint = pairing.GetProperty("fingerprint").GetString()!;
+            // The phone trusts exactly the certificate whose fingerprint it was shown, nothing else.
+            using var handler = new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (_, cert, _, _) =>
+                    cert is not null && string.Join(':', System.Security.Cryptography.SHA256.HashData(cert.RawData).Select(b => b.ToString("X2"))) == fingerprint,
+            };
+            using var phone = new HttpClient(handler) { BaseAddress = new Uri($"https://127.0.0.1:{port}") };
+
+            Assert.Equal(HttpStatusCode.NotFound, (await phone.GetAsync("/api/status")).StatusCode); // the dashboard API isn't exposed
+            Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/companion/api/status")).StatusCode);
+            var paired = await phone.PostAsJsonAsync("/companion/api/pair", new { code = pairing.GetProperty("code").GetString(), deviceName = "Test phone" });
+            paired.EnsureSuccessStatusCode();
+            var token = (await paired.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("token").GetString();
+            phone.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            Assert.Equal("JARVIS", (await phone.GetFromJsonAsync<JsonElement>("/companion/api/status")).GetProperty("name").GetString());
+            var chat = await (await phone.PostAsJsonAsync("/companion/api/chat", new { text = "add task Call the bank" })).Content.ReadFromJsonAsync<JsonElement>();
+            Assert.True(chat.GetProperty("success").GetBoolean());
+            Assert.Contains("Call the bank", chat.GetProperty("reply").GetString());
+
+            var devices = await c.GetFromJsonAsync<JsonElement>("/api/devices");
+            var id = devices.GetProperty("devices").EnumerateArray().Single(d => d.GetProperty("name").GetString() == "Test phone").GetProperty("id").GetString();
+            (await c.DeleteAsync($"/api/devices/{id}")).EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.Unauthorized, (await phone.GetAsync("/companion/api/status")).StatusCode);
+        }
+        finally { await SetCompanion(c, false, port); }
+    }
+
+    private static async Task SetCompanion(HttpClient c, bool enabled, int port)
+    {
+        var doc = System.Text.Json.Nodes.JsonNode.Parse(await c.GetStringAsync("/api/settings"))!;
+        doc["companion"]!["enabled"] = enabled;
+        doc["companion"]!["port"] = port;
+        (await c.PutAsync("/api/settings", new StringContent(doc.ToJsonString(), System.Text.Encoding.UTF8, "application/json"))).EnsureSuccessStatusCode();
+        // The server starts/stops in the background after the settings change.
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        JsonElement status;
+        do
+        {
+            status = await c.GetFromJsonAsync<JsonElement>("/api/devices");
+            if (status.GetProperty("running").GetBoolean() == enabled) return;
+            await Task.Delay(100);
+        } while (DateTime.UtcNow < deadline);
+        Assert.Fail($"Companion server didn't {(enabled ? "start" : "stop")}: {status}");
+    }
 }

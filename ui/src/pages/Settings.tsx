@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
+import QRCode from "qrcode";
 import {
-  AtSign, Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
+  AtSign, Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Smartphone, Trash2, Undo2,
 } from "lucide-react";
-import { del, get, post, put, type BrowserStatus, type InboxStatus, type MailAccountConfig, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
+import { del, get, post, put, type BrowserStatus, type DevicesStatus, type PairingInfo, type InboxStatus, type MailAccountConfig, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
-import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, useLoad } from "../components/ui";
+import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, timeAgo, useLoad } from "../components/ui";
 import { applyAppearance, settingsStore } from "../lib/settings";
 import { playCue, type SoundKind } from "../lib/sounds";
 import { tr } from "../lib/i18n";
@@ -21,6 +22,7 @@ const SECTIONS = [
   { id: "files", label: "Files", icon: FolderSearch },
   { id: "accounts", label: "Accounts", icon: AtSign },
   { id: "web", label: "Web", icon: Globe },
+  { id: "devices", label: "Devices", icon: Smartphone },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -107,6 +109,7 @@ export function SettingsPage() {
           {section === "files" && <FilesSettings {...p} />}
           {section === "accounts" && <AccountsSettings {...p} />}
           {section === "web" && <WebSettings {...p} />}
+          {section === "devices" && <DevicesSettings {...p} />}
           {section === "security" && <Security {...p} />}
           {section === "notifications" && <Notifications {...p} />}
           {section === "appearance" && <AppearanceSection {...p} />}
@@ -660,6 +663,79 @@ function Plugins() {
         </table>
       </div>
     </Card>
+  );
+}
+
+function DevicesSettings({ s, set }: P) {
+  const status = useLoad(() => get<DevicesStatus>("/devices"));
+  const [pairing, setPairing] = useState<PairingInfo | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  useEvents(["devices."], () => { void status.reload(); setPairing(null); });
+  useEffect(() => {
+    if (!pairing) { setQr(null); return; }
+    // The QR holds the app link (URL, code and certificate fingerprint); the browser page link is shown below it.
+    void QRCode.toDataURL(pairing.appLink, { margin: 1, width: 240, errorCorrectionLevel: "M" }).then(setQr);
+    const left = new Date(pairing.expires).getTime() - Date.now();
+    const t = setTimeout(() => setPairing(null), Math.max(0, left));
+    return () => clearTimeout(t);
+  }, [pairing]);
+  const d = status.data;
+  const savedEnabled = d?.enabled ?? false;
+  const pair = async () => {
+    try { setPairing(await post<PairingInfo>("/devices/pairing")); setError(null); }
+    catch (e) { setError(e); }
+  };
+  const active = d?.devices.filter((x) => !x.revokedAt) ?? [];
+  return (
+    <>
+      <Card title={tr("Phone companion")}>
+        <p className="small muted">
+          {tr("Use JARVIS from your phone on the same Wi-Fi: today's briefing, approvals, alerts and chat. Off by default. When on, a second, separate server listens on your network with JARVIS's own certificate; only phones you pair (with a one-time code shown here) can use it, and you can remove any phone at any time. The dashboard and full API still only accept this PC.")}
+        </p>
+        <Toggle label={tr("Allow paired phones")} hint={tr("Starts the companion server after you save.")} checked={s.companion.enabled} onChange={(v) => set((x) => { x.companion.enabled = v; })} />
+        <Toggle label={tr("Phones may approve or refuse actions")} hint={tr("Off = phones only see what's waiting; you approve here.")} checked={s.companion.allowApprovals} onChange={(v) => set((x) => { x.companion.allowApprovals = v; })} />
+        <Field label={tr("Port")} hint={tr("Windows may ask to allow JARVIS through the firewall on private networks.")}>
+          <input className="input" type="number" min={1024} max={65535} value={s.companion.port} onChange={(e) => set((x) => { x.companion.port = Number(e.target.value); })} style={{ width: 120 }} />
+        </Field>
+        <div className="note small">{tr("Anything a phone asks for that changes something on this PC always waits for your confirmation, even if you normally allow it.")}</div>
+        <div className="row wrap">
+          {d?.running ? <Badge tone="good">{tr("Listening")} · {d.addresses.join(", ") || "—"} : {d.port}</Badge>
+            : savedEnabled ? <Badge tone="bad">{tr("Not running")}</Badge> : <Badge>{tr("Off")}</Badge>}
+          {d?.error && <span className="small" style={{ color: "var(--bad)" }}>{d.error}</span>}
+        </div>
+      </Card>
+      <Card title={tr("Pair a phone")} actions={<button className="btn btn-primary btn-sm" disabled={!d?.running} onClick={pair}><Smartphone size={14} /> {tr("Show pairing code")}</button>}>
+        {!d?.running && <p className="small muted">{tr("Turn on the phone companion and save first.")}</p>}
+        <ErrorNote error={error} />
+        {pairing && (
+          <div className="pairing">
+            {qr && <img src={qr} width={240} height={240} alt={tr("Pairing QR code")} className="pairing-qr" />}
+            <div className="stack">
+              <p className="small">{tr("Scan with the JARVIS Android app, or open the link on your phone and enter the code. The code works once, for five minutes.")}</p>
+              <div className="pairing-code mono">{pairing.code}</div>
+              <p className="small mono" dir="ltr">{pairing.link}</p>
+              <p className="small muted">
+                {tr("The phone's browser will warn that the certificate isn't trusted — JARVIS makes its own. Check the fingerprint matches before continuing:")}
+              </p>
+              <p className="small mono" dir="ltr" style={{ wordBreak: "break-all" }}>{pairing.fingerprint}</p>
+            </div>
+          </div>
+        )}
+      </Card>
+      <Card title={tr("Paired phones")}>
+        {active.length === 0 ? <p className="small muted">{tr("No phones paired.")}</p> : (
+          <ul className="list">
+            {active.map((x) => (
+              <li key={x.id}>
+                <span className="grow"><strong>{x.name}</strong> <span className="meta">{tr("paired")} {timeAgo(x.createdAt)} · {tr("last seen")} {timeAgo(x.lastSeen)}{x.lastAddress ? ` · ${x.lastAddress}` : ""}</span></span>
+                <ConfirmButton className="btn btn-ghost btn-sm" prompt={`${tr("Remove this phone? It will need to pair again.")} (${x.name})`} onConfirm={async () => { await del(`/devices/${x.id}`); void status.reload(); }}><Trash2 size={13} /> {tr("Remove")}</ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </>
   );
 }
 

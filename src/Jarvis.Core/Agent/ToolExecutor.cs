@@ -69,6 +69,9 @@ public sealed class ToolExecutor(
                 Outcome = PermissionOutcome.RequireApproval,
                 Reason = $"Proposed after reading untrusted content ({ctx.Turn.UntrustedSource}); confirming it's what you want.",
             };
+        // A paired phone can be lost or borrowed: what it asks for that changes anything is always confirmed.
+        else if (decision.Outcome == PermissionOutcome.Allow && decision.Risk >= RiskLevel.Sensitive && ctx.Via == "remote")
+            decision = decision with { Outcome = PermissionOutcome.RequireApproval, Reason = "Requested from a paired phone; confirming it's you." };
 
         if (decision.Outcome == PermissionOutcome.Deny)
         {

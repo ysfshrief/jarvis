@@ -510,5 +510,17 @@ public sealed class JarvisDatabase
             PRIMARY KEY (plugin_id, key)
         );
         """,
+        // v9: paired companion devices (phones). Only a hash of each device token is kept.
+        """
+        CREATE TABLE devices (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            last_seen TEXT,
+            last_address TEXT,
+            revoked_at TEXT
+        );
+        """,
     ];
 }

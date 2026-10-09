@@ -25,6 +25,16 @@ public sealed class JarvisSettings
     public InboxSettings Inbox { get; set; } = new();
     public CalendarSettings Calendar { get; set; } = new();
     public MeetingSettings Meetings { get; set; } = new();
+    public CompanionSettings Companion { get; set; } = new();
+}
+
+public sealed class CompanionSettings
+{
+    /// <summary>Let paired phones on your network talk to JARVIS. Off by default: the API is otherwise this-PC-only.</summary>
+    public bool Enabled { get; set; }
+    public int Port { get; set; } = 47322;
+    /// <summary>Paired phones may approve or refuse pending actions.</summary>
+    public bool AllowApprovals { get; set; } = true;
 }
 
 public sealed class MeetingSettings

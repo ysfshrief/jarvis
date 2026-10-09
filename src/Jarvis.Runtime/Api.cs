@@ -467,6 +467,34 @@ public static class Api
         });
         api.MapDelete("/plugins/{id}", (string id, Jarvis.Core.Plugins.PluginManager plugins) => plugins.Remove(id) ? Results.Ok() : Results.NotFound());
 
+        // ---- Phone companion ----
+        api.MapGet("/devices", (Jarvis.Core.Companion.DeviceStore devices, CompanionServer server, ISettingsStore settings) => Results.Ok(new
+        {
+            enabled = settings.Current.Companion.Enabled, running = server.Running, port = settings.Current.Companion.Port, error = server.Error,
+            addresses = CompanionServer.LanAddresses().Select(a => a.ToString()), devices = devices.List(),
+        }));
+        // A one-time code (5 minutes) plus everything a phone needs to pair and pin JARVIS's certificate.
+        api.MapPost("/devices/pairing", (Jarvis.Core.Companion.DeviceStore devices, CompanionServer server, CompanionCertificate cert, ISettingsStore settings) =>
+        {
+            if (!server.Running) return Results.BadRequest(new { error = server.Error ?? "Turn on the phone companion first." });
+            var (code, expires) = devices.NewPairingCode();
+            var ip = CompanionServer.LanAddresses().FirstOrDefault()?.ToString() ?? Environment.MachineName;
+            var url = $"https://{ip}:{server.Port}";
+            var fp = cert.Fingerprint();
+            return Results.Ok(new
+            {
+                code, expires, url, fingerprint = fp,
+                link = $"{url}/companion#pair={code}",
+                appLink = $"jarvis://pair?u={Uri.EscapeDataString(url)}&c={code}&fp={Uri.EscapeDataString(fp)}",
+            });
+        });
+        api.MapDelete("/devices/{id}", (string id, Jarvis.Core.Companion.DeviceStore devices, ActivityLog log) =>
+        {
+            if (!devices.Revoke(id)) return Results.NotFound();
+            log.Record(ActivityKinds.System, "Phone removed", status: "ok");
+            return Results.Ok();
+        });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>

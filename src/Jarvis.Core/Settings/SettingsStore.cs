@@ -136,6 +136,8 @@ public sealed class SettingsStore : ISettingsStore
         s.Inbox ??= new();
         s.Calendar ??= new();
         s.Meetings ??= new();
+        s.Companion ??= new();
+        if (s.Companion.Port is < 1024 or > 65535) s.Companion.Port = 47322;
         s.Meetings.MaxMinutes = Math.Clamp(s.Meetings.MaxMinutes, 5, 600);
         s.Calendar.ReminderMinutes = Math.Clamp(s.Calendar.ReminderMinutes, 0, 240);
         s.Calendar.SyncMinutes = Math.Clamp(s.Calendar.SyncMinutes, 5, 1440);

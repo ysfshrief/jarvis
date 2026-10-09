@@ -10,6 +10,7 @@ export default defineConfig({
     outDir: "../src/Jarvis.Runtime/wwwroot",
     emptyOutDir: true,
     chunkSizeWarningLimit: 900,
+    rollupOptions: { input: { main: "index.html", companion: "companion.html" } },
   },
   server: {
     port: 5173,

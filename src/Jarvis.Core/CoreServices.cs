@@ -129,6 +129,7 @@ public static class CoreServices
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
         services.AddSingleton<Web.BrowserService>();
+        services.AddSingleton<Companion.DeviceStore>();
         services.AddSingleton<Plugins.PluginSandbox>();
         services.AddSingleton<Plugins.PluginManager>();
         services.AddSingleton<Plugins.PluginGenerator>();
