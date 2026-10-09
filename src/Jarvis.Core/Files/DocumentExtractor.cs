@@ -65,6 +65,8 @@ public interface IOcrEngine
     bool IsAvailable { get; }
     string Name { get; }
     Task<string?> RecognizeAsync(string imagePath, CancellationToken ct);
+    /// <summary>Text of each page of a scanned PDF (rendered and recognised), or null where that isn't possible.</summary>
+    Task<IReadOnlyList<string>?> RecognizePdfAsync(string pdfPath, int maxPages, CancellationToken ct) => Task.FromResult<IReadOnlyList<string>?>(null);
 }
 
 public sealed class NullOcrEngine : IOcrEngine
@@ -93,7 +95,7 @@ public sealed partial class DocumentExtractor(IOcrEngine ocr)
         {
             var doc = ext switch
             {
-                ".pdf" => Pdf(path),
+                ".pdf" => await PdfAsync(path, ct).ConfigureAwait(false),
                 ".docx" => Docx(path),
                 ".pptx" => Pptx(path),
                 ".xlsx" => Xlsx(path),
@@ -124,6 +126,24 @@ public sealed partial class DocumentExtractor(IOcrEngine ocr)
         var n = await reader.ReadBlockAsync(buffer, ct).ConfigureAwait(false);
         var text = new string(buffer, 0, n);
         return text.Contains('\0') ? "" : text; // binary file with a text-like extension
+    }
+
+    public const int MaxOcrPages = 20;
+
+    /// <summary>PDF text layer; a scanned PDF (no text layer) is read page by page with OCR where available.</summary>
+    private async Task<ExtractedDocument> PdfAsync(string path, CancellationToken ct)
+    {
+        var doc = Pdf(path);
+        if (!string.IsNullOrWhiteSpace(doc.Text) || !ocr.IsAvailable) return doc;
+        IReadOnlyList<string>? pages = null;
+        try { pages = await ocr.RecognizePdfAsync(path, MaxOcrPages, ct).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return doc with { Note = $"No text layer, and OCR failed: {ex.Message}" }; }
+        if (pages is null || pages.All(string.IsNullOrWhiteSpace)) return doc;
+        var text = string.Join("\n\n", pages.Where(p => !string.IsNullOrWhiteSpace(p)));
+        var note = doc.Pages > MaxOcrPages
+            ? $"Scanned PDF: text read with {ocr.Name} from the first {MaxOcrPages} of {doc.Pages} pages."
+            : $"Scanned PDF: text read with {ocr.Name}.";
+        return doc with { Text = text, Note = note };
     }
 
     private static ExtractedDocument Pdf(string path)

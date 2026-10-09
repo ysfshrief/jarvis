@@ -226,4 +226,52 @@ public class FileKnowledgeTests : IDisposable
         Assert.Contains("off", r.Reply);
         Assert.Contains("Atlas launch.pptx", r.Reply);
     }
+
+    private sealed class PageOcr(params string[] pages) : IOcrEngine
+    {
+        public int Calls;
+        public bool IsAvailable => true;
+        public string Name => "Test OCR";
+        public Task<string?> RecognizeAsync(string imagePath, CancellationToken ct) => Task.FromResult<string?>(null);
+        public Task<IReadOnlyList<string>?> RecognizePdfAsync(string pdfPath, int maxPages, CancellationToken ct)
+        {
+            Calls++;
+            return Task.FromResult<IReadOnlyList<string>?>(pages.Take(maxPages).ToList());
+        }
+    }
+
+    [Fact]
+    public async Task Scanned_pdfs_are_read_with_ocr_and_text_pdfs_are_not()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "jarvis-scan", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        var scanned = Path.Combine(dir, "scan.pdf");
+        var b = new PdfDocumentBuilder();
+        b.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
+        b.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
+        File.WriteAllBytes(scanned, b.Build()); // pages with no text layer, like a scan
+
+        var ocr = new PageOcr("Invoice CityCrep 2026", "Total 12,000 EGP");
+        var doc = await new DocumentExtractor(ocr).ExtractAsync(scanned, 10_000_000, default);
+        Assert.Equal("ok", doc.Status);
+        Assert.Contains("Invoice CityCrep 2026", doc.Text);
+        Assert.Contains("12,000 EGP", doc.Text);
+        Assert.Equal("Scanned PDF: text read with Test OCR.", doc.Note);
+
+        // Without OCR it's honestly reported as having no text.
+        var none = await new DocumentExtractor(new NullOcrEngine()).ExtractAsync(scanned, 10_000_000, default);
+        Assert.Equal("empty", none.Status);
+        Assert.Contains("scanned", none.Note);
+
+        // A PDF with real text never goes through OCR.
+        var textPdf = Path.Combine(dir, "text.pdf");
+        var tb = new PdfDocumentBuilder();
+        var font = tb.AddStandard14Font(UglyToad.PdfPig.Fonts.Standard14Fonts.Standard14Font.Helvetica);
+        tb.AddPage(UglyToad.PdfPig.Content.PageSize.A4).AddText("Real text layer", 12, new UglyToad.PdfPig.Core.PdfPoint(50, 700), font);
+        File.WriteAllBytes(textPdf, tb.Build());
+        var calls = ocr.Calls;
+        Assert.Contains("Real text layer", (await new DocumentExtractor(ocr).ExtractAsync(textPdf, 10_000_000, default)).Text);
+        Assert.Equal(calls, ocr.Calls);
+        try { Directory.Delete(dir, true); } catch { }
+    }
 }

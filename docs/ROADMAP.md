@@ -104,7 +104,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | --- | --- |
 | Opt-in local file index (Settings → Files): PDF (PdfPig), DOCX/XLSX/PPTX and OpenDocument (safe XML parsing, no macros run), RTF, text and code, ZIP listings, metadata (title, author, pages) | Working |
 | Image text via Windows OCR (Windows.Media.Ocr, offline) | Working on Windows — covered by the Windows CI test |
-| Scanned PDFs (no text layer) | Planned — indexed by name and metadata only for now |
+| Scanned PDFs (no text layer): pages rendered with Windows' PDF renderer and read with Windows OCR (first 20 pages), with a note saying so | Working on Windows — verified in Windows CI with a generated scan; elsewhere indexed by name and metadata only |
 | Live updates from file-system changes; gentle background scan; protected folders never read | Working |
 | Search by words (Arabic-normalised full text) and by meaning (local embeddings over 1,200-character passages) | Working |
 | "Latest PDF/spreadsheet/file in Downloads", "find documents about X", "summarize X", "compare X with the previous version" (EN/AR) | Working |

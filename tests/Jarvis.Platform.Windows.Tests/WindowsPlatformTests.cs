@@ -82,6 +82,40 @@ public sealed class WindowsPlatformTests : IDisposable
     }
 
     [Fact]
+    public async Task Scanned_pdfs_are_read_with_windows_pdf_rendering_and_ocr()
+    {
+        var ocr = _sp.GetRequiredService<Jarvis.Core.Files.IOcrEngine>();
+        if (!ocr.IsAvailable) return; // no OCR language installed on this image: nothing to verify
+        var dir = Path.Combine(Path.GetTempPath(), "jarvis-scan", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        // A "scan": the page is only an image of text, with no text layer.
+        byte[] png;
+        using (var bmp = new System.Drawing.Bitmap(1240, 1754))
+        using (var g = System.Drawing.Graphics.FromImage(bmp))
+        using (var font = new System.Drawing.Font("Segoe UI", 48, System.Drawing.FontStyle.Bold))
+        using (var ms = new MemoryStream())
+        {
+            g.Clear(System.Drawing.Color.White);
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            g.DrawString("Signed contract CityCrep", font, System.Drawing.Brushes.Black, 80, 200);
+            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            png = ms.ToArray();
+        }
+        var builder = new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+        var page = builder.AddPage(UglyToad.PdfPig.Content.PageSize.A4);
+        page.AddPng(png, page.PageSize);
+        var pdf = Path.Combine(dir, "scanned-contract.pdf");
+        File.WriteAllBytes(pdf, builder.Build());
+
+        var doc = await _sp.GetRequiredService<Jarvis.Core.Files.DocumentExtractor>().ExtractAsync(pdf, 50_000_000, default);
+        _out.WriteLine($"{doc.Status}: {doc.Note} | {doc.Text}");
+        Assert.Equal("ok", doc.Status);
+        Assert.Contains("CityCrep", doc.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith("Scanned PDF", doc.Note);
+        try { Directory.Delete(dir, true); } catch { }
+    }
+
+    [Fact]
     public void Windows_tools_are_registered_and_replace_generic_ones()
     {
         var registry = _sp.GetRequiredService<IToolRegistry>();

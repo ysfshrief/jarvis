@@ -32,6 +32,27 @@ public sealed class WindowsOcrEngine : IOcrEngine
         return await RecognizeAsync(decoder, ct).ConfigureAwait(false);
     }
 
+    /// <summary>Renders each page of a PDF with Windows' own PDF renderer (~200 dpi) and reads it with OCR.</summary>
+    public async Task<IReadOnlyList<string>?> RecognizePdfAsync(string pdfPath, int maxPages, CancellationToken ct)
+    {
+        var file = await StorageFile.GetFileFromPathAsync(Path.GetFullPath(pdfPath)).AsTask(ct).ConfigureAwait(false);
+        global::Windows.Data.Pdf.PdfDocument pdf;
+        try { pdf = await global::Windows.Data.Pdf.PdfDocument.LoadFromFileAsync(file).AsTask(ct).ConfigureAwait(false); }
+        catch (Exception ex) when (ex is not OperationCanceledException) { return null; } // e.g. password-protected
+        var pages = new List<string>();
+        for (uint i = 0; i < Math.Min(pdf.PageCount, (uint)Math.Max(1, maxPages)); i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            using var page = pdf.GetPage(i);
+            using var stream = new InMemoryRandomAccessStream();
+            var width = (uint)Math.Clamp(page.Size.Width * 200 / 72, 1200, OcrEngine.MaxImageDimension);
+            await page.RenderToStreamAsync(stream, new global::Windows.Data.Pdf.PdfPageRenderOptions { DestinationWidth = width }).AsTask(ct).ConfigureAwait(false);
+            var decoder = await BitmapDecoder.CreateAsync(stream).AsTask(ct).ConfigureAwait(false);
+            pages.Add(await RecognizeAsync(decoder, ct).ConfigureAwait(false) ?? "");
+        }
+        return pages;
+    }
+
     public async Task<string?> RecognizeAsync(BitmapDecoder decoder, CancellationToken ct)
     {
         var max = OcrEngine.MaxImageDimension;
