@@ -16,6 +16,8 @@ internal sealed class FakeOllama : HttpMessageHandler
     public List<(string Path, JsonNode? Body)> Calls { get; } = [];
     public List<(string Name, string Family, string Size, string[] Caps)> Models { get; } = [];
     public Func<JsonNode, HttpResponseMessage>? Chat { get; set; }
+    /// <summary>Tags that are the same model as another tag (like "qwen3:latest" and "qwen3:8b"): name → shared digest.</summary>
+    public Dictionary<string, string> SharedDigests { get; } = [];
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
@@ -29,7 +31,7 @@ internal sealed class FakeOllama : HttpMessageHandler
                 var arr = new JsonArray(Models.Select(m => (JsonNode)new JsonObject
                 {
                     ["name"] = m.Name,
-                    ["digest"] = "sha-" + m.Name,
+                    ["digest"] = SharedDigests.GetValueOrDefault(m.Name) ?? "sha-" + m.Name,
                     ["size"] = 4_700_000_000L,
                     ["details"] = new JsonObject { ["family"] = m.Family, ["parameter_size"] = m.Size, ["quantization_level"] = "Q4_K_M" },
                 }).ToArray());
@@ -163,6 +165,23 @@ public class OllamaProviderTests
         var sent = server.Calls.Last(c => c.Path == "/api/chat").Body!;
         Assert.True(sent["stream"]!.GetValue<bool>());
         Assert.False(sent["think"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Two_tags_of_one_model_are_both_listed_under_their_own_names()
+    {
+        var server = Server();
+        server.Models.Add(("qwen3:latest", "qwen3", "8.2B", ["completion", "tools", "thinking"]));
+        server.SharedDigests["qwen3:latest"] = "sha-qwen3:8b";
+        var p = new OllamaProvider(Cfg, new HttpClient(server));
+
+        var names = (await p.ListModelsAsync(default)).Select(m => m.Name).ToList();
+        Assert.Contains("qwen3:8b", names);
+        Assert.Contains("qwen3:latest", names); // not a second "qwen3:8b", so "qwen3" still resolves to it
+        Assert.Equal(5, server.Calls.Count(c => c.Path == "/api/show")); // still asked once per digest
+
+        await p.CompleteAsync(new ChatRequest { Model = "qwen3:latest", Messages = [ChatMessage.User("hi")] }, default);
+        Assert.False(server.Calls.Last(c => c.Path == "/api/chat").Body!["think"]!.GetValue<bool>()); // what /api/show said applies to both tags
     }
 
     [Fact]

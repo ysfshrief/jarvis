@@ -4,12 +4,20 @@
 
 Every push runs `.github/workflows/build.yml`:
 
-1. Linux job: core + runtime tests.
-2. Windows job: build the dashboard, build the solution, run all tests (including real-Windows
-   integration tests), package (`build/package.ps1`), and **smoke-test the packaged app** (`build/smoke-test.ps1`:
-   starts it, checks auth, drives bilingual commands, opens/closes Notepad, takes screenshots, shuts down).
-3. Artifacts: `JARVIS-Setup-x64.exe`, `JARVIS-Portable-x64.zip`, plus smoke-test evidence (screenshots, logs).
-4. Pushes to the **default branch** replace the **`latest-build`** pre-release on the Releases page.
+1. Linux job: core + runtime tests (with a real mail server and a real headless Chrome).
+2. Live-AI job: real Ollama models — tool calling through the agent, an Arabic turn, a vision question about a
+   picture (`qwen2.5vl`), and Arabic semantic recall with `bge-m3`.
+3. Android job: companion unit tests (including certificate pinning against a real local HTTPS server) and the
+   debug APK.
+4. Windows job: build the dashboard (with the Arabic translation check), build the solution, run all tests
+   (including real-Windows integration tests), package (`build/package.ps1`), and **smoke-test the packaged app**
+   (`build/smoke-test.ps1`: starts it, checks auth, drives bilingual commands and checks the actual replies,
+   opens/closes Notepad, takes screenshots, shuts down).
+5. Artifacts: `JARVIS-Setup-x64.exe`, `JARVIS-Portable-x64.zip`, `JARVIS-companion-android` (the APK), plus
+   smoke-test evidence (screenshots, logs).
+6. Release job — only if **all four** jobs above passed, on a push to the **default branch**: replaces the
+   **`latest-build`** pre-release with `JARVIS-Setup-x64.exe`, `JARVIS-Portable-x64.zip` and
+   `JARVIS-Companion-Android-debug.apk`.
 
 Version: `Directory.Build.props` `<Version>` + `.{run number}` for CI builds.
 
@@ -17,7 +25,7 @@ Version: `Directory.Build.props` `<Version>` + `.{run number}` for CI builds.
 
 A push to the default branch whose commit message contains **`[release]`** is built with the exact version in
 `Directory.Build.props` (no run number) and, after every test and the smoke test pass, published as the GitHub
-Release `v<version>` with both files. An existing release is never replaced, so bump `<Version>` (and
+Release `v<version>` with all three files. An existing release is never replaced, so bump `<Version>` (and
 `installer/jarvis.iss`, `ui/package.json`) first.
 
 ## Tagged releases
@@ -28,8 +36,10 @@ git tag v0.3.1
 git push origin v0.3.1
 ```
 
-The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.3.1` with both files and
+The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.3.1` with all three files and
 generated notes.
+
+The APK is debug-signed (no release keystore is configured), so phones install it as a sideloaded app.
 
 ## Local packaging
 

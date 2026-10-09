@@ -61,7 +61,10 @@ jobs:
           pull() { for attempt in 1 2 3 4; do ollama pull "$1" > /dev/null 2>&1 && return 0; echo "pull $1 failed (attempt $attempt), retrying"; sleep $((attempt * 10)); done; return 1; }
           pull qwen2.5:1.5b
           pull all-minilm
-          pull moondream
+          # The vision model JARVIS recommends, in its small size; the untagged alias is what a user who typed
+          # "qwen2.5vl" has, so the test also covers name resolution and two tags sharing one digest.
+          pull qwen2.5vl:3b
+          ollama cp qwen2.5vl:3b qwen2.5vl
           pull bge-m3
           ollama list
       - name: Live AI tests
@@ -69,7 +72,7 @@ jobs:
           JARVIS_OLLAMA_URL: http://127.0.0.1:11434
           JARVIS_OLLAMA_MODEL: qwen2.5:1.5b
           JARVIS_OLLAMA_EMBED_MODEL: all-minilm
-          JARVIS_OLLAMA_VISION_MODEL: moondream
+          JARVIS_OLLAMA_VISION_MODEL: qwen2.5vl
           JARVIS_OLLAMA_ML_EMBED_MODEL: bge-m3
         run: dotnet test tests/Jarvis.Core.Tests -c Release --filter "FullyQualifiedName~OllamaLiveTests" --logger "console;verbosity=normal"
       - name: Ollama log
@@ -102,6 +105,9 @@ jobs:
   windows:
     name: Windows build, tests, package, smoke test
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      milestone: ${{ steps.version.outputs.milestone }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -178,31 +184,48 @@ jobs:
             **/TestResults/*.trx
           if-no-files-found: ignore
 
-      - name: Publish "latest build" pre-release
-        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+  # Publishing waits for every job: nothing is released unless the Linux, live-AI, Android and Windows checks all passed.
+  release:
+    name: Publish release
+    needs: [linux-tests, ollama-live, android, windows]
+    if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ needs.windows.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-${{ needs.windows.outputs.version }}-windows-x64
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: JARVIS-companion-android
+          path: android-apk
+      - name: Collect files
         run: |
-          gh release delete latest-build --yes --cleanup-tag 2>$null
-          $notes = "Automatic build of ${{ github.sha }} (version ${{ steps.version.outputs.version }}).`n`nDownload **JARVIS-Setup-x64.exe** to install, or **JARVIS-Portable-x64.zip** to run without installing. See README for first-run steps."
-          gh release create latest-build artifacts/JARVIS-Setup-x64.exe artifacts/JARVIS-Portable-x64.zip --prerelease --target ${{ github.sha }} --title "JARVIS latest build (${{ steps.version.outputs.version }})" --notes $notes
+          mv android-apk/app-debug.apk dist/JARVIS-Companion-Android-debug.apk
+          ls -l dist
+          test -s dist/JARVIS-Setup-x64.exe && test -s dist/JARVIS-Portable-x64.zip && test -s dist/JARVIS-Companion-Android-debug.apk
+
+      - name: Publish "latest build" pre-release
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          gh release delete latest-build --yes --cleanup-tag 2>/dev/null || true
+          notes="Automatic build of ${{ github.sha }} (version $VERSION). Every check passed: Linux tests, real local AI, Android, Windows tests and the packaged-app smoke test.
+
+          - **JARVIS-Setup-x64.exe** installs JARVIS; **JARVIS-Portable-x64.zip** runs without installing. See README for first-run steps.
+          - **JARVIS-Companion-Android-debug.apk** is the phone companion, debug-signed: sideload it (allow installs from this source) and pair it from Settings → Phone."
+          gh release create latest-build dist/* --prerelease --target ${{ github.sha }} --title "JARVIS latest build ($VERSION)" --notes "$notes"
 
       - name: Publish milestone release
-        if: steps.version.outputs.milestone == 'true'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+        if: needs.windows.outputs.milestone == 'true'
         run: |
-          $tag = "v${{ steps.version.outputs.version }}"
-          gh release view $tag 2>$null
-          if ($LASTEXITCODE -eq 0) { Write-Host "$tag already released; not replacing it."; exit 0 }
-          gh release create $tag artifacts/JARVIS-Setup-x64.exe artifacts/JARVIS-Portable-x64.zip --target ${{ github.sha }} --title "JARVIS ${{ steps.version.outputs.version }}" --generate-notes
+          tag="v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then echo "$tag already released; not replacing it."; exit 0; fi
+          gh release create "$tag" dist/* --target ${{ github.sha }} --title "JARVIS $VERSION" --generate-notes
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create ${{ github.ref_name }} artifacts/JARVIS-Setup-x64.exe artifacts/JARVIS-Portable-x64.zip --title "JARVIS ${{ steps.version.outputs.version }}" --generate-notes
+        run: gh release create ${{ github.ref_name }} dist/* --title "JARVIS $VERSION" --generate-notes

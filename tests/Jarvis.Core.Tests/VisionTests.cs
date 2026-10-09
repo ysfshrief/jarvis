@@ -1,4 +1,5 @@
 using Jarvis.Core.Agent;
+using Jarvis.Core.AI;
 using Jarvis.Core.Tools;
 using Jarvis.Core.Vision;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,5 +58,22 @@ public class VisionTests
         Assert.Equal(RiskLevel.Critical, ask.Risk);
         Assert.Equal(ToolStatus.Denied, (await call).Result.Status);
         Assert.Equal(0, cam.Shots);
+    }
+
+    [Fact]
+    public async Task A_silent_vision_model_gets_one_plain_retry_and_is_never_passed_off_as_an_answer()
+    {
+        byte[] picture = [1, 2, 3];
+        var model = new ScriptedChatProvider().Reply("").Reply(" Red. ");
+        Assert.Equal("Red.", await VisionAsk.AskAsync(model, "moondream:latest", "Be brief.", "What color?", picture, 100, default));
+        Assert.Equal(ChatRole.System, model.Requests[0].Messages[0].Role);
+        // The retry puts the instructions into the question (small models drop system prompts) and still sends the picture.
+        var retry = Assert.Single(model.Requests[1].Messages);
+        Assert.Equal("Be brief.\n\nWhat color?", retry.Content);
+        Assert.Equal(picture, Assert.Single(retry.Images!));
+
+        var silent = new ScriptedChatProvider().Reply("").Reply("  ");
+        Assert.Null(await VisionAsk.AskAsync(silent, "moondream:latest", "Be brief.", "What color?", picture, 100, default));
+        Assert.Equal(2, silent.Requests.Count);
     }
 }

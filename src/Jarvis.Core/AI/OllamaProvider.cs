@@ -15,7 +15,8 @@ namespace Jarvis.Core.AI;
 public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int defaultContextTokens = 8192)
     : IChatProvider, IModelCatalog, IModelPuller, IEmbeddingProvider
 {
-    private readonly ConcurrentDictionary<string, ModelInfo> _details = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ModelInfo> _details = new(StringComparer.OrdinalIgnoreCase); // by digest
+    private readonly ConcurrentDictionary<string, ModelInfo> _byName = new(StringComparer.OrdinalIgnoreCase);
 
     public string Id => config.Id;
     public string Name => config.Name;
@@ -71,7 +72,8 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
         var details = tag["details"];
         var modified = DateTimeOffset.TryParse(tag["modified_at"]?.GetValue<string>(), out var mod) ? mod : (DateTimeOffset?)null;
         var digest = tag["digest"]?.GetValue<string>() ?? name;
-        if (_details.TryGetValue(digest, out var cached)) return cached;
+        // Two tags of one model ("qwen2.5vl" and "qwen2.5vl:7b") share a digest: reuse what /api/show said, but under this tag's name.
+        if (_details.TryGetValue(digest, out var cached)) return _byName[name] = cached.Name == name ? cached : cached with { Name = name };
 
         IReadOnlyList<string> caps = GuessCapabilities(name, details?["family"]?.GetValue<string>());
         var reported = false;
@@ -113,6 +115,7 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
             CapabilitiesReported = reported,
         };
         _details[digest] = result;
+        _byName[name] = result;
         return result;
     }
 
@@ -133,7 +136,7 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
 
     public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct)
     {
-        var info = _details.Values.FirstOrDefault(d => d.Name.Equals(request.Model, StringComparison.OrdinalIgnoreCase));
+        var info = _byName.GetValueOrDefault(request.Model);
         var stream = request.OnTextDelta is not null;
         var options = new JsonObject
         {
@@ -189,7 +192,7 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
                     return await CompleteAsync(request with { Tools = [] }, ct).ConfigureAwait(false);
                 if (resp.StatusCode == HttpStatusCode.BadRequest && body["think"] is not null && err.Contains("think", StringComparison.OrdinalIgnoreCase))
                 {
-                    _details.TryRemove(_details.FirstOrDefault(kv => kv.Value.Name == request.Model).Key ?? "", out _);
+                    _byName.TryRemove(request.Model, out _);
                     return await CompleteAsync(request, ct).ConfigureAwait(false);
                 }
                 var detail = TryError(err);
@@ -252,6 +255,7 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
             progress.Report(new PullProgress(n?["status"]?.GetValue<string>() ?? "", n?["completed"]?.GetValue<long>(), n?["total"]?.GetValue<long>()));
         }
         _details.Clear();
+        _byName.Clear();
     }
 
     public async Task<float[][]> EmbedAsync(string model, IReadOnlyList<string> inputs, CancellationToken ct)
