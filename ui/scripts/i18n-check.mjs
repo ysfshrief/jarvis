@@ -4,8 +4,9 @@
 // with --strict) so coverage can be driven to zero.
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."); // fileURLToPath: correct on Windows too
 const src = path.join(root, "src");
 const strict = process.argv.includes("--strict");
 const only = process.argv.find((a) => a.startsWith("--files="))?.slice(8).split(",");

@@ -280,6 +280,14 @@ public class ModelSelectionTests
     private static ModelInfo M(string name, string size, params string[] caps) =>
         new() { Name = name, ParameterSize = size, Capabilities = caps, CapabilitiesReported = true };
 
+    [Theory]
+    [InlineData("moondream", "moondream:latest")]   // no tag means :latest, as in Ollama (found by the real-vision CI test)
+    [InlineData("Qwen2.5:1.5B", "qwen2.5:1.5b")]
+    [InlineData("qwen2.5", null)]                    // only :latest is implied, never another size
+    [InlineData("llava:13b", null)]
+    public void Configured_model_names_resolve_like_ollama(string configured, string? expected) =>
+        Assert.Equal(expected, ModelRouter.Installed(configured, ["moondream:latest", "qwen2.5:1.5b", "llava:7b"]));
+
     [Fact]
     public void Picks_a_tool_capable_mid_size_chat_model()
     {

@@ -116,6 +116,34 @@ public class OllamaLiveTests
         Assert.True(hits[0].Semantic);
     }
 
+    private static string? MultilingualEmbedModel => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_ML_EMBED_MODEL");
+
+    [OllamaFact]
+    public async Task Arabic_semantic_recall_with_the_default_multilingual_model()
+    {
+        if (string.IsNullOrEmpty(MultilingualEmbedModel)) return; // CI sets JARVIS_OLLAMA_ML_EMBED_MODEL=bge-m3 (JARVIS's default)
+        using var host = new TestHost(s =>
+        {
+            s.Ai.Providers = [new ProviderConfig { Id = "ollama", Name = "Ollama", Kind = ProviderKinds.Ollama, BaseUrl = Url, IsLocal = true, Enabled = true }];
+            s.Ai.EmbeddingModel = MultilingualEmbedModel;
+        });
+        host.Get<ProviderRegistry>().Factory = null;
+        host.Settings.Update(_ => { });
+        var knowledge = host.Get<Jarvis.Core.Memory.KnowledgeService>();
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("أحمد بيشرب قهوته سادة من غير سكر"));
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("اجتماع مجلس الإدارة كل ربع سنة في مكتب الزمالك"));
+        knowledge.Remember(new Jarvis.Core.Memory.NewMemory("عيد ميلاد أختي يوم ٣ مايو"));
+        await knowledge.BackfillAsync(default);
+
+        // No shared words with the stored note: only meaning connects them. Asked in Arabic and in English.
+        var ar = await knowledge.RecallAsync("إيه المشروب اللي أحمد بيحبه؟", 3, default);
+        Assert.NotEmpty(ar);
+        Assert.Contains("قهوته", ar[0].Memory.Content);
+        Assert.True(ar[0].Semantic);
+        var en = await knowledge.RecallAsync("how does Ahmed take his coffee?", 3, default);
+        Assert.Contains("قهوته", en[0].Memory.Content);
+    }
+
     [OllamaFact]
     public async Task Full_agent_turn_through_real_ollama()
     {

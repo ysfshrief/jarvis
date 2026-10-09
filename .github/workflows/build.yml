@@ -62,6 +62,7 @@ jobs:
           pull qwen2.5:1.5b
           pull all-minilm
           pull moondream
+          pull bge-m3
           ollama list
       - name: Live AI tests
         env:
@@ -69,6 +70,7 @@ jobs:
           JARVIS_OLLAMA_MODEL: qwen2.5:1.5b
           JARVIS_OLLAMA_EMBED_MODEL: all-minilm
           JARVIS_OLLAMA_VISION_MODEL: moondream
+          JARVIS_OLLAMA_ML_EMBED_MODEL: bge-m3
         run: dotnet test tests/Jarvis.Core.Tests -c Release --filter "FullyQualifiedName~OllamaLiveTests" --logger "console;verbosity=normal"
       - name: Ollama log
         if: always()

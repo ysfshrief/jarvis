@@ -157,10 +157,15 @@ public sealed partial class ModelRouter(ProviderRegistry providers, ISettingsSto
                     ? PickBest(catalog, needVision, exclude, provider.Id)
                     : PickDefaultModel(status.Models.Where(m => exclude?.Contains($"{provider.Id}/{m}") != true).ToList());
             }
-            else if (provider.IsLocal && status.Models.Count > 0 && !status.Models.Contains(model, StringComparer.OrdinalIgnoreCase))
+            else if (provider.IsLocal && status.Models.Count > 0)
             {
-                reasons.Add($"{b.Provider}: model '{model}' not installed");
-                continue;
+                // "moondream" means "moondream:latest", as it does for Ollama itself.
+                if (Installed(model, status.Models) is not { } installed)
+                {
+                    reasons.Add($"{b.Provider}: model '{model}' not installed");
+                    continue;
+                }
+                model = installed;
             }
             if (string.IsNullOrEmpty(model)) { reasons.Add($"{b.Provider}: {(needVision ? "no vision model" : "no models")}"); continue; }
             if (exclude?.Contains($"{provider.Id}/{model}") == true) { reasons.Add($"{b.Provider}/{model}: failed just now"); continue; }
@@ -174,6 +179,11 @@ public sealed partial class ModelRouter(ProviderRegistry providers, ISettingsSto
 
         return new RouteDecision(role, null, null, reasons.Count == 0 ? "No AI provider is configured." : string.Join("; ", reasons.Distinct()));
     }
+
+    /// <summary>The installed name a configured model refers to: exact, or the ":latest" tag when no tag was given.</summary>
+    internal static string? Installed(string model, IReadOnlyCollection<string> installed) =>
+        installed.FirstOrDefault(m => m.Equals(model, StringComparison.OrdinalIgnoreCase))
+        ?? (model.Contains(':') ? null : installed.FirstOrDefault(m => m.Equals(model + ":latest", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>A model call failed: refresh that provider's health so the next route sees it.</summary>
     public async Task ReportFailureAsync(RouteDecision decision, CancellationToken ct)

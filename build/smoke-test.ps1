@@ -45,6 +45,13 @@ try {
         Invoke-RestMethod @req
     }
     function Say($text) { $r = Api POST "/api/chat" @{ text = $text }; "$($r.route): $($r.reply)" }
+    # Says something and checks the reply really is what was asked for (not just any HTTP 200).
+    function Expect($text, $pattern) {
+        $r = Api POST "/api/chat" @{ text = $text }
+        $line = "$($r.route): $($r.reply)"
+        if (-not $r.success -or $line -notmatch $pattern) { throw "unexpected reply to '$text': $line" }
+        $line
+    }
 
     Check "status" { $s = Api GET "/api/status"; "v$($s.version) platform=$($s.platform) presence=$($s.presence.snapshot.state)" }
     Check "unauthenticated request is refused" {
@@ -52,10 +59,10 @@ try {
         "401"
     }
     Check "dashboard is served" { $html = Invoke-WebRequest "$base/" -UseBasicParsing; if ($html.Content -notmatch "<html") { throw "no html" }; "ok" }
-    Check "time (English)" { Say "what time is it" }
-    Check "time (Arabic)" { Say "الساعة كام؟" }
-    Check "system status" { Say "how's the system" }
-    Check "task" { Say "add task Prepare the CityCrep briefing" }
+    Check "time (English)" { Expect "what time is it" '^deterministic: .*\d{1,2}[:.]\d{2}' }
+    Check "time (Arabic)" { Expect "الساعة كام؟" '^deterministic: .*[\u0600-\u06FF]' }
+    Check "system status" { Expect "how's the system" '(?i)cpu|memory|ram' }
+    Check "task" { Expect "add task Prepare the CityCrep briefing" 'Prepare the CityCrep briefing' }
     Check "reminder (Arabic)" { Say "فكرني بعد 10 دقايق اكلم احمد" }
     Check "reminder is listed" {
         $r = @(Api GET "/api/reminders")
@@ -63,16 +70,21 @@ try {
         "$($r.Count) pending, due $($r[0].dueAt)"
     }
     Check "connectivity" { Start-Sleep 2; $s = Api GET "/api/status"; "online=$($s.online)" }
-    Check "memory" { Say "remember that the CityCrep meeting is on Sunday"; Say "what do you know about CityCrep" }
+    Check "memory" { Expect "remember that the CityCrep meeting is on Sunday" '(?i)remember|noted|got it'; Expect "what do you know about CityCrep" 'Sunday' }
     Check "open notepad" {
         $r = Say "open notepad"
         Start-Sleep 2
         if (-not (Get-Process notepad -ErrorAction SilentlyContinue)) { throw "notepad not running: $r" }
         $r
     }
-    Check "screenshot" { Say "take a screenshot" }
-    Check "close notepad" { Say "close notepad" }
-    Check "read-only command" { Say "run git --version" }
+    Check "screenshot" { Expect "take a screenshot" '(?i)\.png|screenshot' }
+    Check "close notepad" {
+        $r = Say "close notepad"
+        Start-Sleep 2
+        if (Get-Process notepad -ErrorAction SilentlyContinue) { throw "notepad still running: $r" }
+        $r
+    }
+    Check "read-only command" { Expect "run git --version" 'git version \d' }
     Check "no-AI question explains how to enable AI" { $r = Say "summarize my week for me"; if ($r -notmatch "Ollama") { throw $r }; "ok" }
     Check "activity log" { $a = Api GET "/api/activity?limit=5"; "$($a.Count) entries" }
     Check "workflow" { $r = Say "track the CityCrep deal"; if ($r -notmatch "Tracking") { throw $r }; Say "what am I tracking" }
