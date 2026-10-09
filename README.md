@@ -43,7 +43,8 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    **Settings → AI** (one click; `qwen2.5:7b` recommended) — or run `ollama pull qwen2.5:7b`. JARVIS detects
    it, reads what each model can do (tools, vision, embeddings) and streams replies as they're written. Now
    you can ask open questions and multi-step requests such as *“open my project folder and tell me why the
-   build is failing”*.
+   build is failing”* or *“go to the CityCrep portal and find this quarter's prices”* — JARVIS drives its own
+   visible Edge window, and anything that sends, buys, publishes, deletes or submits a form asks you first.
 4. **Enable voice (optional):** Settings → Voice → download a speech model (`base`, or `small` for better
    Arabic). Then press **Ctrl+Alt+Space** to talk, or turn on the **“Jarvis” wake word**.
 5. Double-click the orb for the **dashboard**: a HUD-style home with live system health, your priorities and

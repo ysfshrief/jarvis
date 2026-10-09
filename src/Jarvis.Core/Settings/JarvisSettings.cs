@@ -21,6 +21,19 @@ public sealed class JarvisSettings
     public SoundSettings Sounds { get; set; } = new();
     public ShortcutSettings Shortcuts { get; set; } = new();
     public PrivacySettings Privacy { get; set; } = new();
+    public WebSettings Web { get; set; } = new();
+}
+
+public sealed class WebSettings
+{
+    /// <summary>Let JARVIS drive a browser (its own window and profile, separate from yours).</summary>
+    public bool BrowserEnabled { get; set; } = true;
+    /// <summary>Browser to drive; empty = Microsoft Edge, then Chrome/Chromium.</summary>
+    public string BrowserPath { get; set; } = "";
+    /// <summary>Run without a visible window. Off by default so you can always see what JARVIS does.</summary>
+    public bool Headless { get; set; }
+    /// <summary>Allow pages on this computer or the local network (e.g. a dev server on localhost).</summary>
+    public bool AllowLocalPages { get; set; }
 }
 
 public sealed class AppearanceSettings

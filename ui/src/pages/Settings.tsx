@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
+  Bell, Brain, Check, Cpu, Download, Eye, FolderSearch, Globe, Keyboard, KeyRound, Mic, Palette, Plug, RefreshCw, Save, Shield, SlidersHorizontal, Trash2, Undo2,
 } from "lucide-react";
-import { del, get, post, put, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
+import { del, get, post, put, type BrowserStatus, type ModelsResponse, type ProviderStatus, type PullState, type Settings, type ToolInfo } from "../api";
 import { useStatus } from "../App";
 import { useEvents } from "../events";
 import { Badge, Card, ConfirmButton, ErrorNote, Field, PageHead, RiskBadge, Segmented, Toggle, fmtBytes, useLoad } from "../components/ui";
@@ -17,6 +17,7 @@ const SECTIONS = [
   { id: "ai", label: "AI", icon: Cpu },
   { id: "memory", label: "Memory", icon: Brain },
   { id: "files", label: "Files", icon: FolderSearch },
+  { id: "web", label: "Web", icon: Globe },
   { id: "security", label: "Security", icon: Shield },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -101,6 +102,7 @@ export function SettingsPage() {
           {section === "ai" && <Ai {...p} />}
           {section === "memory" && <MemorySettings {...p} />}
           {section === "files" && <FilesSettings {...p} />}
+          {section === "web" && <WebSettings {...p} />}
           {section === "security" && <Security {...p} />}
           {section === "notifications" && <Notifications {...p} />}
           {section === "appearance" && <AppearanceSection {...p} />}
@@ -804,6 +806,35 @@ function FilesSettings({ s, set }: P) {
         </Field>
         <FilesIndexHint />
         <div className="row"><ClearIndexButton /></div>
+      </Card>
+    </>
+  );
+}
+
+function WebSettings({ s, set }: P) {
+  const b = useLoad(() => get<BrowserStatus>("/browser"));
+  useEvents(["browser."], () => void b.reload());
+  return (
+    <>
+      <Card title="JARVIS's browser" actions={b.data?.running ? <Badge tone="good">open</Badge> : <Badge>closed</Badge>}>
+        <p className="small muted">
+          For things a page can't do without clicking — forms, sign-ins you've done yourself, bookings — JARVIS drives its own Edge/Chrome window with a
+          separate profile. You see every step. Sending, buying, publishing, deleting, booking or submitting a form always asks you first, and anything
+          suggested after reading a page needs your OK. JARVIS never types passwords or payment details.
+        </p>
+        <Toggle label="Let JARVIS use a browser" checked={s.web.browserEnabled} onChange={(v) => set((x) => { x.web.browserEnabled = v; })} />
+        <Field label="Browser" hint={b.data?.browserPath ? `Found: ${b.data.browserPath}` : "None found. Install Microsoft Edge or Chrome, or give the path."}>
+          <input className="input mono" dir="ltr" placeholder="Automatic (Microsoft Edge, then Chrome)" value={s.web.browserPath} onChange={(e) => set((x) => { x.web.browserPath = e.target.value; })} />
+        </Field>
+        <Toggle label="Run hidden" hint="Off = you see the browser window while JARVIS works (recommended)." checked={s.web.headless} onChange={(v) => set((x) => { x.web.headless = v; })} />
+        <Toggle label="Allow pages on this computer or local network" hint="e.g. a dev server on localhost or your router. Off by default so web content can't reach local devices."
+          checked={s.web.allowLocalPages} onChange={(v) => set((x) => { x.web.allowLocalPages = v; })} />
+        {b.data?.running && (
+          <div className="row small">
+            <span className="muted grow mono ellipsis" dir="ltr">{b.data.url}</span>
+            <button className="btn btn-sm" onClick={() => post("/browser/close", {}).then(() => b.reload())}>Close browser</button>
+          </div>
+        )}
       </Card>
     </>
   );

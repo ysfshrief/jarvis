@@ -336,6 +336,7 @@ export interface Settings {
     inputDeviceIndex: number;
   };
   permissions: { autoApproveSensitive: boolean; toolOverrides: Record<string, string>; approvalTimeoutSeconds: number };
+  web: { browserEnabled: boolean; browserPath: string; headless: boolean; allowLocalPages: boolean };
   files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
   memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean };
   notifications: {
@@ -459,3 +460,4 @@ export interface FileDetail { file: IndexedFile; entities: Entity[]; keyPoints: 
 export interface FileComparison {
   older: IndexedFile; newer: IndexedFile; added: number; removed: number; unchanged: number; identical: boolean; addedLines: string[]; removedLines: string[];
 }
+export interface BrowserStatus { enabled: boolean; browserPath?: string | null; running: boolean; url?: string | null }

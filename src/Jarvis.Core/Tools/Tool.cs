@@ -30,6 +30,11 @@ public sealed class ToolDefinition
     public bool RequiresInternet { get; init; }
     /// <summary>Captures what is on screen; blocked when Settings → Privacy disallows screen capture.</summary>
     public bool CapturesScreen { get; init; }
+    /// <summary>
+    /// Returns content written by someone else (web pages, emails). After such a call, sensitive actions
+    /// in the same request always need approval, so instructions hidden in that content can't act alone.
+    /// </summary>
+    public bool ReadsUntrustedContent { get; init; }
     public IReadOnlyList<ToolParameter> Parameters { get; init; } = [];
 
     /// <summary>JSON Schema (draft-07 subset) of the parameters, as AI providers expect.</summary>
@@ -110,12 +115,14 @@ public sealed class ToolContext
     public string? RequestText { get; init; }
     /// <summary>Where the request came from: "text", "voice", "api", "scheduler", "dashboard"…</summary>
     public string Via { get; init; } = "chat";
+    /// <summary>State shared by every call of one request (e.g. whether untrusted content was read).</summary>
+    public TurnState Turn { get; init; } = new();
 
     /// <summary>The same context with a different cancellation token (e.g. a per-tool timeout).</summary>
     public ToolContext WithToken(CancellationToken token) => new()
     {
         Lang = Lang, Settings = Settings, ConversationId = ConversationId, TurnId = TurnId,
-        RequestText = RequestText, Via = Via, CancellationToken = token,
+        RequestText = RequestText, Via = Via, Turn = Turn, CancellationToken = token,
     };
     public CancellationToken CancellationToken { get; init; }
 
@@ -127,6 +134,14 @@ public sealed class ToolContext
 
     /// <summary>", Sir" suffix (or empty when the user turned honorifics off).</summary>
     public string CommaSir => string.IsNullOrWhiteSpace(Sir) ? "" : (Lang == Lang.Ar ? " " + Sir : ", " + Sir);
+}
+
+/// <summary>Per-request state shared across tool calls.</summary>
+public sealed class TurnState
+{
+    /// <summary>What untrusted content was read during this request (e.g. "web_read: example.com"), if any.</summary>
+    public string? UntrustedSource { get; set; }
+    public bool UntrustedSeen => UntrustedSource is not null;
 }
 
 /// <summary>Arguments of a tool call, backed by a JSON object (what AI models produce).</summary>

@@ -173,6 +173,19 @@ its text in 1,200-character chunks with an Arabic-normalised FTS index; chunks a
 known entities are linked to them. `TextAnalysis` provides extractive key points (labelled as extracted)
 and line-level version comparison; versions are found by name stem (`v2`, `final`, dates, `- Copy`).
 
+## Browser agent
+
+`BrowserService` launches Microsoft Edge (or Chrome/Chromium) with its own profile in the data folder and
+`--remote-debugging-port=0`, reads `DevToolsActivePort`, and speaks the Chrome DevTools Protocol over one
+WebSocket (`CdpConnection`, flattened sessions). A JARVIS window left open is reused. Page reading and
+element lookup run in an isolated JS world (`Page.createIsolatedWorld`), which numbers visible interactive
+elements (`data-jarvis-id`) and returns them with their label, kind, link target and form method. Clicks
+are real mouse events at the element's centre; typing uses `Input.insertText`. The browser tools grade risk
+per element (`BrowserRisk`) from the snapshot the model saw, and re-read the element before acting so a page
+that changed under an approval can't escalate it. Tools that return page text set
+`ReadsUntrustedContent`; `ToolExecutor` then marks the request (`ToolContext.Turn`) and requires approval for
+any sensitive or critical action for the rest of it.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;

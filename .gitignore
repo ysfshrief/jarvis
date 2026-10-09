@@ -17,6 +17,11 @@ TestResults/
 ui/node_modules/
 ui/dist/
 src/Jarvis.Runtime/wwwroot/
+# Type-checking must never emit JS next to the sources (Vite would pick it over the .tsx).
+ui/src/**/*.js
+ui/*.tsbuildinfo
+ui/vite.config.js
+ui/vite.config.d.ts
 
 # Local data / secrets
 .env

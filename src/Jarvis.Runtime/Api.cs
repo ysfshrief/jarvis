@@ -280,6 +280,13 @@ public static class Api
             return Results.Ok();
         });
 
+        // ---- Browser ----
+        api.MapGet("/browser", (Jarvis.Core.Web.BrowserService browser, ISettingsStore settings) => Results.Ok(new
+        {
+            enabled = settings.Current.Web.BrowserEnabled, browserPath = browser.Locate(), running = browser.IsRunning, url = browser.CurrentUrl,
+        }));
+        api.MapPost("/browser/close", async (Jarvis.Core.Web.BrowserService browser) => { await browser.CloseAsync(); return Results.Ok(); });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>

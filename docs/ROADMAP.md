@@ -78,8 +78,11 @@ The same matrix is visible in the app under **System → What this build can do*
 
 | Capability | Status |
 | --- | --- |
-| Web search (key-less) and page reading with untrusted-content handling | Partial |
-| Browser automation (Playwright + Edge), forms, downloads, comparison workflows, source ranking | Planned |
+| Web search (key-less) and page reading with untrusted-content handling | Partial — the key-less search can be rate-limited |
+| Browser agent: JARVIS's own visible Edge/Chrome window (separate profile) driven over the DevTools protocol — open, read text and numbered elements, click, type, press Enter, back, screenshot | Working — tested against a real browser in CI |
+| Per-element risk grading (EN/AR): send/buy/publish/delete/book/subscribe/account changes and POST forms are critical; password/payment fields critical; re-check before acting | Working |
+| Tainted requests: after reading untrusted content, sensitive actions in that request always need approval | Working |
+| File downloads, multi-tab research, source ranking | Planned |
 
 ## Phase 5 — Executive assistant
 

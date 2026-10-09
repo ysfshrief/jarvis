@@ -124,6 +124,14 @@ public static class CoreServices
         AddTool<OpenUrlTool>(services);
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
+        services.AddSingleton<Web.BrowserService>();
+        AddTool<BrowserOpenTool>(services);
+        AddTool<BrowserReadTool>(services);
+        AddTool<BrowserClickTool>(services);
+        AddTool<BrowserTypeTool>(services);
+        AddTool<BrowserBackTool>(services);
+        AddTool<BrowserScreenshotTool>(services);
+        AddTool<BrowserCloseTool>(services);
         return services;
     }
 

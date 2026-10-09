@@ -61,6 +61,15 @@ public sealed class ToolExecutor(
         var decision = permissions.Evaluate(tool.Definition, assessment, s);
         var summary = assessment.Summary;
 
+        // Content from the web or someone's email may contain instructions aimed at JARVIS. Whatever is
+        // proposed after reading it must be confirmed by the user, even if they normally allow it.
+        if (decision.Outcome == PermissionOutcome.Allow && decision.Risk >= RiskLevel.Sensitive && ctx.Turn.UntrustedSeen)
+            decision = decision with
+            {
+                Outcome = PermissionOutcome.RequireApproval,
+                Reason = $"Proposed after reading untrusted content ({ctx.Turn.UntrustedSource}); confirming it's what you want.",
+            };
+
         if (decision.Outcome == PermissionOutcome.Deny)
         {
             var denied = ToolResult.Fail(ctx.T($"I'm not allowed to do that: {decision.Reason}", $"مش مسموحلي أعمل ده: {decision.Reason}"), status: ToolStatus.Denied);
@@ -133,6 +142,8 @@ public sealed class ToolExecutor(
             result = ToolResult.Fail(ctx.T($"Something went wrong while running {name}: {ex.Message}", $"حصلت مشكلة وأنا بشغل {name}: {ex.Message}"), ex.ToString());
         }
         sw.Stop();
+        if (tool.Definition.ReadsUntrustedContent && result.Success)
+            ctx.Turn.UntrustedSource ??= $"{name}: {summary}";
 
         activity.Record(ActivityKinds.Tool, summary, name, decision.Risk.ToString(), result.Success ? "ok" : result.Status.ToString().ToLowerInvariant(),
             result.Success ? Truncate(result.Message) : result.Error ?? result.Message, ctx.ConversationId, sw.ElapsedMilliseconds);
