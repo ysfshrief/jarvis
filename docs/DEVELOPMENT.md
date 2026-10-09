@@ -41,7 +41,7 @@ dotnet test tests/Jarvis.Platform.Windows.Tests   # real Windows integration (Wi
 # Live tests against real services (opt-in; CI runs them)
 #   GreenMail:  java -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap -Dgreenmail.hostname=127.0.0.1 -jar greenmail-standalone-2.1.3.jar
 $env:JARVIS_TEST_MAIL = "127.0.0.1"           # IMAP/SMTP inbox tests, Sent-folder writing style
-$env:JARVIS_OLLAMA_URL = "http://127.0.0.1:11434"; $env:JARVIS_OLLAMA_MODEL = "qwen2.5:1.5b"   # real-model tests
+$env:JARVIS_OLLAMA_URL = "http://127.0.0.1:11434"; $env:JARVIS_OLLAMA_MODEL = "qwen2.5:3b"   # real-model tests
 
 # Android companion (JDK 17 + Android SDK, Gradle 8.9+)
 cd android; gradle testDebugUnitTest assembleDebug; cd ..

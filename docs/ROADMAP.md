@@ -21,9 +21,9 @@ The same matrix is visible in the app under **System → What this build can do*
 | Always-on runtime, starts with Windows, survives UI crashes | Working | `jarvis-core.exe` + watchdog both ways |
 | Desktop presence: orb, tray, quick bar (Ctrl+Alt+J), dashboard | Working | WebView2; falls back to browser |
 | Agent loop with deterministic EN/AR commands | Working | ~40 command patterns, no AI needed |
-| AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key |
+| AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key. Use 3B parameters or more: in CI, qwen2.5:1.5b often asked a question instead of creating the task it was given |
 | AI router (no-AI / local / cloud) | Partial | Keyword task classes + capability-aware model choice; no cost/latency model yet |
-| Native Ollama: model discovery, capabilities (tools/vision/embedding), context sizing, downloads | Working | Verified in CI against a real Ollama with qwen2.5:1.5b |
+| Native Ollama: model discovery, capabilities (tools/vision/embedding), context sizing, downloads | Working | Verified in CI against a real Ollama (qwen2.5 chat, qwen2.5vl vision, all-minilm and bge-m3 embeddings) |
 | Streaming replies, model fallback chain, context budgeting for small models, conversation restore after restart | Working | |
 | Visible turn phases (understanding → analyzing → selecting tool → executing → completed) | Working | No chain-of-thought is exposed |
 | Egyptian Arabic replies | Working | Prompted; quality depends on the model (Qwen 2.5 7B+ recommended) |
@@ -72,7 +72,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Provenance on every memory ("why is this here?"): surface, conversation, your words, or the evidence for an inference | Working |
 | Confirmed vs inferred: AI-initiated and learned items stay unconfirmed until you confirm or reject them | Working |
 | People, organisations, projects and relationships ("Ahmed works at CityCrep"), entity profiles with related tasks | Working |
-| Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with a real embedding model (all-minilm, English); Arabic recall not yet verified |
+| Semantic (meaning-based) recall with a local embedding model (bge-m3), hybrid with keyword search | Working — verified in CI with real embedding models: all-minilm (English) and bge-m3 (Arabic and English queries recall an Arabic memory) |
 | Documents linked to people and organisations (from the file index) | Working |
 | Conversation digest (opt-in): when a conversation goes quiet, the model proposes lasting facts the user stated; each must quote the user's own words (verified against the transcript) and is saved unconfirmed for review | Working |
 
@@ -132,7 +132,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Meeting recording: user-started (always asks), always visible (REC chip, red orb dot, status API), auto-stop after a limit; microphone + speakers (WASAPI loopback) on Windows; audio never stored | Working on Windows — capture needs real audio devices (CI has none) |
 | Local transcript in chunks with Whisper; decisions, action items with owner and due date, open questions (EN/AR); action items → tasks on your choice | Working — transcription verified on Windows CI with synthesized speech |
 | AI-written meeting summary | Working when a model is available (grounded on the transcript and extracted notes) |
-| "What's on my screen?" with a local vision model; OCR fallback with an honest note; blocked when screen capture is off | Partial — OCR fallback and privacy gate verified on Windows; the vision-model path is not yet verified with a real model |
+| "What's on my screen?" with a local vision model; OCR fallback with an honest note; blocked when screen capture is off | Partial — OCR fallback and privacy gate verified on Windows; the vision-model step is verified in CI with a real qwen2.5vl answering about a test picture (configured without a tag, resolved to :latest); an empty model answer is reported as a failure. Not yet run end to end against a real Windows screen with a model |
 | Camera: single photo on request for a vision question — off by default, asks every time, never saved, never video | Partial — needs a camera and a vision model; no camera in CI |
 
 ## Phase 8 — Personal adaptation
@@ -177,6 +177,6 @@ The same matrix is visible in the app under **System → What this build can do*
 | Narrow, rate-limited phone API: status, briefing, chat, approvals (audited, can be switched off), alerts | Working |
 | Phone requests: anything sensitive or critical always waits for confirmation, even with auto-approve on | Working |
 | Mobile companion page (Today / Approvals / Ask / Alerts) for any phone browser | Working |
-| Android app: QR pairing with certificate pinning, the companion page inside the app, token encrypted with the Android Keystore and never backed up, notifications with Approve/Refuse (screen unlock required on Android 12+), opt-in “Stay connected” | Partial — built and unit-tested in CI (debug APK artifact); not yet tried on a physical phone |
+| Android app: QR pairing with certificate pinning, the companion page inside the app, token encrypted with the Android Keystore and never backed up, notifications with Approve/Refuse (screen unlock required on Android 12+), opt-in “Stay connected” | Partial — built and unit-tested in CI (debug APK, attached to releases): certificate pinning is tested against a real local HTTPS server, including refusing a server with another certificate before the token is sent. Not yet tried on a physical phone |
 | Reaching JARVIS away from home (relay or VPN) | Not built — use your own VPN (e.g. WireGuard/Tailscale) to the PC if you need it |
 | Push notifications without polling | Not built — would need Google's Firebase (a cloud service); polling keeps everything local |

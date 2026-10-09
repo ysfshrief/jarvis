@@ -16,6 +16,26 @@ but has only been exercised with doubles is **unverified**. Evidence comes from:
   - the Android build and unit tests.
 - **Code review:** two independent read-throughs of every capability and every setting.
 
+## Re-verification after v0.3.1 (CI runs 37–38)
+
+Gaps from the table below that have since been closed, each by a test that passed in CI:
+
+- **Vision:** the screen tool sent a picture to a real `qwen2.5vl` (configured as plain `qwen2.5vl`, resolved to
+  `:latest`) and the answer named the red square (run 38). An empty answer from a vision model is now a reported
+  failure, not a blank “description” — run 37 caught `moondream` returning nothing.
+- **Arabic semantic recall:** a real `bge-m3` recalled an Arabic memory from Arabic and English queries (runs 37–38).
+- **Real model in Arabic:** a real model answered an Egyptian-Arabic request in Arabic (runs 34, 37, 38).
+- **Android pinning:** JVM tests against a real local HTTPS server — the paired server works, a server with another
+  certificate is refused before the device token is sent, a wrong token is reported, plain http is never used (run 38).
+- **Smoke test:** checks the actual reply text of each command (time in English and Arabic, system, tasks, memory,
+  screenshot, `git --version`), not just success (runs 37–38).
+- **Arabic interface:** the build fails if any interface string lacks an Arabic translation (runs 37–38).
+- **Model tags:** two tags of one Ollama model (e.g. `qwen2.5vl` and `qwen2.5vl:3b`) were listed under one name, so the
+  untagged name never resolved; fixed with a unit test and exercised live in run 38.
+
+Still open from this audit: a real model's tool call through the agent is only reliable from 3B parameters up
+(`qwen2.5:1.5b` asked questions instead of creating the task in runs 37–38); see the Agent row in the roadmap.
+
 ## Verdict by area
 
 | Area | Status | Evidence | Gaps found |

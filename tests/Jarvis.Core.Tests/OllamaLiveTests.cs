@@ -21,7 +21,7 @@ public sealed class OllamaFactAttribute : FactAttribute
 public class OllamaLiveTests
 {
     private static string Url => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_URL") ?? "http://127.0.0.1:11434";
-    private static string Model => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_MODEL") ?? "qwen2.5:1.5b";
+    private static string Model => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_MODEL") ?? "qwen2.5:3b";
     private static string EmbedModel => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_EMBED_MODEL") ?? "all-minilm";
 
     private static OllamaProvider Provider() => new(
