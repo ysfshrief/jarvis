@@ -40,6 +40,8 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    - `schedule a meeting with Ahmed tomorrow at 3pm` · `what's on my calendar tomorrow` · `prepare me for my CityCrep meeting` ·
      `حط اجتماع مع سارة بكرة الساعة 11` (subscribe to your Google/Outlook calendar in **Settings → Accounts**)
    - `what's on my screen?` (with a local vision model such as `qwen2.5vl`) · JARVIS can also read and press buttons in other apps
+   - `make a plugin that converts currencies` — JARVIS writes a sandboxed plugin; you review what it may do and approve
+     the install (samples in `samples/plugins/`)
    - `record this meeting` → a REC indicator appears; `stop recording` → decisions and action items (`what did we decide?`)
    - after connecting email in **Settings → Accounts**: `check my email` · `شوف الإيميل` · then in the Inbox, reply or
      *Draft with JARVIS* — nothing is sent until you approve it

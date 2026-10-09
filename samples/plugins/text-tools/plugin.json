@@ -1,0 +1,53 @@
+{
+  "id": "text-tools",
+  "name": "Text tools",
+  "version": "1.0.0",
+  "description": "Counts words and keeps notes.",
+  "permissions": {
+    "storage": true
+  },
+  "tools": [
+    {
+      "name": "word_count",
+      "description": "Count the words in a text.",
+      "risk": "safe",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "The text.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "note",
+      "description": "Remember a note and say how many notes there are.",
+      "risk": "safe",
+      "parameters": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "The note.",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "tool": "word_count",
+      "args": {
+        "text": "one two three"
+      },
+      "expect": "3 words"
+    },
+    {
+      "tool": "note",
+      "args": {
+        "text": "hello"
+      },
+      "expect": "note"
+    }
+  ]
+}

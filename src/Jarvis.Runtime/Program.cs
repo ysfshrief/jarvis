@@ -100,6 +100,9 @@ try
     var app = builder.Build();
     var state = app.Services.GetRequiredService<RuntimeState>();
     state.Port = port;
+    // Installed plugins whose files still match what the user approved.
+    try { app.Services.GetRequiredService<Jarvis.Core.Plugins.PluginManager>().LoadInstalled(); }
+    catch (Exception ex) { app.Logger.LogWarning(ex, "Loading plugins failed"); }
 
     app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
     app.UseMiddleware<LocalSecurityMiddleware>();

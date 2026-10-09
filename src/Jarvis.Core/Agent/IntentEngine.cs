@@ -92,6 +92,9 @@ public static partial class IntentEngine
         if (NextMeeting().IsMatch(t)) return new ToolIntent("calendar_next", new ToolArgs());
         if (RecordMeeting().IsMatch(t)) return new ToolIntent("meeting_record_start", new ToolArgs());
         if (ScreenLook().IsMatch(t)) return new ToolIntent("screen_describe", new ToolArgs());
+        if (ListPlugins().IsMatch(t)) return new ToolIntent("plugin_list", new ToolArgs());
+        if ((m = MakePlugin().Match(t)).Success)
+            return new ToolIntent("plugin_create", ToolArgs.From(new { description = Original(rawText, m.Groups["x"].Value) }));
         if (StopRecording().IsMatch(t)) return new ToolIntent("meeting_record_stop", new ToolArgs());
         if (MeetingNotesQ().IsMatch(t)) return new ToolIntent("meeting_notes", new ToolArgs(), PreferAi: true);
         if ((m = Agenda().Match(t)).Success)
@@ -321,6 +324,12 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:what(?:'s| is) on (?:my|the) screen|what am i looking at|(?:look at|describe|read) (?:my|the) screen|what do you see on (?:my|the) screen)\??$|^(?:شوف|اقرا|اوصف)(?: لي)? (?:ال)?شاشه\??$|^ايه اللي (?:على|علي) (?:ال)?شاشه\??$")]
     private static partial Regex ScreenLook();
+
+    [GeneratedRegex(@"^(?:what|which) plugins (?:do i have|are installed)\??$|^(?:list|show)(?: me)?(?: my)? plugins$|^(?:my )?plugins$|^(?:عندي )?(?:ايه )?(?:ال)?اضافات(?: اللي عندي)?\??$")]
+    private static partial Regex ListPlugins();
+
+    [GeneratedRegex(@"^(?:make|create|write|build) (?:me )?(?:a |an )?(?:plugin|extension|add-on|new tool)(?: that| to| which| for)? (?<x>.+)$|^(?:اعمل|اكتب|اعملي)(?: لي)? (?:اضافه|بلجن|اداه)(?: بت| ت| عشان| علشان)? ?(?<x>.+)$")]
+    private static partial Regex MakePlugin();
 
     [GeneratedRegex(@"^(?:stop|end|finish) (?:the )?(?:meeting )?recording$|^stop recording(?: the meeting)?$|^(?:وقف|اقفل|خلص) (?:ال)?تسجيل$")]
     private static partial Regex StopRecording();

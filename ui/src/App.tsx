@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   Activity as ActivityIcon, Brain, CheckSquare, Cpu, LayoutDashboard, Lock, MessageSquare, PanelRight, Pause, Play,
-  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch, Inbox as InboxIcon, CalendarDays, Mic2,
+  Settings as SettingsIcon, Terminal, Wifi, WifiOff, Workflow, FolderSearch, Inbox as InboxIcon, CalendarDays, Mic2, Puzzle,
 } from "lucide-react";
 import { get, getToken, onAuthProblem, post, setToken, type Status } from "./api";
 import { events, useEvents } from "./events";
@@ -14,6 +14,7 @@ import { FilesPage } from "./pages/Files";
 import { InboxPage } from "./pages/Inbox";
 import { CalendarPage } from "./pages/Calendar";
 import { MeetingsPage } from "./pages/Meetings";
+import { PluginsPage } from "./pages/Plugins";
 import { MemoryPage } from "./pages/Memory";
 import { ActivityPage } from "./pages/Activity";
 import { SystemPage } from "./pages/System";
@@ -47,6 +48,7 @@ const PAGES = [
   { id: "memory", label: "Memory", icon: Brain, section: "Knowledge" },
   { id: "files", label: "Files", icon: FolderSearch, section: "Knowledge" },
   { id: "system", label: "System", icon: Cpu, section: "System" },
+  { id: "plugins", label: "Plugins", icon: Puzzle, section: "System" },
   { id: "activity", label: "Activity", icon: ActivityIcon, section: "System" },
   { id: "settings", label: "Settings", icon: SettingsIcon, section: "System" },
 ] as const;
@@ -177,6 +179,7 @@ export function App() {
             {page === "workflows" && <WorkflowsPage />}
             {page === "memory" && <MemoryPage />}
             {page === "files" && <FilesPage />}
+            {page === "plugins" && <PluginsPage />}
             {page === "activity" && <ActivityPage />}
             {page === "system" && <SystemPage />}
             {page === "settings" && <SettingsPage />}

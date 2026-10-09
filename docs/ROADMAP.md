@@ -146,8 +146,15 @@ The same matrix is visible in the app under **System → What this build can do*
 
 ## Phase 9 — Plugins
 
-Plugin API on top of the tool registry with declared permissions, lifecycle, sandboxing for generated
-plugins. **Foundation.**
+| Capability | Status |
+| --- | --- |
+| Plugin format: `plugin.json` (id, tools with parameters and declared risk, permissions, tests) + `main.js` | Working |
+| Sandbox (Jint): no CLR, files, processes or network of its own; capability API `jarvis.http/storage/notify/log`; HTTP only to declared hosts, https only, never local addresses; POST only to `httpSend` hosts; limits on time, statements, memory, recursion, requests and storage | Working — escape attempts are part of the test suite |
+| Lifecycle: draft (written by JARVIS from a description, or imported) → validate → sandbox tests with the network off → review → explicit, critical approval → install; network tests only on your click | Working |
+| Risk never lower than declared; anything that can send data is at least sensitive; plugin tools can never shadow built-in tools; every call goes through the normal permission/approval/audit path | Working |
+| Tamper protection: approved code is fingerprinted and held in memory; changed files stop the plugin loading | Working |
+| Plugins page: create, import, checks, permissions, code, install, disable, remove | Working |
+| Plugin updates (new version replacing an installed one with a permission diff) | Planned |
 
 ## Phase 10 — Continuous learning
 

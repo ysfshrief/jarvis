@@ -90,6 +90,8 @@ public static class EventTypes
     public const string MeetingChanged = "meeting.changed";
     /// <summary>The camera was just used (the UI flashes an indicator).</summary>
     public const string CameraUsed = "camera.used";
+    /// <summary>A plugin was drafted, checked, installed, disabled or removed.</summary>
+    public const string PluginsChanged = "plugins.changed";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";

@@ -7,6 +7,9 @@ public interface IToolRegistry
     IReadOnlyList<ITool> All { get; }
     ITool? Find(string name);
     void Register(ITool tool);
+    /// <summary>Adds a plugin's tool. Refused if the name belongs to anything that isn't a plugin tool.</summary>
+    bool TryRegisterPlugin(ITool tool);
+    bool Unregister(string name);
     /// <summary>Tools the AI may call right now (blocked tools are hidden from the model entirely).</summary>
     IReadOnlyList<ToolDefinition> AvailableFor(JarvisSettings settings);
 }
@@ -46,6 +49,27 @@ public sealed class ToolRegistry : IToolRegistry
             _tools[name] = tool;
         }
     }
+
+    public bool TryRegisterPlugin(ITool tool)
+    {
+        var name = tool.Definition.Name;
+        if (tool.Definition.Category != PluginCategory || !System.Text.RegularExpressions.Regex.IsMatch(name, "^[a-zA-Z0-9_-]{1,64}$")) return false;
+        lock (_gate)
+        {
+            // A plugin can never shadow a built-in capability.
+            if (_tools.TryGetValue(name, out var existing) && existing.Definition.Category != PluginCategory) return false;
+            _tools[name] = tool;
+            return true;
+        }
+    }
+
+    public bool Unregister(string name)
+    {
+        lock (_gate)
+            return _tools.TryGetValue(name, out var t) && t.Definition.Category == PluginCategory && _tools.Remove(name);
+    }
+
+    public const string PluginCategory = "plugin";
 
     public IReadOnlyList<ToolDefinition> AvailableFor(JarvisSettings settings) =>
         All.Select(t => t.Definition)

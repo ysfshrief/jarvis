@@ -63,7 +63,7 @@ public static class Capabilities
         new("Vision", "Screen understanding (\"what's on my screen?\")", windows ? CapabilityStatus.Working : CapabilityStatus.Planned, "A local vision model (e.g. qwen2.5vl) looks at a screenshot; without one, JARVIS reads the screen text with Windows OCR and says so. Respects Settings → Privacy → screen capture.", 7),
         new("Vision", "Camera: one photo when you ask (\"what am I holding?\")", windows ? CapabilityStatus.Partial : CapabilityStatus.Planned, "Off by default; asks every time; single photo kept in memory only; never video. Needs a camera and a vision model; not verifiable in CI (no camera).", 7),
         new("Adaptation", "Opt-in pattern learning (routines, language, brevity)", CapabilityStatus.Working, "Off by default; proposals carry their evidence and wait for your confirmation.", 8),
-        new("Plugins", "Plugin API and self-extension", CapabilityStatus.Foundation, "Tool registry is the extension point.", 9),
+        new("Plugins", "Sandboxed plugins: JARVIS writes them from a description or you import them", CapabilityStatus.Working, "JavaScript in a sandbox (Jint) with no access to files, apps or JARVIS's data; network only to hosts you approve; time, step, memory and recursion limits. Lifecycle: draft → validate → tests with the network off → you review permissions → explicit approval → install. Changed files after approval stop the plugin loading. Writing a plugin needs an AI model.", 9),
         new("Devices", "Android companion", CapabilityStatus.Foundation, "The local API + event stream is the future device protocol.", 11),
     ];
 }

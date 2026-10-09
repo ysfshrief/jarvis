@@ -129,6 +129,12 @@ public static class CoreServices
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
         services.AddSingleton<Web.BrowserService>();
+        services.AddSingleton<Plugins.PluginSandbox>();
+        services.AddSingleton<Plugins.PluginManager>();
+        services.AddSingleton<Plugins.PluginGenerator>();
+        AddTool<Plugins.PluginCreateTool>(services);
+        AddTool<Plugins.PluginInstallTool>(services);
+        AddTool<Plugins.PluginListTool>(services);
         services.AddSingleton<Meetings.MeetingStore>();
         services.AddSingleton<Meetings.MeetingRecorder>();
         AddTool<Vision.ScreenDescribeTool>(services);

@@ -37,6 +37,7 @@ public static class ToolSelector
         (["camera", "holding", "photo", "picture of me", "كاميرا", "ماسك", "صوره"], ["camera_look"]),
         (["record", "recording", "transcript", "decide", "action items", "meeting notes", "سجل", "التسجيل", "اتفقنا"],
             ["meeting_record_start", "meeting_record_stop", "meeting_notes"]),
+        (["plugin", "extension", "add-on", "make a tool", "new skill", "اضافه", "بلجن"], ["plugin_create", "plugin_install", "plugin_list"]),
         (["calendar", "schedule", "meeting", "appointment", "agenda", "event", "call", "tomorrow", "today", "prepare", "اجتماع", "ميتنج", "ميعاد", "مواعيد", "اجنده", "بكره", "جهزني"],
             ["calendar_agenda", "calendar_next", "calendar_add", "calendar_delete", "meeting_prep"]),
         (["who", "works at", "relationship", "manager", "client", "مين", "شغال", "مدير", "عميل"], ["memory_relate"]),
@@ -61,6 +62,12 @@ public static class ToolSelector
         var wanted = new HashSet<string>(Core);
         foreach (var (keywords, tools) in Topics)
             if (keywords.Any(k => text.Contains(k))) wanted.UnionWith(tools);
+        // Installed plugins: offered when the request mentions words from the tool's name or description.
+        foreach (var t in available.Where(t => t.Category == ToolRegistry.PluginCategory))
+        {
+            var words = (t.Name + " " + t.Description).ToLowerInvariant().Split([' ', '_', '-', '.', ',', '[', ']'], StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 5 && w != "plugin");
+            if (words.Any(text.Contains)) wanted.Add(t.Name);
+        }
         return available.Where(t => wanted.Contains(t.Name)).ToList();
     }
 }

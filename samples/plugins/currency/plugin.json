@@ -1,0 +1,49 @@
+{
+  "id": "currency",
+  "name": "Currency converter",
+  "version": "1.0.0",
+  "description": "Converts between currencies with the free Frankfurter API (European Central Bank rates).",
+  "permissions": {
+    "http": [
+      "api.frankfurter.app"
+    ]
+  },
+  "tools": [
+    {
+      "name": "convert",
+      "description": "Convert an amount from one currency to another (ISO codes like USD, EUR, EGP).",
+      "risk": "safe",
+      "parameters": [
+        {
+          "name": "amount",
+          "type": "number",
+          "description": "Amount to convert.",
+          "required": true
+        },
+        {
+          "name": "from",
+          "type": "string",
+          "description": "Currency code to convert from.",
+          "required": true
+        },
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Currency code to convert to.",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "tool": "convert",
+      "args": {
+        "amount": 10,
+        "from": "EUR",
+        "to": "USD"
+      },
+      "expect": "USD"
+    }
+  ]
+}

@@ -487,5 +487,28 @@ public sealed class JarvisDatabase
         );
         CREATE INDEX ix_meetings_started ON meetings(started_at);
         """,
+        // v8: plugins (sandboxed extensions) and their private storage.
+        """
+        CREATE TABLE plugins (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            version TEXT NOT NULL,
+            status TEXT NOT NULL,
+            source TEXT NOT NULL,
+            code_hash TEXT NOT NULL,
+            approved_hash TEXT,
+            report TEXT,
+            error TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            installed_at TEXT
+        );
+        CREATE TABLE plugin_storage (
+            plugin_id TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            PRIMARY KEY (plugin_id, key)
+        );
+        """,
     ];
 }

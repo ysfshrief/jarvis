@@ -250,6 +250,17 @@ Bearer`), and only accept loopback Host headers. Events stream on `/ws?access_to
 `{type, data, timestamp}`. This is deliberately the same contract the Android companion will use, via a
 paired-device token instead of the local token (see roadmap Phase 11).
 
+## Plugins
+
+`PluginManager` stores each plugin under `data/plugins/<id>/` (inside the protected data folder, so file tools
+can't edit it) with its state in schema v8. `PluginSandbox` creates a fresh Jint engine per call
+(strict mode, 20 s / 5 M statements / 64 MB / recursion 256), injects a frozen `jarvis` object whose functions
+call back into C# where every permission is enforced, and runs `tool(args)`. `PluginTool` wraps each declared
+tool as an `ITool` (category `plugin`, name `plugin_<id>_<tool>`) registered through
+`IToolRegistry.TryRegisterPlugin`, which refuses names owned by built-in tools. `plugin_create` drafts with the
+coding model and runs offline checks; `plugin_install` is critical. On start-up only plugins whose fingerprint
+matches the approved one are loaded.
+
 ## Extensibility
 
 Everything JARVIS can do is an `ITool` registered in DI. Platform layers replace generic tools by name

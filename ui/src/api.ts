@@ -494,3 +494,11 @@ export interface ActionItem { text: string; owner?: string | null; due?: string 
 export interface MeetingNotes { keyPoints: string[]; decisions: string[]; actionItems: ActionItem[]; openQuestions: string[] }
 export interface Meeting { id: string; title: string; eventId?: string | null; startedAt: string; endedAt?: string | null; status: string; transcript: string; notes?: MeetingNotes | null; audioSeconds: number; error?: string | null }
 export interface MeetingSummary { id: string; title: string; startedAt: string; endedAt?: string | null; status: string; audioSeconds: number; error?: string | null; actionItems: number; decisions: number }
+export interface PluginTest { tool: string; passed: boolean; detail: string; log: string[]; skipped: boolean }
+export interface PluginReport { problems: string[]; tests: PluginTest[]; at: string; networkTested: boolean }
+export interface PluginView {
+  id: string; status: string; source: string; code: string; report?: PluginReport | null; error?: string | null; createdAt: string; installedAt?: string | null;
+  permissions: string;
+  manifest: { id: string; name: string; version: string; description: string; author?: string | null; permissions: { http: string[]; httpSend: string[]; notify: boolean; storage: boolean } };
+  tools: { name: string; toolName: string; risk: string; description: string }[];
+}

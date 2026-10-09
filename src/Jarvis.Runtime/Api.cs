@@ -430,6 +430,43 @@ public static class Api
             return Results.Ok(new { created });
         });
 
+        // ---- Plugins ----
+        api.MapGet("/plugins", (Jarvis.Core.Plugins.PluginManager plugins) => Results.Ok(plugins.List().Select(PluginView)));
+        api.MapGet("/plugins/{id}", (string id, Jarvis.Core.Plugins.PluginManager plugins) => plugins.Get(id) is { } p ? Results.Ok(PluginView(p)) : Results.NotFound());
+        api.MapPost("/plugins/generate", async (PluginGenerateDto dto, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var (result, _) = await executor.ExecuteAsync("plugin_create", ToolArgs.From(new { description = dto.Description ?? "" }), ctx);
+            return Results.Ok(new { result.Success, result.Message, result.Data });
+        });
+        api.MapPost("/plugins/import", (PluginImportDto dto, Jarvis.Core.Plugins.PluginManager plugins, CancellationToken ct) =>
+        {
+            try
+            {
+                var draft = plugins.SaveDraft(dto.Manifest ?? "", dto.Code ?? "", "imported");
+                return Results.Ok(PluginView(plugins.Check(draft.Id, ct)));
+            }
+            catch (Jarvis.Core.Plugins.PluginException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+        // Running the tests with the network is your explicit choice, after seeing the hosts it reads from.
+        api.MapPost("/plugins/{id}/check", (string id, PluginCheckDto dto, Jarvis.Core.Plugins.PluginManager plugins, CancellationToken ct) =>
+        {
+            try { return Results.Ok(PluginView(plugins.Check(id, ct, dto.Network))); }
+            catch (Jarvis.Core.Plugins.PluginException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+        api.MapPost("/plugins/{id}/install", async (string id, ToolExecutor executor, ISettingsStore settings) =>
+        {
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard" };
+            var (result, step) = await executor.ExecuteAsync("plugin_install", ToolArgs.From(new { plugin = id }), ctx);
+            return Results.Ok(new { result.Success, result.Message, status = step.Status });
+        });
+        api.MapPost("/plugins/{id}/enabled", (string id, PluginEnableDto dto, Jarvis.Core.Plugins.PluginManager plugins) =>
+        {
+            try { plugins.SetEnabled(id, dto.Enabled); return Results.Ok(); }
+            catch (Jarvis.Core.Plugins.PluginException ex) { return Results.BadRequest(new { error = ex.Message }); }
+        });
+        api.MapDelete("/plugins/{id}", (string id, Jarvis.Core.Plugins.PluginManager plugins) => plugins.Remove(id) ? Results.Ok() : Results.NotFound());
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>
@@ -712,6 +749,13 @@ public static class Api
         reminders = p.Reminders,
     };
 
+    private static object PluginView(Jarvis.Core.Plugins.PluginInfo p) => new
+    {
+        id = p.Id, manifest = p.Manifest, p.Status, p.Source, p.Code, p.Report, p.Error, p.CreatedAt, p.InstalledAt,
+        permissions = Jarvis.Core.Plugins.PluginManager.Describe(p.Manifest),
+        tools = p.Manifest.Tools.Select(t => new { t.Name, toolName = p.Manifest.ToolName(t), risk = p.Manifest.EffectiveRisk(t).ToString().ToLowerInvariant(), t.Description }),
+    };
+
     private static IReadOnlyList<string> Addrs(string? s) =>
         (s ?? "").Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -737,3 +781,7 @@ public sealed record CalendarSubDto(string? Name, string? Url);
 public sealed record EventDto(string? Title, DateTimeOffset Start, DateTimeOffset? End, string? Location, string? Attendees);
 public sealed record MeetingStartDto(string? Title);
 public sealed record MeetingTasksDto(List<int>? Items);
+public sealed record PluginGenerateDto(string? Description);
+public sealed record PluginImportDto(string? Manifest, string? Code);
+public sealed record PluginCheckDto(bool Network);
+public sealed record PluginEnableDto(bool Enabled);
