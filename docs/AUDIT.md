@@ -33,8 +33,9 @@ Gaps from the table below that have since been closed, each by a test that passe
 - **Model tags:** two tags of one Ollama model (e.g. `qwen2.5vl` and `qwen2.5vl:3b`) were listed under one name, so the
   untagged name never resolved; fixed with a unit test and exercised live in run 38.
 
-Still open from this audit: a real model's tool call through the agent is only reliable from 3B parameters up
-(`qwen2.5:1.5b` asked questions instead of creating the task in runs 37–38); see the Agent row in the roadmap.
+- **A real model's tool call through the agent:** a real `qwen2.5:3b` (the lightest model JARVIS offers) chose
+  `task_create` for a request no deterministic command matches, and JARVIS executed it (run 39). Models below 3B are
+  not reliable at this: `qwen2.5:1.5b` asked questions instead of creating the task in runs 37–38.
 
 ## Verdict by area
 

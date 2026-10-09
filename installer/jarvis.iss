@@ -2,7 +2,7 @@
 ; Per-user install: no administrator rights needed, nothing touches system folders.
 
 #ifndef AppVersion
-  #define AppVersion "0.3.1"
+  #define AppVersion "0.3.2"
 #endif
 #ifndef SourceDir
   #define SourceDir "..\artifacts\app"

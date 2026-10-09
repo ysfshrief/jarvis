@@ -21,7 +21,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Always-on runtime, starts with Windows, survives UI crashes | Working | `jarvis-core.exe` + watchdog both ways |
 | Desktop presence: orb, tray, quick bar (Ctrl+Alt+J), dashboard | Working | WebView2; falls back to browser |
 | Agent loop with deterministic EN/AR commands | Working | ~40 command patterns, no AI needed |
-| AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key. Use 3B parameters or more: in CI, qwen2.5:1.5b often asked a question instead of creating the task it was given |
+| AI conversation with tool calling | Working | Needs a local model (Ollama) or an optional cloud key. Verified in CI: a real qwen2.5:3b picks the right tool for a request no direct command matches and JARVIS executes it. Use 3B parameters or more: qwen2.5:1.5b often asked a question instead of acting |
 | AI router (no-AI / local / cloud) | Partial | Keyword task classes + capability-aware model choice; no cost/latency model yet |
 | Native Ollama: model discovery, capabilities (tools/vision/embedding), context sizing, downloads | Working | Verified in CI against a real Ollama (qwen2.5 chat, qwen2.5vl vision, all-minilm and bge-m3 embeddings) |
 | Streaming replies, model fallback chain, context budgeting for small models, conversation restore after restart | Working | |

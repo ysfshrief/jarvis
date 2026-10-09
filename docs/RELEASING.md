@@ -32,11 +32,11 @@ Release `v<version>` with all three files. An existing release is never replaced
 
 ```bash
 # bump <Version> in Directory.Build.props if needed, commit, then:
-git tag v0.3.1
-git push origin v0.3.1
+git tag v0.3.2
+git push origin v0.3.2
 ```
 
-The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.3.1` with all three files and
+The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.3.2` with all three files and
 generated notes.
 
 The APK is debug-signed (no release keystore is configured), so phones install it as a sideloaded app.
@@ -44,7 +44,7 @@ The APK is debug-signed (no release keystore is configured), so phones install i
 ## Local packaging
 
 ```powershell
-./build/package.ps1 -Version 0.3.1      # artifacts/JARVIS-Setup-x64.exe, artifacts/JARVIS-Portable-x64.zip
+./build/package.ps1 -Version 0.3.2      # artifacts/JARVIS-Setup-x64.exe, artifacts/JARVIS-Portable-x64.zip
 ./build/smoke-test.ps1
 ```
 
