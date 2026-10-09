@@ -125,6 +125,13 @@ public static class CoreServices
         AddTool<WebSearchTool>(services);
         AddTool<WebReadTool>(services);
         services.AddSingleton<Web.BrowserService>();
+        services.AddSingleton<Agenda.AgendaStore>();
+        services.AddSingleton<Agenda.CalendarService>();
+        AddTool<CalendarAgendaTool>(services);
+        AddTool<CalendarNextTool>(services);
+        AddTool<CalendarAddTool>(services);
+        AddTool<CalendarDeleteTool>(services);
+        AddTool<MeetingPrepTool>(services);
         services.AddSingleton<Inbox.InboxStore>();
         services.AddSingleton<Inbox.IMailConnector, Inbox.ImapSmtpConnector>();
         services.AddSingleton<Inbox.InboxService>();

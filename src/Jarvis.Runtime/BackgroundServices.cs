@@ -251,3 +251,30 @@ public sealed class InboxSyncService(Jarvis.Core.Inbox.InboxService inbox, ISett
         }
     }
 }
+
+/// <summary>Refreshes subscribed calendars and sends meeting reminders.</summary>
+public sealed class CalendarMonitorService(Jarvis.Core.Agenda.CalendarService calendar, ISettingsStore settings, Jarvis.Core.Connectivity.IConnectivity connectivity, ILogger<CalendarMonitorService> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+        var nextSync = DateTimeOffset.MinValue;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                if (connectivity.IsOnline && DateTimeOffset.Now >= nextSync && calendar.Store.Calendars().Any(c => c.Kind == Jarvis.Core.Agenda.CalendarKinds.Ics))
+                {
+                    await calendar.SyncAsync(stoppingToken);
+                    nextSync = DateTimeOffset.Now.AddMinutes(settings.Current.Calendar.SyncMinutes);
+                }
+                await calendar.RemindAsync(DateTimeOffset.Now, stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogWarning(ex, "Calendar check failed");
+            }
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+    }
+}

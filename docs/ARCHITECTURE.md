@@ -198,6 +198,18 @@ locally; `inbox_send` is the only path to SMTP, is graded critical on every call
 the approval. Inbox tools that return mail content set `ReadsUntrustedContent`, so anything the model proposes
 after reading an email needs approval in that request. `InboxSyncService` checks every few minutes while online.
 
+## Calendar
+
+`CalendarService` subscribes to iCalendar feeds (the private "secret address" Google Calendar, Outlook and
+iCloud publish; the URL is a secret) and keeps JARVIS's own local calendar. Feeds are parsed with Ical.Net and
+expanded (recurrences, cancellations, all-day dates) into `events` (schema v6) for a window of 30 days back and
+120 ahead; each refresh replaces a calendar's events while keeping "already reminded" marks. Events link to
+entities by title, attendee names and email domains. `DatePhrases` reads EN/AR day, date, time and duration
+phrases for adding events and agenda questions. `Prepare` assembles a meeting brief only from stored data
+(people and relationships, workflows, tasks, mail, files, the previous occurrence); `meeting_prep` is a
+grounded intent, so a model, when present, writes from that brief rather than from imagination.
+`CalendarMonitorService` refreshes feeds and posts reminders through the notification centre.
+
 ## Notification intelligence
 
 `NotificationCenter.Decide` (pure, unit-tested): critical always delivered; quiet hours hold the rest;

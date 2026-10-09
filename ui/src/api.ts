@@ -336,6 +336,7 @@ export interface Settings {
     inputDeviceIndex: number;
   };
   permissions: { autoApproveSensitive: boolean; toolOverrides: Record<string, string>; approvalTimeoutSeconds: number };
+  calendar: { reminderMinutes: number; syncMinutes: number };
   inbox: { syncMinutes: number; initialDays: number; notifyUrgent: boolean; vipSenders: string[] };
   web: { browserEnabled: boolean; browserPath: string; headless: boolean; allowLocalPages: boolean };
   files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
@@ -477,3 +478,13 @@ export interface MailDraft {
   createdAt: string; updatedAt: string; sentAt?: string | null; error?: string | null;
 }
 export interface MessageDetail { message: InboxMessage; entities: Entity[]; drafts: MailDraft[]; fromSender: InboxMessage[] }
+export interface AgendaCalendar { id: string; name: string; kind: string; color?: string | null; enabled: boolean; status: string; statusMessage?: string | null; lastSync?: string | null }
+export interface Attendee { name?: string | null; email?: string | null }
+export interface AgendaEvent {
+  id: string; calendarId: string; uid: string; title: string; start: string; end: string; allDay: boolean; location?: string | null; description?: string | null;
+  organizer?: Attendee | null; attendees: Attendee[]; source: string; reminded: boolean;
+}
+export interface MeetingPrep {
+  text: string; people: { name: string; known?: string | null; entityId?: string | null; facts: string[] }[]; workflows: { id: string; title: string }[];
+  tasks: { id: string; title: string }[]; mail: { id: string; sender: string; subject: string; receivedAt: string }[]; files: { id: string; name: string }[];
+}

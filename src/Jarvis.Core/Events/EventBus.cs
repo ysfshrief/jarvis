@@ -84,6 +84,8 @@ public static class EventTypes
     public const string BrowserChanged = "browser.changed";
     /// <summary>Mail accounts, messages or drafts changed.</summary>
     public const string InboxChanged = "inbox.changed";
+    /// <summary>Calendars or events changed.</summary>
+    public const string CalendarChanged = "calendar.changed";
     public const string RemindersChanged = "reminders.changed";
     public const string QueueChanged = "queue.changed";
     public const string UiShow = "ui.show";

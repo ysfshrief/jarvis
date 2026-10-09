@@ -23,6 +23,15 @@ public sealed class JarvisSettings
     public PrivacySettings Privacy { get; set; } = new();
     public WebSettings Web { get; set; } = new();
     public InboxSettings Inbox { get; set; } = new();
+    public CalendarSettings Calendar { get; set; } = new();
+}
+
+public sealed class CalendarSettings
+{
+    /// <summary>Minutes before a meeting to remind you (0 = no reminders).</summary>
+    public int ReminderMinutes { get; set; } = 10;
+    /// <summary>How often subscribed calendars are refreshed.</summary>
+    public int SyncMinutes { get; set; } = 15;
 }
 
 public sealed class InboxSettings

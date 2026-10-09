@@ -94,7 +94,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Workflows: "track the CityCrep deal" — templates (deal, project, hiring, follow-up, custom), ordered steps with dependencies, deadlines, waiting-for with follow-up nudges, approval-gated business steps, recurring cycles, history, links to people/organisations | Working |
 | Recurring tasks ("water the plants every monday", "كل جمعة") | Working |
 | Proactive suggestions beyond follow-ups and deadlines | Planned |
-| Calendar integration | Planned (Phase 7 with meetings) |
+| Calendar: see Phase 7 | Working |
 
 ## Phase 6 — Knowledge & communication
 
@@ -119,8 +119,16 @@ The same matrix is visible in the app under **System → What this build can do*
 
 ## Phase 7 — Vision & meeting intelligence
 
-Screen understanding with a local vision model, meeting preparation briefs, visible recording controls,
-notes, decisions and action items. Screenshots already work. **Foundation.**
+| Capability | Status |
+| --- | --- |
+| Calendar subscriptions through the private iCal (ICS) address of Google Calendar, Outlook or iCloud — read-only, recurrences expanded, address encrypted | Working — tested against a real HTTP-served feed |
+| JARVIS's own calendar: "schedule a meeting with Ahmed tomorrow at 3pm for 30 minutes", "حط اجتماع مع سارة بكرة الساعة 11" (EN/AR day, date, time and duration phrases) | Working |
+| "What's on my calendar tomorrow", "my next meeting", "عندي اجتماعات النهارده؟"; meetings in the daily briefing; reminders N minutes before | Working |
+| Meeting prep from real data: attendees (matched to known people/organisations), relationships and facts, tracked deals, open tasks, recent email, documents | Working |
+| Calendar page (week view, event detail with prep, add/remove local events) | Working |
+| Two-way sync / sending invites (Google, Microsoft, CalDAV) | Planned |
+| Meeting recording (user-started, always visible), transcripts, decisions and action items | Planned |
+| Screen understanding with a local vision model | Planned — screenshots and Windows OCR already work |
 
 ## Phase 8 — Personal adaptation
 

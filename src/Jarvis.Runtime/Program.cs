@@ -78,6 +78,7 @@ try
     builder.Services.AddHostedService<WorkflowMonitorService>();
     builder.Services.AddHostedService<FileIndexService>();
     builder.Services.AddHostedService<InboxSyncService>();
+    builder.Services.AddHostedService<CalendarMonitorService>();
 
     var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
     {

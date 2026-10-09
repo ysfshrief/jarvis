@@ -243,7 +243,7 @@ public sealed class BrowserService(JarvisPaths paths, ISettingsStore settings, I
             _process.BeginErrorReadLine();
             _process.BeginOutputReadLine();
             logger.LogInformation("Started browser {Exe} (pid {Pid})", exe, _process.Id);
-            var deadline = DateTime.UtcNow.AddSeconds(20);
+            var deadline = DateTime.UtcNow.AddSeconds(60); // a cold first start on a slow PC or CI runner can take a while
             while ((cdp = await TryConnectAsync(portFile, ct).ConfigureAwait(false)) is null)
             {
                 if (_process.HasExited)

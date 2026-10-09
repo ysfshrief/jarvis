@@ -134,6 +134,9 @@ public sealed class SettingsStore : ISettingsStore
         s.Privacy ??= new();
         s.Web ??= new();
         s.Inbox ??= new();
+        s.Calendar ??= new();
+        s.Calendar.ReminderMinutes = Math.Clamp(s.Calendar.ReminderMinutes, 0, 240);
+        s.Calendar.SyncMinutes = Math.Clamp(s.Calendar.SyncMinutes, 5, 1440);
         s.Inbox.VipSenders ??= [];
         s.Inbox.SyncMinutes = Math.Clamp(s.Inbox.SyncMinutes, 1, 240);
         s.Inbox.InitialDays = Math.Clamp(s.Inbox.InitialDays, 1, 365);

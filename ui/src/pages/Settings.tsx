@@ -11,6 +11,7 @@ import { playCue, type SoundKind } from "../lib/sounds";
 import { tr } from "../lib/i18n";
 import { ClearIndexButton, FilesIndexHint } from "./Files";
 import { ConnectorTable } from "./Inbox";
+import { CalendarSubscriptions } from "./Calendar";
 
 const SECTIONS = [
   { id: "general", label: "General", icon: SlidersHorizontal },
@@ -926,6 +927,13 @@ function AccountsSettings({ s, set }: P) {
         <Field label="VIP senders" hint="One address or domain per line; their mail is always at least important.">
           <textarea className="input mono" rows={3} dir="ltr" value={s.inbox.vipSenders.join("\n")} onChange={(e) => set((x) => { x.inbox.vipSenders = e.target.value.split("\n").map((l) => l.trim()).filter(Boolean); })} />
         </Field>
+      </Card>
+      <CalendarSubscriptions />
+      <Card title="Meeting reminders">
+        <div className="form-grid">
+          <Field label="Remind me before meetings (minutes)" hint="0 turns reminders off."><input className="input" type="number" min={0} value={s.calendar.reminderMinutes} onChange={(e) => set((x) => { x.calendar.reminderMinutes = Number(e.target.value); })} /></Field>
+          <Field label="Refresh subscribed calendars every (minutes)"><input className="input" type="number" min={5} value={s.calendar.syncMinutes} onChange={(e) => set((x) => { x.calendar.syncMinutes = Number(e.target.value); })} /></Field>
+        </div>
       </Card>
       {st.data && <ConnectorTable s={st.data} />}
     </>

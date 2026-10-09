@@ -351,4 +351,21 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
         // Drafting needs an account; sending an unknown draft goes through the tool and fails cleanly.
         Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/inbox/drafts", new { to = "a@b.com", subject = "x", body = "y" })).StatusCode);
     }
+
+    [Fact]
+    public async Task Calendar_api_adds_lists_prepares_and_protects_subscriptions()
+    {
+        var c = _f.Authed();
+        var start = DateTimeOffset.Now.AddDays(1).Date.AddHours(10);
+        var created = await (await c.PostAsJsonAsync("/api/calendar/events", new { title = "Design review", start = new DateTimeOffset(start), end = new DateTimeOffset(start.AddHours(1)), location = "Room 1", attendees = "Mona" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetString();
+        var events = await c.GetFromJsonAsync<JsonElement>($"/api/calendar/events?from={Uri.EscapeDataString(DateTimeOffset.Now.ToString("O"))}");
+        Assert.Contains(events.EnumerateArray(), e => e.GetProperty("title").GetString() == "Design review");
+        var prep = await c.GetFromJsonAsync<JsonElement>($"/api/calendar/events/{id}/prep");
+        Assert.Contains("Design review", prep.GetProperty("text").GetString());
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/calendar/calendars", new { name = "x", url = "file:///etc/passwd" })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await c.PostAsJsonAsync("/api/calendar/events", new { title = "", start = DateTimeOffset.Now })).StatusCode);
+        (await c.DeleteAsync($"/api/calendar/events/{id}")).EnsureSuccessStatusCode();
+    }
 }

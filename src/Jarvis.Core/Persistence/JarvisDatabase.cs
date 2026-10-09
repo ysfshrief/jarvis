@@ -430,5 +430,46 @@ public sealed class JarvisDatabase
             created_at TEXT NOT NULL
         );
         """,
+        // v6: calendars (ICS subscriptions and JARVIS's local calendar) and their events.
+        """
+        CREATE TABLE calendars (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            color TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL,
+            status_message TEXT,
+            last_sync TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE events (
+            id TEXT PRIMARY KEY,
+            calendar_id TEXT NOT NULL,
+            uid TEXT NOT NULL,
+            title TEXT NOT NULL,
+            start_at TEXT NOT NULL,
+            end_at TEXT NOT NULL,
+            all_day INTEGER NOT NULL DEFAULT 0,
+            location TEXT,
+            description TEXT,
+            organizer TEXT,
+            attendees TEXT,
+            source TEXT NOT NULL,
+            reminded INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            search_text TEXT NOT NULL,
+            UNIQUE (calendar_id, uid, start_at)
+        );
+        CREATE INDEX ix_events_start ON events(start_at);
+
+        CREATE TABLE event_entities (
+            event_id TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            PRIMARY KEY (event_id, entity_id)
+        );
+        CREATE INDEX ix_event_entities_entity ON event_entities(entity_id);
+        """,
     ];
 }

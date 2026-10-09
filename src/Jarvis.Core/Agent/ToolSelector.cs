@@ -32,6 +32,8 @@ public static class ToolSelector
             ["workflow_create", "workflow_status", "workflow_update_step", "workflow_add_step", "workflow_cancel"]),
         (["email", "e-mail", "mail", "inbox", "reply", "draft", "send", "message", "ايميل", "ميل", "انبوكس", "رد", "ابعت", "مسوده", "رساله"],
             ["inbox_check", "inbox_list", "inbox_read", "inbox_draft", "inbox_send", "inbox_categorize"]),
+        (["calendar", "schedule", "meeting", "appointment", "agenda", "event", "call", "tomorrow", "today", "prepare", "اجتماع", "ميتنج", "ميعاد", "مواعيد", "اجنده", "بكره", "جهزني"],
+            ["calendar_agenda", "calendar_next", "calendar_add", "calendar_delete", "meeting_prep"]),
         (["who", "works at", "relationship", "manager", "client", "مين", "شغال", "مدير", "عميل"], ["memory_relate"]),
         (["window", "switch", "minimize", "maximize", "focus", "شباك"], ["window_list", "window_control"]),
         (["process", "kill", "memory usage", "cpu", "slow", "frozen", "hang", "تقيل", "واقف"], ["process_list", "process_kill"]),

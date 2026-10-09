@@ -89,6 +89,18 @@ public static partial class IntentEngine
         if (Priorities().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "priorities" }));
         if (Briefing().IsMatch(t)) return new ToolIntent("daily_briefing", ToolArgs.From(new { focus = "today" }));
         if (InboxCheck().IsMatch(t)) return new ToolIntent("inbox_check", new ToolArgs());
+        if (NextMeeting().IsMatch(t)) return new ToolIntent("calendar_next", new ToolArgs());
+        if ((m = Agenda().Match(t)).Success)
+            return new ToolIntent("calendar_agenda", m.Groups["w"].Success && m.Groups["w"].Value.Length > 0 ? ToolArgs.From(new { when = m.Groups["w"].Value.Trim() }) : new ToolArgs());
+        if ((m = MeetingPrep().Match(t)).Success)
+            return new ToolIntent("meeting_prep", m.Groups["x"].Success && m.Groups["x"].Value.Trim().Length > 0 ? ToolArgs.From(new { meeting = Original(rawText, m.Groups["x"].Value) }) : new ToolArgs(), PreferAi: true);
+        if ((m = AddEvent().Match(t)).Success)
+        {
+            var what = Original(rawText, m.Groups["x"].Value).Trim();
+            var kind = m.Groups["k"].Value;
+            var title = Regex.IsMatch(what, @"^(?:with|مع)\b", RegexOptions.IgnoreCase) ? $"{(kind is "call" ? "Call" : kind is "اجتماع" or "ميتنج" ? "اجتماع" : "Meeting")} {what}" : what;
+            return new ToolIntent("calendar_add", ToolArgs.From(new { title }), FallBackToAiOnFailure: true);
+        }
         if ((m = CompleteTask().Match(t)).Success)
             return new ToolIntent("task_complete", ToolArgs.From(new { title = m.Groups["x"].Value.Trim() }));
 
@@ -296,6 +308,18 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:check|show|open|read)(?: me)? (?:my )?(?:e-?mails?|inbox|mail)(?: for me)?$|^(?:any|do i have any|did i get any) (?:new |urgent |important )?(?:e-?mails?|mail)(?: today)?\??$|^what(?:'s| is) (?:important|urgent|new) in my (?:inbox|e-?mails?|mail)\??$|^(?:my )?(?:inbox|e-?mails?)\??$|^(?:شوف|شوفلي|افتح|اقرا|اقرالي)(?: لي)? (?:ال)?(?:ايميل|ايميلات|ميل|انبوكس|بريد)(?:ي)?$|^(?:في|فيه|جالي) (?:اي )?(?:ايميلات|ايميل|رسايل) (?:جديده|مهمه|مستعجله)\??$|^ايه (?:الجديد|المهم) في (?:الايميل|الانبوكس|الميل)\??$")]
     private static partial Regex InboxCheck();
+
+    [GeneratedRegex(@"^(?:what(?:'s| is)|when(?:'s| is)) my next (?:meeting|appointment|event|call)\??$|^(?:my )?next (?:meeting|appointment|event)\??$|^(?:الاجتماع|الميتنج|الميعاد) (?:الجاي|اللي جاي)(?: امتي| ايه)?\??$|^امتي (?:الاجتماع|الميتنج|الميعاد) (?:الجاي|اللي جاي)\??$")]
+    private static partial Regex NextMeeting();
+
+    [GeneratedRegex(@"^(?:what(?:'s| is) on )?my (?:calendar|schedule|agenda)(?: for)?(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^what(?:'s| is) on my (?:calendar|schedule)(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^(?:do i have|have i got|any) (?:meetings?|events?|appointments?|calls?)(?<w> today| tomorrow| this week| (?:on )?\w+day| on .+)?\??$|^what (?:meetings|events) do i have(?<w> today| tomorrow| this week| (?:on )?\w+day)?\??$|^(?:عندي|فيه|في) (?:اجتماعات|اجتماع|مواعيد|ميعاد|ميتنجات|ميتنج)(?<w> النهارده| بكره| بعد بكره| الاسبوع ده| يوم \S+)?\??$|^(?:ايه )?(?:مواعيدي|جدولي|اجندتي)(?<w> النهارده| بكره| بعد بكره| الاسبوع ده| يوم \S+)?\??$")]
+    private static partial Regex Agenda();
+
+    [GeneratedRegex(@"^(?:prepare|prep|brief) me (?:for|on|about) (?:my |the |our )?(?:next )?(?<x>.*?)(?: ?(?:meeting|call|appointment))?$|^(?:جهزني|حضرني) (?:ل|لـ)?(?:ال)?(?:اجتماع|ميتنج)?(?: مع)? ?(?<x>.*)$")]
+    private static partial Regex MeetingPrep();
+
+    [GeneratedRegex(@"^(?:schedule|add|book|put|create|set up)(?: me)?(?: a| an)? (?<k>meeting|event|appointment|call)(?: in my calendar| on my calendar| to my calendar)?(?<x> .+)$|^(?:حط|ضيف|سجل|احجز)(?: لي| لى)? (?<k>اجتماع|ميعاد|ميتنج|مكالمه)(?<x> .+)$")]
+    private static partial Regex AddEvent();
 
     [GeneratedRegex(@"^(?:mark (?:the )?(?:task )?(?<x>.+?) (?:as )?(?:done|complete|completed|finished)|complete (?:the )?task (?<x>.+)|(?:خلص|خلصت|علم علي) (?:مهمه|تاسك) (?<x>.+))$")]
     private static partial Regex CompleteTask();

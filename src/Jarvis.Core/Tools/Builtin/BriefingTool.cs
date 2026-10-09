@@ -12,7 +12,7 @@ namespace Jarvis.Core.Tools.Builtin;
 /// "What's happening today?" / "Check my priorities": a chief-of-staff summary built only from what
 /// JARVIS actually knows (reminders, tasks, approvals, queued work, held notifications). No AI needed.
 /// </summary>
-public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, ApprovalBroker approvals, OfflineQueue queue, NotificationCenter notifications, Workflows.WorkflowStore workflows, Inbox.InboxStore mail) : ToolBase
+public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, ApprovalBroker approvals, OfflineQueue queue, NotificationCenter notifications, Workflows.WorkflowStore workflows, Inbox.InboxStore mail, Agenda.AgendaStore agenda) : ToolBase
 {
     public override ToolDefinition Definition { get; } = new()
     {
@@ -46,6 +46,8 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
         /// <summary>Unhandled mail that needs the user (from the last sync — reading the briefing doesn't fetch mail).</summary>
         public IReadOnlyList<Inbox.InboxMessage> UrgentMail { get; init; } = [];
         public int NeedsReply { get; init; }
+        /// <summary>Calendar events for the rest of today.</summary>
+        public IReadOnlyList<Agenda.AgendaEvent> Meetings { get; init; } = [];
     }
 
     public Briefing Build(DateTimeOffset now, bool prioritiesOnly)
@@ -64,6 +66,7 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
             Workflows = workflows.List().Where(w => w.Steps.Any(st => st.Ready)).Take(5).ToList(),
             UrgentMail = mail.List(Inbox.MailCategories.Urgent, limit: 3),
             NeedsReply = mail.Counts()[Inbox.MailCategories.NeedsResponse],
+            Meetings = agenda.Between(now, endOfDay),
         };
     }
 
@@ -81,6 +84,12 @@ public sealed class BriefingTool(TaskStore tasks, ReminderStore reminders, Appro
             sb.AppendLine(ctx.T($"• Top priorities: {List(b.Priority, 3)}.", $"• أهم الأولويات: {List(b.Priority, 3)}."));
         if (b.DueToday.Count > 0)
             sb.AppendLine(ctx.T($"• Due today: {List(b.DueToday, 3)}.", $"• مطلوب النهارده: {List(b.DueToday, 3)}."));
+        if (b.Meetings.Count > 0)
+        {
+            var items = string.Join(ar ? "، " : ", ", b.Meetings.Take(4).Select(e => e.AllDay ? e.Title : $"{e.Title} ({Time(e.Start)})"));
+            sb.AppendLine(ctx.T($"• Calendar: {items}{(b.Meetings.Count > 4 ? $" and {b.Meetings.Count - 4} more" : "")}.",
+                                $"• الأجندة: {items}{(b.Meetings.Count > 4 ? $" و{b.Meetings.Count - 4} كمان" : "")}."));
+        }
         if (b.UrgentMail.Count > 0)
         {
             var items = string.Join(ar ? "، " : "; ", b.UrgentMail.Select(m => $"{m.Sender} — {m.Subject}"));

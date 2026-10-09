@@ -353,6 +353,51 @@ public static class Api
             return Results.Ok(new { result.Success, result.Message, status = step.Status });
         });
 
+        // ---- Calendar ----
+        api.MapGet("/calendar/calendars", (Jarvis.Core.Agenda.CalendarService cal) =>
+            Results.Ok(cal.Store.Calendars().Select(c => new { c.Id, c.Name, c.Kind, c.Color, c.Enabled, c.Status, c.StatusMessage, c.LastSync })));
+        api.MapPost("/calendar/calendars", async (CalendarSubDto dto, Jarvis.Core.Agenda.CalendarService cal, CancellationToken ct) =>
+        {
+            try
+            {
+                var c = await cal.SubscribeAsync(dto.Name ?? "", dto.Url ?? "", ct);
+                return Results.Ok(new { c.Id, c.Name, c.Status });
+            }
+            catch (Exception ex) when (ex is ArgumentException or Jarvis.Core.Agenda.CalendarException or HttpRequestException or TaskCanceledException)
+            {
+                return Results.BadRequest(new { error = ex is HttpRequestException or TaskCanceledException ? "Couldn't reach that calendar address." : ex.Message });
+            }
+        });
+        api.MapDelete("/calendar/calendars/{id}", (string id, Jarvis.Core.Agenda.CalendarService cal) => cal.Remove(id) ? Results.Ok() : Results.NotFound());
+        api.MapPost("/calendar/sync", async (Jarvis.Core.Agenda.CalendarService cal, CancellationToken ct) => Results.Ok(new { events = await cal.SyncAsync(ct) }));
+        api.MapGet("/calendar/events", (Jarvis.Core.Agenda.CalendarService cal, DateTimeOffset? from, DateTimeOffset? to) =>
+        {
+            var f = from ?? new DateTimeOffset(DateTime.Today);
+            return Results.Ok(cal.Store.Between(f, to ?? f.AddDays(7), 1000));
+        });
+        api.MapPost("/calendar/events", (EventDto dto, Jarvis.Core.Agenda.CalendarService cal) => Guard(() =>
+            cal.AddLocal(dto.Title ?? "", dto.Start, dto.End ?? dto.Start.AddHours(1), dto.Location,
+                (dto.Attendees ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => a.Contains('@') ? new Jarvis.Core.Agenda.Attendee(null, a) : new Jarvis.Core.Agenda.Attendee(a, null)).ToList(), "you")));
+        api.MapDelete("/calendar/events/{id}", (string id, Jarvis.Core.Agenda.CalendarService cal) =>
+            cal.Store.Get(id) is { Source: not "ics" } ? (cal.Store.DeleteEvent(id) ? Results.Ok() : Results.NotFound()) : Results.BadRequest(new { error = "Events from subscribed calendars are read-only." }));
+        api.MapGet("/calendar/events/{id}/prep", (string id, Jarvis.Core.Agenda.CalendarService cal, ISettingsStore settings) =>
+        {
+            var e = cal.Store.Get(id);
+            if (e is null) return Results.NotFound();
+            var ctx = new ToolContext { Lang = settings.Current.General.Language == "ar" ? Lang.Ar : Lang.En, Settings = settings.Current };
+            var b = cal.Prepare(e);
+            return Results.Ok(new
+            {
+                text = Jarvis.Core.Agenda.CalendarService.Render(b, ctx),
+                people = b.People.Select(p => new { name = p.Person, known = p.Entity?.Name, entityId = p.Entity?.Id, facts = p.Facts }),
+                workflows = b.Workflows.Select(w => new { w.Id, w.Title }),
+                tasks = b.OpenTasks.Select(t => new { t.Id, t.Title }),
+                mail = b.RecentMail.Select(m => new { m.Id, m.Sender, m.Subject, m.ReceivedAt }),
+                files = b.Files.Select(f => new { f.Id, f.Name }),
+            });
+        });
+
         // ---- Tasks ----
         api.MapGet("/tasks", (TaskStore store, bool? all) => Results.Ok(store.List(all ?? false)));
         api.MapPost("/tasks", (TaskDto dto, TaskStore store) =>
@@ -652,3 +697,5 @@ public sealed record MailAccountDto(string? Preset, string? Address, string? Dis
 public sealed record CategoryDto(string? Category);
 public sealed record HandledDto(bool Handled);
 public sealed record DraftDto(string? ReplyTo, string? To, string? Cc, string? Subject, string? Body, string? AccountId);
+public sealed record CalendarSubDto(string? Name, string? Url);
+public sealed record EventDto(string? Title, DateTimeOffset Start, DateTimeOffset? End, string? Location, string? Attendees);
