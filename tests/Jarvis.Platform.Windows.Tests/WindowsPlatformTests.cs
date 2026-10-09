@@ -55,7 +55,10 @@ public sealed class WindowsPlatformTests : IDisposable
         var ocr = _sp.GetRequiredService<Jarvis.Core.Files.IOcrEngine>();
         _out.WriteLine($"OCR: {ocr.Name}, available={ocr.IsAvailable}");
         if (!ocr.IsAvailable) return; // no OCR language installed on this image: nothing to verify
-        var png = Path.Combine(_dataDir, "ocr-test.png");
+        // Not inside the data folder: JARVIS never indexes its own data.
+        var docs = Path.Combine(Path.GetTempPath(), "jarvis-ocr-docs", Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(docs);
+        var png = Path.Combine(docs, "ocr-test.png");
         using (var bmp = new System.Drawing.Bitmap(900, 220))
         using (var g = System.Drawing.Graphics.FromImage(bmp))
         using (var font = new System.Drawing.Font("Segoe UI", 44, System.Drawing.FontStyle.Bold))
@@ -70,11 +73,12 @@ public sealed class WindowsPlatformTests : IDisposable
         Assert.Contains("CityCrep", text ?? "", StringComparison.OrdinalIgnoreCase);
 
         // The same image becomes findable by its text through the file index.
-        _sp.GetRequiredService<ISettingsStore>().Update(s => { s.Files.IndexEnabled = true; s.Files.IndexRoots = [_dataDir]; });
+        _sp.GetRequiredService<ISettingsStore>().Update(s => { s.Files.IndexEnabled = true; s.Files.IndexRoots = [docs]; });
         var indexer = _sp.GetRequiredService<Jarvis.Core.Files.FileIndexer>();
         await indexer.ScanAsync(default);
         var hits = await _sp.GetRequiredService<Jarvis.Core.Files.FileIndex>().SearchAsync("citycrep invoice", 5, null, default);
         Assert.Contains(hits, h => h.File.Name == "ocr-test.png");
+        try { Directory.Delete(docs, true); } catch { }
     }
 
     [Fact]
