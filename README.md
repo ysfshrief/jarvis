@@ -43,7 +43,8 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    - `make a plugin that converts currencies` — JARVIS writes a sandboxed plugin; you review what it may do and approve
      the install (samples in `samples/plugins/`)
    - `research CityCrep's competitors` · `learn from https://…` · `learn from C:\Docs\brief.pdf` · `اتعلم عن …` — facts are
-     kept with their source, contradictions are flagged, and nothing counts as a fact until you confirm it (needs an AI model)
+     kept with their source, contradictions are flagged, and nothing counts as a fact until you confirm it (needs an AI model);
+     `keep me updated on solar panel prices` · `تابعلي أخبار …` re-checks every week and tells you only when something is new
    - `record this meeting` → a REC indicator appears; `stop recording` → decisions and action items (`what did we decide?`)
    - after connecting email in **Settings → Accounts**: `check my email` · `شوف الإيميل` · then in the Inbox, reply or
      *Draft with JARVIS* — nothing is sent until you approve it
