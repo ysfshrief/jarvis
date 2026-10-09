@@ -42,7 +42,13 @@ for (const f of files(src)) {
   // Raw English text between tags, and literal English in DOM attributes that are shown to people.
   for (const m of text.matchAll(/>\s*([^<>{}]*?[A-Za-z]{3,}[^<>{}]*?)\s*</g)) {
     const t = m[1].trim();
+    const before = text[m.index - 1];
+    // Not text: the ">" of "=>" or of a generic (get<T>(…)), expressions, ternaries, statements.
+    if (before === "=" || before === "-") continue;
     if (!t || /^[\w.-]+\(|=>|&&|\|\||^\/\//.test(t) || /^[A-Z0-9_]+$/.test(t)) continue;
+    if (/^[(;:!?.,]|[;)]$|\bvoid\b| \? /.test(t)) continue;
+    if (/^(Promise|get|post|put|patch|del|string|number|boolean|null)$/.test(t)) continue;
+    if (/<Empty>\s*$/.test(text.slice(Math.max(0, m.index - 10), m.index + 1))) continue; // Empty translates its children
     raw++; report.push(`RAW      ${rel}:${lineOf(m.index)}  ${t.slice(0, 80)}`);
   }
   for (const m of text.matchAll(/\b(placeholder|aria-label|title|alt)="([^"]*[A-Za-z]{3,}[^"]*)"/g)) {

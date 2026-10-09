@@ -199,7 +199,7 @@ public sealed class CompanionServer(IServiceProvider sp, ISettingsStore settings
             {
                 name = "JARVIS", version = RuntimeState.Version, online = sp.GetRequiredService<Jarvis.Core.Connectivity.IConnectivity>().IsOnline,
                 pendingApprovals = approvals.Pending.Count, recording = recorder.Current?.Title, allowApprovals = s.Companion.AllowApprovals,
-                honorific = s.General.Honorific, language = s.General.Language,
+                honorific = s.General.Honorific, language = Jarvis.Core.Settings.LanguagePolicy.Default(s) == Jarvis.Core.Language.Lang.Ar ? "ar" : "en",
             });
         });
         authed.MapGet("/briefing", () =>

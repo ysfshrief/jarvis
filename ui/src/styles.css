@@ -558,8 +558,10 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
   .page { padding: 14px; }
   .topbar { padding: 8px 12px; }
   .clock small { display: none; }
-  .topbar .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .topbar .chips::-webkit-scrollbar { display: none; }
+  /* Status chips get their own row and wrap, so none is cut off. */
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .topbar .chips { order: 3; flex: 1 0 100%; flex-wrap: wrap; overflow: visible; gap: 4px; }
+  .topbar .chips .chip { font-size: 0.62rem; padding: 3px 7px; }
   .nav-item.active::before { display: none; }
   .cmd .kbd { display: none; }
   .stat-row { grid-template-columns: 1fr; }
@@ -638,3 +640,9 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 .pairing { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
 .pairing-qr { background: #fff; padding: 8px; border-radius: 8px; image-rendering: pixelated; }
 .pairing-code { font-size: 1.8rem; letter-spacing: 0.12em; color: var(--accent); }
+
+/* Command console completions */
+.completions { list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel, rgba(0, 0, 0, 0.35)); }
+.completions li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.92rem; color: var(--text); }
+.completions li svg { color: var(--muted); flex: none; }
+.completions li.on, .completions li:hover { background: rgba(var(--accent-rgb), 0.14); color: var(--accent); }

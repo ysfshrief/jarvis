@@ -34,7 +34,7 @@ export function MemoryPage() {
   const analyze = async () => {
     try {
       const r = await post<{ proposed: number; updated: number; skippedRejected: number }>("/memory/learn");
-      setLearnMsg(r.proposed + r.updated === 0 ? "No new patterns in the last two weeks." : `${r.proposed} new and ${r.updated} updated pattern(s) to review.`);
+      setLearnMsg(r.proposed + r.updated === 0 ? tr("No new patterns in the last two weeks.") : tr("{proposed} new and {updated} updated pattern(s) to review.", { proposed: r.proposed, updated: r.updated }));
       if (r.proposed) setTab("review");
     } catch (e) { setError(e); }
   };
@@ -46,9 +46,9 @@ export function MemoryPage() {
         sub="Everything lives only on this computer. Each item shows where it came from; guesses stay separate from facts until you confirm them."
         actions={
           <>
-            <button className="btn btn-ghost btn-sm" onClick={analyze} title="Look for patterns in the last two weeks of activity"><Sparkles size={14} /> Analyze my activity</button>
+            <button className="btn btn-ghost btn-sm" onClick={analyze} title={tr("Look for patterns in the last two weeks of activity")}><Sparkles size={14} /> {tr("Analyze my activity")}</button>
             <ConfirmButton className="btn btn-danger btn-sm" prompt="Delete ALL memories? This cannot be undone." onConfirm={() => del("/memory?confirm=true").catch(setError)}>
-              <Trash2 size={14} /> Clear all
+              <Trash2 size={14} /> {tr("Clear all")}
             </ConfirmButton>
           </>
         }
@@ -63,19 +63,19 @@ export function MemoryPage() {
         <Card className="metric-card" title="Semantic search">
           <div className="row">
             <span className={`dot ${s?.semantic.available ? "dot-ok" : "dot-unknown"}`} />
-            <strong className="small">{s?.semantic.available ? s.semantic.model : "Keyword only"}</strong>
+            <strong className="small">{s?.semantic.available ? s.semantic.model : tr("Keyword only")}</strong>
             {s?.semantic.available && (
-              <button className="btn btn-ghost btn-icon" title="Re-index now" aria-label="Re-index" onClick={() => post("/memory/reindex").then(() => status.reload()).catch(setError)}><RefreshCw size={13} /></button>
+              <button className="btn btn-ghost btn-icon" title={tr("Re-index now")} aria-label={tr("Re-index")} onClick={() => post("/memory/reindex").then(() => status.reload()).catch(setError)}><RefreshCw size={13} /></button>
             )}
           </div>
           <div className="meta">{s?.semantic.message}</div>
-          {!s?.semantic.available && <a className="link small" href="#/settings/ai">Get the free model →</a>}
+          {!s?.semantic.available && <a className="link small" href="#/settings/ai">{tr("Get the free model →")}</a>}
         </Card>
       </div>
 
       <LearnCard onDone={() => setTab("review")} onError={setError} />
 
-      <Segmented label="View" value={tab} onChange={setTab} options={[["memories", "Memories"], ["review", `To review${s?.inferred ? ` (${s.inferred})` : ""}`], ["people", "People & things"]]} />
+      <Segmented label="View" value={tab} onChange={setTab} options={[["memories", "Memories"], ["review", `${tr("To review")}${s?.inferred ? ` (${s.inferred})` : ""}`], ["people", "People & things"]]} />
 
       {tab === "memories" && <Memories onEntity={showEntity} onError={setError} />}
       {tab === "review" && <Review learning={!!s?.learning} onEntity={showEntity} onError={setError} />}
@@ -111,15 +111,15 @@ function Memories({ onEntity, onError }: { onEntity: (id: string) => void; onErr
         <div className="row wrap">
           <div className="input-icon grow">
             <Search size={16} />
-            <input className="input" dir="auto" placeholder="Search by words or meaning…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="input" dir="auto" placeholder={tr("Search by words or meaning…")} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <select className="input" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
-            <option value="">All kinds</option>
-            {KINDS.map((k) => <option key={k}>{k}</option>)}
+          <select className="input" value={kind} onChange={(e) => setKind(e.target.value)} aria-label={tr("Kind")}>
+            <option value="">{tr("All kinds")}</option>
+            {KINDS.map((k) => <option key={k} value={k}>{tr(k)}</option>)}
           </select>
         </div>
         <ErrorNote error={items.error} />
-        {items.data && items.data.length === 0 && <Empty>{q ? "Nothing matches." : "No memories yet. Say “remember that …” / “افتكر إن …”."}</Empty>}
+        {items.data && items.data.length === 0 && <Empty>{q ? tr("Nothing matches.") : tr("No memories yet. Say “remember that …” / “افتكر إن …”.")}</Empty>}
         <ul className="list list-rows">
           {items.data?.map((m) => <MemoryRow key={m.id} m={m} onEntity={onEntity} onError={onError} />)}
         </ul>
@@ -134,16 +134,15 @@ function Review({ learning, onEntity, onError }: { learning: boolean; onEntity: 
   return (
     <Card title="Things JARVIS suspects but hasn't confirmed">
       <p className="small muted">
-        Confirm what's right (it becomes a fact JARVIS can rely on) and reject what's wrong (it's deleted and never suggested again). Until then these are only
-        hints, labelled as such when the AI sees them.
+        {tr("Confirm what's right (it becomes a fact JARVIS can rely on) and reject what's wrong (it's deleted and never suggested again). Until then these are only hints, labelled as such when the AI sees them.")}
       </p>
       {!learning && (
         <div className="note">
-          Learning from your activity is off. Turn it on in <a href="#/settings/memory">Settings → Memory</a> to let JARVIS notice routines (apps you open at certain
-          times, your preferred language, how long you like answers). It only reads JARVIS's own activity log.
+          {tr("Learning from your activity is off. Turn it on in")} <a href="#/settings/memory">{tr("Settings → Memory")}</a>{" "}
+          {tr("to let JARVIS notice routines (apps you open at certain times, your preferred language, how long you like answers). It only reads JARVIS's own activity log.")}
         </div>
       )}
-      {items.data?.length === 0 && <Empty>Nothing to review.</Empty>}
+      {items.data?.length === 0 && <Empty>{tr("Nothing to review.")}</Empty>}
       <ul className="list list-rows">
         {items.data?.map((m) => <MemoryRow key={m.id} m={m} onEntity={onEntity} onError={onError} review />)}
       </ul>
@@ -167,12 +166,12 @@ function AddMemory({ onError }: { onError: (e: unknown) => void }) {
   return (
     <Card title="Teach JARVIS something">
       <form className="row wrap" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-        <input className="input grow" dir="auto" placeholder="e.g. Ahmed is the CityCrep account manager" value={content} onChange={(e) => setContent(e.target.value)} />
-        <input className="input" dir="auto" placeholder="About (optional)" value={subject} onChange={(e) => setSubject(e.target.value)} />
-        <select className="input" value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Kind">
-          {KINDS.filter((k) => k !== "assumption").map((k) => <option key={k}>{k}</option>)}
+        <input className="input grow" dir="auto" placeholder={tr("e.g. Ahmed is the CityCrep account manager")} value={content} onChange={(e) => setContent(e.target.value)} />
+        <input className="input" dir="auto" placeholder={tr("About (optional)")} value={subject} onChange={(e) => setSubject(e.target.value)} />
+        <select className="input" value={kind} onChange={(e) => setKind(e.target.value)} aria-label={tr("Kind")}>
+          {KINDS.filter((k) => k !== "assumption").map((k) => <option key={k} value={k}>{tr(k)}</option>)}
         </select>
-        <button className="btn btn-primary" disabled={!content.trim()} type="submit"><Plus size={15} /> Remember</button>
+        <button className="btn btn-primary" disabled={!content.trim()} type="submit"><Plus size={15} /> {tr("Remember")}</button>
       </form>
     </Card>
   );
@@ -199,7 +198,7 @@ function MemoryRow({ m, onEntity, onError, review }: { m: MemoryItem; onEntity: 
           <div className="row wrap">
             <input className="input grow" dir="auto" value={content} onChange={(e) => setContent(e.target.value)} />
             <select className="input" value={kind} onChange={(e) => setKind(e.target.value)}>
-              {KINDS.map((k) => <option key={k}>{k}</option>)}
+              {KINDS.map((k) => <option key={k} value={k}>{tr(k)}</option>)}
             </select>
           </div>
         ) : (
@@ -209,49 +208,49 @@ function MemoryRow({ m, onEntity, onError, review }: { m: MemoryItem; onEntity: 
           </div>
         )}
         <div className="row small wrap">
-          <Badge tone="accent">{m.kind}</Badge>
-          <Badge tone={m.isConfirmed ? "good" : "warn"} title={`Confidence ${Math.round(m.confidence * 100)}%`}>
-            {SOURCE_LABEL[m.source] ?? m.source} · {Math.round(m.confidence * 100)}%
+          <Badge tone="accent">{tr(m.kind)}</Badge>
+          <Badge tone={m.isConfirmed ? "good" : "warn"} title={tr("Confidence {n}%", { n: Math.round(m.confidence * 100) })}>
+            {SOURCE_LABEL[m.source] ? tr(SOURCE_LABEL[m.source]) : m.source} · {Math.round(m.confidence * 100)}%
           </Badge>
-          {m.semantic && <Badge tone="info" title="Found by meaning, not just matching words">semantic</Badge>}
-          {hasTag(m, "research") && <Badge tone="info" title="Learned from a web page or document — check the source before confirming">from a source</Badge>}
-          {hasTag(m, "conflict") && <Badge tone="bad" title="Contradicts something JARVIS already had — see “Why is this here?”">conflict</Badge>}
+          {m.semantic && <Badge tone="info" title={tr("Found by meaning, not just matching words")}>{tr("semantic")}</Badge>}
+          {hasTag(m, "research") && <Badge tone="info" title={tr("Learned from a web page or document — check the source before confirming")}>{tr("from a source")}</Badge>}
+          {hasTag(m, "conflict") && <Badge tone="bad" title={tr("Contradicts something JARVIS already had — see “Why is this here?”")}>{tr("conflict")}</Badge>}
           {m.entities.map((e) => (
-            <button key={e.id} className="link small" onClick={() => onEntity(e.id)} title={e.type}><Link2 size={11} /> {e.name}</button>
+            <button key={e.id} className="link small" onClick={() => onEntity(e.id)} title={tr(e.type)}><Link2 size={11} /> {e.name}</button>
           ))}
-          <span className="meta">updated {timeAgo(m.updatedAt)}{m.useCount > 0 ? ` · used ${m.useCount}×` : ""}</span>
-          <button className="link small" onClick={() => setWhy((w) => !w)}>{why ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Why is this here?</button>
+          <span className="meta">{tr("updated {time}", { time: timeAgo(m.updatedAt) })}{m.useCount > 0 ? ` · ${tr("used {n}×", { n: m.useCount })}` : ""}</span>
+          <button className="link small" onClick={() => setWhy((w) => !w)}>{why ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {tr("Why is this here?")}</button>
         </div>
         {why && (
           <div className="note small">
             <div>
-              <strong>{p ? viaLabel(p.via) : "Stored before provenance was tracked."}</strong>
+              <strong>{p ? viaLabel(p.via) : tr("Stored before provenance was tracked.")}</strong>
               {" · "}{formatTime(m.createdAt)}
-              {m.confirmedAt && <> · confirmed {timeAgo(m.confirmedAt)}</>}
+              {m.confirmedAt && <> · {tr("confirmed {time}", { time: timeAgo(m.confirmedAt) })}</>}
             </div>
             {p?.quote && (p.via === "research"
-              ? <div className="mono small" dir="ltr">Source: {/^https?:\/\//.test(p.quote) ? <a className="link" href={p.quote} target="_blank" rel="noreferrer noopener">{p.quote}</a> : p.quote}</div>
-              : <div dir="auto">You said: “{p.quote}”</div>)}
-            {p?.reason && <div dir="auto">Evidence: {p.reason}</div>}
-            {p?.tool && <div className="meta">via tool {p.tool}{p.conversationId ? ` · conversation ${p.conversationId}` : ""}</div>}
+              ? <div className="mono small" dir="ltr">{tr("Source:")} {/^https?:\/\//.test(p.quote) ? <a className="link" href={p.quote} target="_blank" rel="noreferrer noopener">{p.quote}</a> : p.quote}</div>
+              : <div dir="auto">{tr("You said: “{quote}”", { quote: p.quote })}</div>)}
+            {p?.reason && <div dir="auto">{tr("Evidence: {reason}", { reason: p.reason })}</div>}
+            {p?.tool && <div className="meta">{tr("via tool {tool}", { tool: p.tool })}{p.conversationId ? ` · ${tr("conversation {id}", { id: p.conversationId })}` : ""}</div>}
           </div>
         )}
       </div>
       {!m.isConfirmed && !editing && (
         <>
-          <button className="btn btn-sm" onClick={() => post(`/memory/${m.id}/confirm`).catch(onError)} title="This is right — keep it as a fact"><Check size={14} /> Confirm</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => post(`/memory/${m.id}/reject`).catch(onError)} title="This is wrong — delete it and don't suggest it again"><X size={14} /> Reject</button>
+          <button className="btn btn-sm" onClick={() => post(`/memory/${m.id}/confirm`).catch(onError)} title={tr("This is right — keep it as a fact")}><Check size={14} /> {tr("Confirm")}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => post(`/memory/${m.id}/reject`).catch(onError)} title={tr("This is wrong — delete it and don't suggest it again")}><X size={14} /> {tr("Reject")}</button>
         </>
       )}
       {editing ? (
         <>
-          <button className="btn btn-primary btn-icon" onClick={save} aria-label="Save"><Save size={15} /></button>
-          <button className="btn btn-ghost btn-icon" onClick={() => setEditing(false)} aria-label="Cancel"><X size={15} /></button>
+          <button className="btn btn-primary btn-icon" onClick={save} aria-label={tr("Save")}><Save size={15} /></button>
+          <button className="btn btn-ghost btn-icon" onClick={() => setEditing(false)} aria-label={tr("Cancel")}><X size={15} /></button>
         </>
       ) : (
         <>
-          <button className="btn btn-ghost btn-icon" onClick={() => setEditing(true)} aria-label="Edit"><Pencil size={15} /></button>
-          <button className="btn btn-ghost btn-icon" onClick={() => del(`/memory/${m.id}`).catch(onError)} aria-label="Delete"><Trash2 size={15} /></button>
+          <button className="btn btn-ghost btn-icon" onClick={() => setEditing(true)} aria-label={tr("Edit")}><Pencil size={15} /></button>
+          <button className="btn btn-ghost btn-icon" onClick={() => del(`/memory/${m.id}`).catch(onError)} aria-label={tr("Delete")}><Trash2 size={15} /></button>
         </>
       )}
     </li>
@@ -297,7 +296,7 @@ function LearnCard({ onDone, onError }: { onDone: () => void; onError: (e: unkno
         <ul className="list">
           {watched.data!.map((w) => (
             <li key={w.id}>
-              <span className="small grow" dir="auto"><strong>{w.topic}</strong> <span className="meta">every {w.everyDays} day(s) · {w.lastRun ? `last looked ${timeAgo(w.lastRun)}: ${w.lastResult ?? ""}` : "first look soon"}</span></span>
+              <span className="small grow" dir="auto"><strong>{w.topic}</strong> <span className="meta">{tr("every {n} day(s)", { n: w.everyDays })} · {w.lastRun ? tr("last looked {time}: {result}", { time: timeAgo(w.lastRun), result: w.lastResult ?? "" }) : tr("first look soon")}</span></span>
               <button className="btn btn-ghost btn-sm" onClick={() => del(`/memory/watch/${w.id}`).then(() => watched.reload()).catch(onError)}><X size={13} /> {tr("Stop following")}</button>
             </li>
           ))}
@@ -310,13 +309,13 @@ function LearnCard({ onDone, onError }: { onDone: () => void; onError: (e: unkno
 
 function viaLabel(via: string) {
   switch (via) {
-    case "text": case "chat": return "You told me in a conversation";
-    case "voice": return "You told me by voice";
-    case "dashboard": return "Added in the dashboard";
-    case "learner": return "Noticed in your activity or the email you sent (opt-in learning)";
-    case "research": return "Learned from a source — not verified";
-    case "summary": return "Picked out of a conversation — unconfirmed";
-    default: return `Added via ${via}`;
+    case "text": case "chat": return tr("You told me in a conversation");
+    case "voice": return tr("You told me by voice");
+    case "dashboard": return tr("Added in the dashboard");
+    case "learner": return tr("Noticed in your activity or the email you sent (opt-in learning)");
+    case "research": return tr("Learned from a source — not verified");
+    case "summary": return tr("Picked out of a conversation — unconfirmed");
+    default: return tr("Added via {via}", { via });
   }
 }
 
@@ -332,31 +331,31 @@ function People({ open, setOpen, onError }: { open: string | null; setOpen: (id:
     <div className="grid-2" style={{ alignItems: "start" }}>
       <Card title="People & things">
         <div className="row wrap">
-          <div className="input-icon grow"><Search size={15} /><input className="input" dir="auto" placeholder="Find…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
-          <select className="input" value={type} onChange={(e) => setType(e.target.value)} aria-label="Type">
-            <option value="">All types</option>
-            {ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}
+          <div className="input-icon grow"><Search size={15} /><input className="input" dir="auto" placeholder={tr("Find…")} value={q} onChange={(e) => setQ(e.target.value)} /></div>
+          <select className="input" value={type} onChange={(e) => setType(e.target.value)} aria-label={tr("Type")}>
+            <option value="">{tr("All types")}</option>
+            {ENTITY_TYPES.map((t) => <option key={t} value={t}>{tr(t)}</option>)}
           </select>
         </div>
-        {list.data?.length === 0 && <Empty>Nobody yet. Say “Ahmed works at CityCrep” or add one below.</Empty>}
+        {list.data?.length === 0 && <Empty>{tr("Nobody yet. Say “Ahmed works at CityCrep” or add one below.")}</Empty>}
         <ul className="list">
           {list.data?.map((e) => (
             <li key={e.id}>
               <button className="link grow" style={{ textAlign: "start", color: open === e.id ? "var(--accent)" : "var(--text)" }} onClick={() => setOpen(e.id)} dir="auto">
                 {e.type === "person" ? <Users size={13} /> : <Brain size={13} />} {e.name}
               </button>
-              <Badge>{e.type}</Badge>
+              <Badge>{tr(e.type)}</Badge>
               <span className="meta">{e.memories ?? 0}</span>
             </li>
           ))}
         </ul>
         <form className="row" onSubmit={async (ev) => { ev.preventDefault(); try { const e = await post<Entity>("/entities", { name, type: newType }); setName(""); setOpen(e.id); } catch (err) { onError(err); } }}>
-          <input className="input grow" dir="auto" placeholder="Add a person, company, project…" value={name} onChange={(e) => setName(e.target.value)} />
-          <select className="input" value={newType} onChange={(e) => setNewType(e.target.value)} aria-label="Type">{ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
-          <button className="btn btn-sm" disabled={!name.trim()}><Plus size={13} /> Add</button>
+          <input className="input grow" dir="auto" placeholder={tr("Add a person, company, project…")} value={name} onChange={(e) => setName(e.target.value)} />
+          <select className="input" value={newType} onChange={(e) => setNewType(e.target.value)} aria-label={tr("Type")}>{ENTITY_TYPES.map((t) => <option key={t} value={t}>{tr(t)}</option>)}</select>
+          <button className="btn btn-sm" disabled={!name.trim()}><Plus size={13} /> {tr("Add")}</button>
         </form>
       </Card>
-      {open ? <Profile id={open} onClose={() => setOpen(null)} onError={onError} /> : <Card><Empty>Select someone or something to see everything connected to it.</Empty></Card>}
+      {open ? <Profile id={open} onClose={() => setOpen(null)} onError={onError} /> : <Card><Empty>{tr("Select someone or something to see everything connected to it.")}</Empty></Card>}
     </div>
   );
 }
@@ -371,53 +370,53 @@ function Profile({ id, onClose, onError }: { id: string; onClose: () => void; on
   return (
     <Card title={<span dir="auto">{entity.name}</span>} actions={
       <>
-        <Badge tone="accent">{entity.type}</Badge>
-        <ConfirmButton className="btn btn-ghost btn-icon" prompt={`Delete ${entity.name}? Its relationships are removed; memories stay.`} onConfirm={() => del(`/entities/${id}`).then(onClose).catch(onError)}><Trash2 size={14} /></ConfirmButton>
+        <Badge tone="accent">{tr(entity.type)}</Badge>
+        <ConfirmButton className="btn btn-ghost btn-icon" prompt={tr("Delete {name}? Its relationships are removed; memories stay.", { name: entity.name })} onConfirm={() => del(`/entities/${id}`).then(onClose).catch(onError)}><Trash2 size={14} /></ConfirmButton>
       </>
     }>
       <div className="row wrap small">
-        <span className="muted">Also known as:</span>
+        <span className="muted">{tr("Also known as:")}</span>
         {aliases === null ? (
           <>
             <span dir="auto">{entity.aliases.join(", ") || "—"}</span>
-            <button className="link small" onClick={() => setAliases(entity.aliases.join(", "))}>edit</button>
+            <button className="link small" onClick={() => setAliases(entity.aliases.join(", "))}>{tr("edit")}</button>
           </>
         ) : (
           <form className="row grow" onSubmit={async (e) => { e.preventDefault(); await put(`/entities/${id}`, { aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean) }).catch(onError); setAliases(null); void p.reload(); }}>
-            <input className="input grow" dir="auto" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder="e.g. أحمد, Ahmed M." />
-            <button className="btn btn-sm">Save</button>
+            <input className="input grow" dir="auto" value={aliases} onChange={(e) => setAliases(e.target.value)} placeholder={tr("e.g. أحمد, Ahmed M.")} />
+            <button className="btn btn-sm">{tr("Save")}</button>
           </form>
         )}
       </div>
 
-      <div className="hud-label">Relationships</div>
-      {relations.length === 0 ? <div className="small muted">None recorded.</div> : (
+      <div className="hud-label">{tr("Relationships")}</div>
+      {relations.length === 0 ? <div className="small muted">{tr("None recorded.")}</div> : (
         <ul className="list">
           {relations.map((r) => (
             <li key={r.id}>
-              <span className="small" dir="auto">{r.fromName} <span className="mono accent">{r.type.replace(/_/g, " ")}</span> {r.toName}</span>
-              <button className="btn btn-ghost btn-icon" aria-label="Remove relationship" onClick={() => del(`/relations/${r.id}`).then(() => p.reload()).catch(onError)}><X size={13} /></button>
+              <span className="small" dir="auto">{r.fromName} <span className="mono accent">{tr(r.type.replace(/_/g, " "))}</span> {r.toName}</span>
+              <button className="btn btn-ghost btn-icon" aria-label={tr("Remove relationship")} onClick={() => del(`/relations/${r.id}`).then(() => p.reload()).catch(onError)}><X size={13} /></button>
             </li>
           ))}
         </ul>
       )}
       <form className="row wrap" onSubmit={async (e) => { e.preventDefault(); try { await post("/relations", { from: entity.name, fromType: entity.type, relation: rel.relation, to: rel.to, toType: rel.toType }); setRel({ ...rel, to: "" }); } catch (err) { onError(err); } }}>
         <span className="small" dir="auto">{entity.name}</span>
-        <select className="input input-sm" value={rel.relation} onChange={(e) => setRel({ ...rel, relation: e.target.value })} aria-label="Relationship">
-          {["works_at", "manages", "reports_to", "client_of", "member_of", "owns", "partner_of", "related_to"].map((x) => <option key={x} value={x}>{x.replace(/_/g, " ")}</option>)}
+        <select className="input input-sm" value={rel.relation} onChange={(e) => setRel({ ...rel, relation: e.target.value })} aria-label={tr("Relationship")}>
+          {["works_at", "manages", "reports_to", "client_of", "member_of", "owns", "partner_of", "related_to"].map((x) => <option key={x} value={x}>{tr(x.replace(/_/g, " "))}</option>)}
         </select>
-        <input className="input input-sm grow" style={{ minWidth: 140 }} dir="auto" placeholder="who / what" value={rel.to} onChange={(e) => setRel({ ...rel, to: e.target.value })} />
-        <select className="input input-sm" value={rel.toType} onChange={(e) => setRel({ ...rel, toType: e.target.value })} aria-label="Type">{ENTITY_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
-        <button className="btn btn-sm" disabled={!rel.to.trim()}><Plus size={13} /> Link</button>
+        <input className="input input-sm grow" style={{ minWidth: 140 }} dir="auto" placeholder={tr("who / what")} value={rel.to} onChange={(e) => setRel({ ...rel, to: e.target.value })} />
+        <select className="input input-sm" value={rel.toType} onChange={(e) => setRel({ ...rel, toType: e.target.value })} aria-label={tr("Type")}>{ENTITY_TYPES.map((t) => <option key={t} value={t}>{tr(t)}</option>)}</select>
+        <button className="btn btn-sm" disabled={!rel.to.trim()}><Plus size={13} /> {tr("Link")}</button>
       </form>
 
-      <div className="hud-label">What JARVIS knows</div>
-      {memories.length === 0 ? <div className="small muted">No memories linked yet.</div> : (
+      <div className="hud-label">{tr("What JARVIS knows")}</div>
+      {memories.length === 0 ? <div className="small muted">{tr("No memories linked yet.")}</div> : (
         <ul className="list">
           {memories.map((m) => (
             <li key={m.id}>
               <span className="small grow" dir="auto">{m.content}</span>
-              <Badge tone={m.isConfirmed ? "good" : "warn"}>{m.isConfirmed ? "fact" : "unconfirmed"}</Badge>
+              <Badge tone={m.isConfirmed ? "good" : "warn"}>{m.isConfirmed ? tr("fact") : tr("unconfirmed")}</Badge>
             </li>
           ))}
         </ul>
@@ -425,7 +424,7 @@ function Profile({ id, onClose, onError }: { id: string; onClose: () => void; on
 
       {files.length > 0 && (
         <>
-          <div className="hud-label">Documents</div>
+          <div className="hud-label">{tr("Documents")}</div>
           <ul className="list">
             {files.map((f) => (
               <li key={f.id}>
@@ -439,9 +438,9 @@ function Profile({ id, onClose, onError }: { id: string; onClose: () => void; on
 
       {(tasks.length > 0 || reminders.length > 0) && (
         <>
-          <div className="hud-label">Related work</div>
+          <div className="hud-label">{tr("Related work")}</div>
           <ul className="list">
-            {tasks.map((t) => <li key={t.id}><span className="small grow" dir="auto">{t.title}</span><Badge>{t.state.replace("_", " ")}</Badge></li>)}
+            {tasks.map((t) => <li key={t.id}><span className="small grow" dir="auto">{t.title}</span><Badge>{tr(t.state.replace("_", " "))}</Badge></li>)}
             {reminders.map((r) => <li key={r.id}><span className="small grow" dir="auto">⏰ {r.text}</span><span className="meta" dir="ltr">{formatTime(r.dueAt)}</span></li>)}
           </ul>
         </>

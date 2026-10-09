@@ -38,13 +38,13 @@ The same matrix is visible in the app under **System → What this build can do*
 | Capability | Status | Notes |
 | --- | --- | --- |
 | HUD dashboard: home (orb + clock, system health, priorities, upcoming, recent), context panel | Working | Responsive from phone width to 4K; verified with screenshots at 390 px, 1024, 1366, 1440, 1920, 2560 |
-| Orb with 8 states (idle, listening, thinking, speaking, executing, warning, error, offline) | Working | Dashboard (SVG) and desktop (WPF); GPU-friendly; motion can be reduced or turned off |
-| Command console (Ctrl+Alt+J on the desktop, Ctrl+K in the dashboard) | Working | Suggestions, recent requests, live progress, approvals, voice |
+| Orb with 8 states (idle, listening, thinking, speaking, executing, warning, error, offline) | Working | Dashboard (SVG) and desktop (WPF); GPU-friendly; reduced motion stops every animation (states stay distinct by colour and shape) and follows the OS / Windows animation preference; motion can be turned off |
+| Command console (Ctrl+Alt+J on the desktop, Ctrl+K in the dashboard) | Working | ↑/↓ history of your requests, live completions from your history and real built-in commands (EN/AR), Tab to complete, live progress, approvals, voice |
 | Assistant: streaming replies, tool cards, approvals inline, memories used, fallback badge | Working | |
 | System monitor: CPU, memory, GPU, network, disks, battery, processes, JARVIS footprint | Working | GPU via Windows performance counters; CPU temperature isn't exposed to normal apps on Windows, so it's shown as unavailable |
 | Settings control center (general, voice, AI incl. model downloads, memory, security, notifications, appearance, shortcuts, tools & plugins, privacy, system) | Working | Every control maps to a setting the runtime or shell honours |
 | Interface sounds (wake, accepted, processing, completed, warning, error, notification) | Working | Synthesized; per-cue toggles; off entirely with one switch; play from open dashboard/console windows |
-| Arabic interface (RTL) | Partial | Navigation, home, assistant, console, status and settings sections are translated; detailed setting descriptions are English |
+| Arabic interface (RTL) | Working | Every page, setting, hint, status and the phone companion in Egyptian Arabic (1,000+ strings); dates and relative times in Arabic; a build check fails if any interface string lacks Arabic. Data from the server (email, memories, process names, capability notes) stays as written |
 
 ## Phase 2 — Real computer agent ✅ (mostly)
 

@@ -10,7 +10,10 @@ import { Timeline } from "../components/Timeline";
 import { Badge } from "../components/ui";
 import { useOrbState } from "../lib/orbState";
 import { useTurns } from "../lib/turns";
-import { tr } from "../lib/i18n";
+import { tr, uiLang } from "../lib/i18n";
+
+const EXAMPLES_EN = ["What can you do?", "What's happening today?", "open calculator", "remind me in 20 minutes to call Ahmed", "الساعة كام؟", "how's the system"];
+const EXAMPLES_AR = ["تقدر تعمل إيه؟", "إيه اللي ورايا النهارده؟", "افتح الآلة الحاسبة", "فكرني بعد ٢٠ دقيقة أكلم أحمد", "الساعة كام؟", "الجهاز عامل إيه؟", "What's happening today?"];
 
 interface Msg {
   key: string;
@@ -108,7 +111,7 @@ export function Assistant() {
 
   const voice = status?.voice;
   const voiceUsable = !!voice?.audioAvailable && !!voice?.sttReady && !status?.paused;
-  const voiceTitle = !voice?.audioAvailable ? "No microphone detected" : !voice?.sttReady ? voice?.sttMessage ?? "Download a speech model in Settings → Voice" : "Push to talk";
+  const voiceTitle = !voice?.audioAvailable ? tr("No microphone detected") : !voice?.sttReady ? voice?.sttMessage ?? tr("Download a speech model in Settings → Voice") : tr("Push to talk");
 
   return (
     <div className="chat">
@@ -124,9 +127,9 @@ export function Assistant() {
         {messages.length === 0 && running.length === 0 && (
           <div className="chat-empty">
             <Orb state={orb.state} size={120} label={orb.label} />
-            <p>{tr("How can I help")}{status?.honorific ? `, ${status.honorific}` : ""}?</p>
+            <p>{tr("How can I help")}{status?.honorific ? `${uiLang() === "ar" ? "، " : ", "}${status.honorific}` : ""}{uiLang() === "ar" ? "؟" : "?"}</p>
             <div className="suggestions">
-              {["What can you do?", "What's happening today?", "open calculator", "remind me in 20 minutes to call Ahmed", "الساعة كام؟", "how's the system"].map((s) => (
+              {(uiLang() === "ar" ? EXAMPLES_AR : EXAMPLES_EN).map((s) => (
                 <button key={s} className="chip-btn" dir="auto" onClick={() => { setText(s); input.current?.focus(); }}>{s}</button>
               ))}
             </div>
@@ -155,7 +158,7 @@ export function Assistant() {
       </div>
 
       {(listening || heard) && (
-        <div className="heard" dir="auto">{listening && !heard ? "Listening… speak now." : `Heard: “${heard}”`}</div>
+        <div className="heard" dir="auto">{listening && !heard ? tr("Listening… speak now.") : tr("Heard: “{text}”", { text: heard ?? "" })}</div>
       )}
 
       <form className="composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
@@ -177,7 +180,7 @@ export function Assistant() {
         <button type="button" className={`btn btn-icon ${listening ? "btn-danger" : ""}`} onClick={listening ? () => post("/voice/stop") : listen} disabled={!voiceUsable && !listening} title={voiceTitle} aria-label={voiceTitle}>
           {listening ? <Square size={16} /> : <Mic size={16} />}
         </button>
-        <button type="submit" className="btn btn-primary btn-icon" disabled={busy || !text.trim()} aria-label="Send"><Send size={16} /></button>
+        <button type="submit" className="btn btn-primary btn-icon" disabled={busy || !text.trim()} aria-label={tr("Send")}><Send size={16} /></button>
       </form>
     </div>
   );
@@ -192,7 +195,7 @@ function Message({ m }: { m: Msg }) {
         {!user && m.steps && m.steps.length > 0 && <StepList steps={m.steps} />}
         <div className="bubble"><div className="bubble-text" dir="auto">{m.text}</div></div>
         {!user && m.memories && m.memories.length > 0 && (
-          <div className="memchips" title="Memories JARVIS used for this answer">
+          <div className="memchips" title={tr("Memories JARVIS used for this answer")}>
             <Brain size={13} className="dim" />
             {m.memories.slice(0, 4).map((x) => (
               <Badge key={x.id} tone={x.source === "user" || x.source === "confirmed" ? "accent" : "warn"} title={`${x.kind} · ${x.source}`}>
@@ -203,10 +206,10 @@ function Message({ m }: { m: Msg }) {
         )}
         {!user && m.route && (
           <div className="msg-meta meta">
-            {m.route === "ai" ? `AI · ${m.model ?? ""}` : m.route === "deterministic" ? tr("Direct command") : "No model"}
-            {m.fallbackFrom && <Badge tone="warn" title={`${m.fallbackFrom} failed, another model answered`}>fallback</Badge>}
-            {m.source?.toLowerCase() === "voice" && <Badge tone="info">voice</Badge>}
-            {m.durationMs ? <span>{(m.durationMs / 1000).toFixed(1)} s</span> : null}
+            {m.route === "ai" ? `${tr("AI")} · ${m.model ?? ""}` : m.route === "deterministic" ? tr("Direct command") : tr("No model")}
+            {m.fallbackFrom && <Badge tone="warn" title={tr("{model} failed, another model answered", { model: m.fallbackFrom })}>{tr("fallback")}</Badge>}
+            {m.source?.toLowerCase() === "voice" && <Badge tone="info">{tr("voice")}</Badge>}
+            {m.durationMs ? <span>{tr("{n} s", { n: (m.durationMs / 1000).toFixed(1) })}</span> : null}
           </div>
         )}
       </div>

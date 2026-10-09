@@ -7,8 +7,20 @@ import "@fontsource/ibm-plex-sans-arabic/arabic-400.css";
 import "@fontsource/rajdhani/latin-600.css";
 import "../styles.css";
 import "./companion.css";
+import { tr, uiLocale } from "../lib/i18n";
 
 const KEY = "jarvis.companion.token";
+const LANG_KEY = "jarvis.companion.lang";
+
+/** Interface language follows the PC's language setting (from /status); "auto"/"en" stay English. */
+function applyLanguage(language: string | null | undefined) {
+  const ar = language === "ar";
+  document.documentElement.lang = ar ? "ar" : "en";
+  document.documentElement.dir = ar ? "rtl" : "ltr";
+  try { if (language) localStorage.setItem(LANG_KEY, ar ? "ar" : "en"); } catch { /* storage blocked */ }
+}
+// Until the first status arrives (e.g. on the pairing screen), use the last language seen.
+applyLanguage((() => { try { return localStorage.getItem(LANG_KEY); } catch { return null; } })());
 
 /** Reads a token handed over by the Android app ("#token=…"), then keeps the URL clean. */
 function takeHashToken() {
@@ -29,17 +41,17 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (r.status === 401) { try { localStorage.removeItem(KEY); } catch { /* */ } throw new Error("unpaired"); }
   const body = r.status === 204 ? null : await r.json().catch(() => null);
-  if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? `Error ${r.status}`);
+  if (!r.ok) throw new Error((body as { error?: string } | null)?.error ?? tr("Error {n}", { n: r.status }));
   return body as T;
 }
 
-interface Status { name: string; online: boolean; pendingApprovals: number; recording?: string | null; allowApprovals: boolean; honorific: string }
+interface Status { name: string; online: boolean; pendingApprovals: number; recording?: string | null; allowApprovals: boolean; honorific: string; language?: string }
 interface Approval { id: string; tool: string; risk: string; summary: string; reason?: string; expiresAt: string }
 interface Note { id: string; title: string; body?: string; priority: string; source: string; timestamp: string }
 
 function Pair({ onPaired }: { onPaired: () => void }) {
   const [code, setCode] = useState(() => location.hash.match(/pair=([A-Z0-9-]+)/i)?.[1] ?? "");
-  const [name, setName] = useState(() => (/android/i.test(navigator.userAgent) ? "Android phone" : "Phone"));
+  const [name, setName] = useState(() => tr(/android/i.test(navigator.userAgent) ? "Android phone" : "Phone"));
   const [error, setError] = useState<string | null>(null);
   const pair = async () => {
     setError(null);
@@ -54,10 +66,10 @@ function Pair({ onPaired }: { onPaired: () => void }) {
     <div className="cmp-pair">
       <div className="cmp-orb" />
       <h1>JARVIS</h1>
-      <p className="muted small">On your PC: Settings → Devices → Pair a phone. Enter the code shown there.</p>
-      <input className="input" placeholder="Code, e.g. K7QM-3XWP" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} autoCapitalize="characters" />
-      <input className="input" placeholder="This phone's name" value={name} onChange={(e) => setName(e.target.value)} />
-      <button className="btn btn-primary" disabled={code.replace("-", "").length < 8} onClick={pair}>Pair</button>
+      <p className="muted small">{tr("On your PC: Settings → Devices → Pair a phone. Enter the code shown there.")}</p>
+      <input className="input" placeholder={tr("Code, e.g. K7QM-3XWP")} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} autoCapitalize="characters" />
+      <input className="input" placeholder={tr("This phone's name")} value={name} onChange={(e) => setName(e.target.value)} />
+      <button className="btn btn-primary" disabled={code.replace("-", "").length < 8} onClick={pair}>{tr("Pair")}</button>
       {error && <p className="bad small">{error}</p>}
     </div>
   );
@@ -75,12 +87,13 @@ function CompanionApp() {
   const refresh = useCallback(async () => {
     try {
       const [s, a] = await Promise.all([call<Status>("/status"), call<Approval[]>("/approvals")]);
+      applyLanguage(s.language);
       setStatus(s);
       setApprovals(a);
       setError(null);
     } catch (e) {
       if ((e as Error).message === "unpaired") setPaired(false);
-      else setError("Can't reach JARVIS — is the PC on and on the same network?");
+      else setError(tr("Can't reach JARVIS — is the PC on and on the same network?"));
     }
   }, []);
 
@@ -103,16 +116,16 @@ function CompanionApp() {
       <header className="cmp-top">
         <span className="cmp-dot" data-ok={status ? "1" : "0"} />
         <strong>JARVIS</strong>
-        {status?.recording && <span className="rec-chip"><span className="rec-dot" /> REC</span>}
+        {status?.recording && <span className="rec-chip"><span className="rec-dot" /> {tr("REC")}</span>}
         <span className="grow" />
-        <span className="meta">{status ? (status.online ? "online" : "offline") : "…"}</span>
+        <span className="meta">{status ? tr(status.online ? "online" : "offline") : "…"}</span>
       </header>
       {error && <div className="note warn small">{error}</div>}
       <main className="cmp-main">
         {tab === "home" && (
           <div className="stack">
             {approvals.length > 0 && (
-              <button className="cmp-alert" onClick={() => setTab("approvals")}><ShieldAlert size={18} /> {approvals.length} action(s) waiting for your OK</button>
+              <button className="cmp-alert" onClick={() => setTab("approvals")}><ShieldAlert size={18} /> {tr("{n} action(s) waiting for your OK", { n: approvals.length })}</button>
             )}
             <section className="card"><pre className="cmp-brief" dir="auto">{briefing || "…"}</pre></section>
           </div>
@@ -121,16 +134,16 @@ function CompanionApp() {
         {tab === "ask" && <Ask />}
         {tab === "alerts" && (
           <ul className="list list-rows">
-            {notes.length === 0 && <li className="muted small">No notifications.</li>}
-            {notes.map((n) => <li key={n.id}><span className="grow"><strong dir="auto">{n.title}</strong>{n.body && <div className="small muted" dir="auto">{n.body}</div>}</span><span className="meta">{new Date(n.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></li>)}
+            {notes.length === 0 && <li className="muted small">{tr("No notifications.")}</li>}
+            {notes.map((n) => <li key={n.id}><span className="grow"><strong dir="auto">{n.title}</strong>{n.body && <div className="small muted" dir="auto">{n.body}</div>}</span><span className="meta">{new Date(n.timestamp).toLocaleTimeString(uiLocale() ?? [], { hour: "2-digit", minute: "2-digit" })}</span></li>)}
           </ul>
         )}
       </main>
       <nav className="cmp-tabs">
-        <button className={tab === "home" ? "on" : ""} onClick={() => setTab("home")}><Home size={18} /><span>Today</span></button>
-        <button className={tab === "approvals" ? "on" : ""} onClick={() => setTab("approvals")}><ShieldAlert size={18} /><span>Approvals{approvals.length ? ` ${approvals.length}` : ""}</span></button>
-        <button className={tab === "ask" ? "on" : ""} onClick={() => setTab("ask")}><MessageSquare size={18} /><span>Ask</span></button>
-        <button className={tab === "alerts" ? "on" : ""} onClick={() => setTab("alerts")}><Bell size={18} /><span>Alerts</span></button>
+        <button className={tab === "home" ? "on" : ""} onClick={() => setTab("home")}><Home size={18} /><span>{tr("Today")}</span></button>
+        <button className={tab === "approvals" ? "on" : ""} onClick={() => setTab("approvals")}><ShieldAlert size={18} /><span>{tr("Approvals")}{approvals.length ? ` ${approvals.length}` : ""}</span></button>
+        <button className={tab === "ask" ? "on" : ""} onClick={() => setTab("ask")}><MessageSquare size={18} /><span>{tr("Ask")}</span></button>
+        <button className={tab === "alerts" ? "on" : ""} onClick={() => setTab("alerts")}><Bell size={18} /><span>{tr("Alerts")}</span></button>
       </nav>
     </div>
   );
@@ -144,20 +157,20 @@ function Approvals({ items, allowed, onDone }: { items: Approval[]; allowed: boo
     setBusy(null);
     onDone();
   };
-  if (items.length === 0) return <p className="muted small">Nothing is waiting for your approval.</p>;
+  if (items.length === 0) return <p className="muted small">{tr("Nothing is waiting for your approval.")}</p>;
   return (
     <div className="stack">
-      {!allowed && <div className="note small">Approving from the phone is turned off on the PC.</div>}
+      {!allowed && <div className="note small">{tr("Approving from the phone is turned off on the PC.")}</div>}
       {items.map((a) => (
         <section key={a.id} className={`card cmp-approval risk-${a.risk.toLowerCase()}`}>
           <div className="stack">
-            <div className="row"><span className={`badge ${a.risk === "Critical" ? "badge-bad" : "badge-warn"}`}>{a.risk}</span><span className="meta">{a.tool}</span></div>
+            <div className="row"><span className={`badge ${a.risk === "Critical" ? "badge-bad" : "badge-warn"}`}>{tr(a.risk)}</span><span className="meta">{a.tool}</span></div>
             <strong dir="auto">{a.summary}</strong>
             {a.reason && <pre className="small muted cmp-reason" dir="auto">{a.reason}</pre>}
             {allowed && (
               <div className="row">
-                <button className="btn btn-primary grow" disabled={busy === a.id} onClick={() => decide(a.id, true)}><Check size={16} /> Approve</button>
-                <button className="btn grow" disabled={busy === a.id} onClick={() => decide(a.id, false)}><X size={16} /> Refuse</button>
+                <button className="btn btn-primary grow" disabled={busy === a.id} onClick={() => decide(a.id, true)}><Check size={16} /> {tr("Approve")}</button>
+                <button className="btn grow" disabled={busy === a.id} onClick={() => decide(a.id, false)}><X size={16} /> {tr("Refuse")}</button>
               </div>
             )}
           </div>
@@ -190,8 +203,8 @@ function Ask() {
         {busy && <div className="cmp-msg jarvis muted">…</div>}
       </div>
       <form className="row" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        <input className="input grow" dir="auto" value={text} onChange={(e) => setText(e.target.value)} placeholder="Ask JARVIS… «إيه اللي ورايا النهارده؟»" />
-        <button className="btn btn-primary" disabled={busy || !text.trim()}>Send</button>
+        <input className="input grow" dir="auto" value={text} onChange={(e) => setText(e.target.value)} placeholder={tr("Ask JARVIS… «إيه اللي ورايا النهارده؟»")} />
+        <button className="btn btn-primary" disabled={busy || !text.trim()}>{tr("Send")}</button>
       </form>
     </div>
   );

@@ -37,28 +37,28 @@ export function MeetingsPage() {
     <div className="stack">
       <PageHead title={tr("Meetings")} sub="Record only when you choose, always visibly. Transcribed on this PC; the audio is never kept." />
       <ErrorNote error={error ?? list.error} />
-      <Card title={rec ? "Recording" : "Record a meeting"} className={rec ? "rec-card" : ""}>
+      <Card title={rec ? tr("Recording") : tr("Record a meeting")} className={rec ? "rec-card" : ""}>
         {rec ? (
           <div className="row wrap">
-            <span className="rec-dot" /> <strong dir="auto">{rec.title}</strong> <span className="muted small">{rec.source} · since {formatTime(rec.startedAt)}</span>
-            <button className="btn btn-primary btn-sm" onClick={stop}><Square size={13} /> Stop and write notes</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(rec.id)}>Live transcript</button>
+            <span className="rec-dot" /> <strong dir="auto">{rec.title}</strong> <span className="muted small">{rec.source} · {tr("since {time}", { time: formatTime(rec.startedAt) })}</span>
+            <button className="btn btn-primary btn-sm" onClick={stop}><Square size={13} /> {tr("Stop and write notes")}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setOpenId(rec.id)}>{tr("Live transcript")}</button>
           </div>
         ) : status?.recordingBlocker ? (
           <p className="small muted">{status.recordingBlocker}</p>
         ) : (
           <div className="stack">
-            <p className="small muted">Everyone in the meeting should know it's being recorded. JARVIS captures your microphone and what you hear, transcribes it locally with Whisper, then pulls out decisions and action items.</p>
+            <p className="small muted">{tr("Everyone in the meeting should know it's being recorded. JARVIS captures your microphone and what you hear, transcribes it locally with Whisper, then pulls out decisions and action items.")}</p>
             <div className="row wrap">
-              <input className="input grow" dir="auto" placeholder="Name (default: the calendar event happening now)" value={title} onChange={(e) => setTitle(e.target.value)} />
-              <button className="btn btn-primary btn-sm" disabled={busy} onClick={start}><Mic2 size={14} /> {busy ? "Waiting for your OK…" : "Start recording"}</button>
+              <input className="input grow" dir="auto" placeholder={tr("Name (default: the calendar event happening now)")} value={title} onChange={(e) => setTitle(e.target.value)} />
+              <button className="btn btn-primary btn-sm" disabled={busy} onClick={start}><Mic2 size={14} /> {busy ? tr("Waiting for your OK…") : tr("Start recording")}</button>
             </div>
           </div>
         )}
         {approvals.map((a) => <div key={a.id} className="reply-card"><ApprovalCard approval={a} /></div>)}
         {note && <p className="small" dir="auto">{note}</p>}
       </Card>
-      {list.data?.length === 0 && <Empty>No meetings recorded yet. Say “record this meeting” when one starts.</Empty>}
+      {list.data?.length === 0 && <Empty>{tr("No meetings recorded yet. Say “record this meeting” when one starts.")}</Empty>}
       <ul className="list list-rows">
         {list.data?.map((m) => (
           <li key={m.id}>
@@ -66,9 +66,9 @@ export function MeetingsPage() {
               {m.status === "recording" ? <span className="rec-dot" /> : <Circle size={14} className="muted" />}
               <span className="grow" style={{ minWidth: 0 }}>
                 <strong className="ellipsis" dir="auto">{m.title}</strong>
-                <span className="small muted">{formatTime(m.startedAt)} · {Math.round(m.audioSeconds / 60)} min · {m.decisions} decision(s) · {m.actionItems} action item(s)</span>
+                <span className="small muted">{formatTime(m.startedAt)} · {tr("{n} min", { n: Math.round(m.audioSeconds / 60) })} · {tr("{n} decision(s)", { n: m.decisions })} · {tr("{n} action item(s)", { n: m.actionItems })}</span>
               </span>
-              <Badge tone={m.status === "done" ? "good" : m.status === "failed" ? "bad" : "warn"}>{m.status}</Badge>
+              <Badge tone={m.status === "done" ? "good" : m.status === "failed" ? "bad" : "warn"}>{tr(m.status)}</Badge>
             </button>
           </li>
         ))}
@@ -93,12 +93,12 @@ function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onErr
   return (
     <div className="stack">
       {back}
-      <PageHead title={x.title} sub={`${formatTime(x.startedAt)} · ${Math.round(x.audioSeconds / 60)} min · ${x.status}`} />
+      <PageHead title={x.title} sub={`${formatTime(x.startedAt)} · ${tr("{n} min", { n: Math.round(x.audioSeconds / 60) })} · ${tr(x.status)}`} />
       {x.error && <div className="note warn small">{x.error}</div>}
       {n ? (
         <div className="grid-2">
-          <Card title="Decisions">{n.decisions.length ? <ul className="bullets small">{n.decisions.map((d, i) => <li key={i} dir="auto">{d}</li>)}</ul> : <p className="small muted">None said explicitly.</p>}</Card>
-          <Card title="Action items" actions={picked.length > 0 && <button className="btn btn-primary btn-sm" onClick={makeTasks}><CheckSquare size={13} /> Add {picked.length} as tasks</button>}>
+          <Card title="Decisions">{n.decisions.length ? <ul className="bullets small">{n.decisions.map((d, i) => <li key={i} dir="auto">{d}</li>)}</ul> : <p className="small muted">{tr("None said explicitly.")}</p>}</Card>
+          <Card title="Action items" actions={picked.length > 0 && <button className="btn btn-primary btn-sm" onClick={makeTasks}><CheckSquare size={13} /> {tr("Add {n} as tasks", { n: picked.length })}</button>}>
             {n.actionItems.length ? (
               <ul className="list">
                 {n.actionItems.map((a, i) => (
@@ -110,20 +110,20 @@ function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onErr
                   </li>
                 ))}
               </ul>
-            ) : <p className="small muted">No action items found.</p>}
-            {created !== null && <p className="small"><ListChecks size={13} /> Added {created} task(s).</p>}
+            ) : <p className="small muted">{tr("No action items found.")}</p>}
+            {created !== null && <p className="small"><ListChecks size={13} /> {tr("Added {n} task(s).", { n: created })}</p>}
           </Card>
           {n.openQuestions.length > 0 && <Card title="Open questions"><ul className="bullets small">{n.openQuestions.map((q, i) => <li key={i} dir="auto">{q}</li>)}</ul></Card>}
-          {n.keyPoints.length > 0 && <Card title="Key points" actions={<Badge title="Sentences from the transcript itself">extracted</Badge>}><ul className="bullets small">{n.keyPoints.map((k, i) => <li key={i} dir="auto">{k}</li>)}</ul></Card>}
+          {n.keyPoints.length > 0 && <Card title="Key points" actions={<Badge title={tr("Sentences from the transcript itself")}>{tr("extracted")}</Badge>}><ul className="bullets small">{n.keyPoints.map((k, i) => <li key={i} dir="auto">{k}</li>)}</ul></Card>}
         </div>
       ) : (
-        <p className="small muted">{x.status === "recording" ? "Notes are written when the recording stops." : x.status === "transcribing" ? "Finishing the transcript…" : "No notes."}</p>
+        <p className="small muted">{x.status === "recording" ? tr("Notes are written when the recording stops.") : x.status === "transcribing" ? tr("Finishing the transcript…") : tr("No notes.")}</p>
       )}
-      <Card title="Transcript" actions={<Badge>local · Whisper</Badge>}>
-        {x.transcript ? <pre className="file-preview mail-body" dir="auto">{x.transcript}</pre> : <p className="small muted">Nothing transcribed yet.</p>}
+      <Card title="Transcript" actions={<Badge>{tr("local · Whisper")}</Badge>}>
+        {x.transcript ? <pre className="file-preview mail-body" dir="auto">{x.transcript}</pre> : <p className="small muted">{tr("Nothing transcribed yet.")}</p>}
       </Card>
       {x.status !== "recording" && (
-        <div className="row"><ConfirmButton className="btn btn-ghost btn-sm" prompt="Delete this meeting's transcript and notes?" onConfirm={() => del(`/meetings/${id}`).then(onBack).catch(onError)}><Trash2 size={13} /> Delete</ConfirmButton></div>
+        <div className="row"><ConfirmButton className="btn btn-ghost btn-sm" prompt="Delete this meeting's transcript and notes?" onConfirm={() => del(`/meetings/${id}`).then(onBack).catch(onError)}><Trash2 size={13} /> {tr("Delete")}</ConfirmButton></div>
       )}
     </div>
   );

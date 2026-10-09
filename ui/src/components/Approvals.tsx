@@ -44,7 +44,7 @@ export function ApprovalCard({ approval }: { approval: Approval }) {
         <ShieldAlert size={18} />
         <strong>{tr("Approval needed")}</strong>
         <RiskBadge risk={approval.risk} />
-        <span className="meta">{remaining}s</span>
+        <span className="meta">{tr("{n}s", { n: remaining })}</span>
       </div>
       <div className="approval-summary" dir="auto">
         {approval.summary}
@@ -58,8 +58,8 @@ export function ApprovalCard({ approval }: { approval: Approval }) {
           <X size={16} /> {tr("Deny")}
         </button>
         {approval.risk !== "Critical" && (
-          <button className="btn btn-ghost small" disabled={busy} onClick={() => decide(true, true)} title={`Always allow ${approval.tool} without asking`}>
-            Always allow “{approval.tool}”
+          <button className="btn btn-ghost small" disabled={busy} onClick={() => decide(true, true)} title={tr("Always allow {tool} without asking", { tool: approval.tool })}>
+            {tr("Always allow “{tool}”", { tool: approval.tool })}
           </button>
         )}
       </div>

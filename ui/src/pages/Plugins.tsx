@@ -36,16 +36,16 @@ export function PluginsPage() {
       <PageHead title={tr("Plugins")} sub="New abilities, each in a sandbox: no files, apps or JARVIS data — only what you approve." />
       <ErrorNote error={error ?? list.error} />
       <Card title="Make a plugin">
-        <p className="small muted">Describe a tool and JARVIS writes it, checks it and runs its tests with the network off. You then see exactly what it may do and decide whether to install it.</p>
-        <Field label="What should it do?"><textarea className="input" rows={3} dir="auto" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="e.g. convert currencies using a free exchange-rate API" /></Field>
+        <p className="small muted">{tr("Describe a tool and JARVIS writes it, checks it and runs its tests with the network off. You then see exactly what it may do and decide whether to install it.")}</p>
+        <Field label="What should it do?"><textarea className="input" rows={3} dir="auto" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder={tr("e.g. convert currencies using a free exchange-rate API")} /></Field>
         <div className="row wrap">
-          <button className="btn btn-primary btn-sm" disabled={busy || desc.trim().length < 8} onClick={generate}><Wand2 size={14} /> {busy ? "Writing and checking…" : "Write it"}</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => setImporting((x) => !x)}><PackagePlus size={14} /> Import</button>
+          <button className="btn btn-primary btn-sm" disabled={busy || desc.trim().length < 8} onClick={generate}><Wand2 size={14} /> {busy ? tr("Writing and checking…") : tr("Write it")}</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setImporting((x) => !x)}><PackagePlus size={14} /> {tr("Import")}</button>
         </div>
         {note && <p className="small" dir="auto">{note}</p>}
       </Card>
       {importing && <Import onDone={(id) => { setImporting(false); setOpenId(id); }} onError={setError} />}
-      {list.data?.length === 0 && <Empty>No plugins yet.</Empty>}
+      {list.data?.length === 0 && <Empty>{tr("No plugins yet.")}</Empty>}
       <ul className="list list-rows">
         {list.data?.map((p) => (
           <li key={p.id}>
@@ -55,8 +55,8 @@ export function PluginsPage() {
                 <strong className="ellipsis">{p.manifest.name} <span className="meta">{p.manifest.version}</span></strong>
                 <span className="small muted ellipsis" dir="auto">{p.manifest.description}</span>
               </span>
-              {p.update && <Badge tone={p.update.morePermissions ? "warn" : "info"}>update {p.update.manifest.version}</Badge>}
-              <Badge tone={tone(p.status)}>{p.status}</Badge>
+              {p.update && <Badge tone={p.update.morePermissions ? "warn" : "info"}>{tr("update {version}", { version: p.update.manifest.version })}</Badge>}
+              <Badge tone={tone(p.status)}>{tr(p.status)}</Badge>
             </button>
           </li>
         ))}
@@ -75,7 +75,7 @@ function Import({ onDone, onError }: { onDone: (id: string) => void; onError: (e
     <Card title="Import a plugin">
       <Field label="plugin.json"><textarea className="input mono" rows={8} dir="ltr" value={manifest} onChange={(e) => setManifest(e.target.value)} /></Field>
       <Field label="main.js"><textarea className="input mono" rows={8} dir="ltr" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
-      <div className="row"><button className="btn btn-primary btn-sm" disabled={!manifest.trim() || !code.trim()} onClick={go}>Check it</button></div>
+      <div className="row"><button className="btn btn-primary btn-sm" disabled={!manifest.trim() || !code.trim()} onClick={go}>{tr("Check it")}</button></div>
     </Card>
   );
 }
@@ -88,8 +88,8 @@ function UpdateCard({ id, x, onMsg, onDone, onError }: { id: string; x: PluginVi
   const apply = async () => { try { const r = await post<{ message: string }>(`/plugins/${id}/update`, {}); onMsg(r.message); onDone(); } catch (e) { onError(e); } };
   const hosts = [...u.manifest.permissions.http, ...u.manifest.permissions.httpSend];
   return (
-    <Card title={`Update to ${u.manifest.version}`} actions={<Badge tone={tone(u.status)}>{u.status}</Badge>}>
-      {u.morePermissions && <div className="note warn small">This version asks for more than the one you approved.</div>}
+    <Card title={tr("Update to {version}", { version: u.manifest.version })} actions={<Badge tone={tone(u.status)}>{tr(u.status)}</Badge>}>
+      {u.morePermissions && <div className="note warn small">{tr("This version asks for more than the one you approved.")}</div>}
       <ul className="bullets small">{u.changes.map((c, i) => <li key={i} className={c.startsWith("NEW") ? "bad" : undefined}>{c}</li>)}</ul>
       <p className="small muted">{u.permissions}</p>
       {u.report && (
@@ -97,16 +97,16 @@ function UpdateCard({ id, x, onMsg, onDone, onError }: { id: string; x: PluginVi
           {u.report.problems.map((pr, i) => <li key={`p${i}`}><span className="small grow bad">{pr}</span></li>)}
           {u.report.tests.map((t, i) => (
             <li key={i}><span className="small grow"><span className="mono">{t.tool}</span> — {t.detail}</span>
-              <Badge tone={t.passed ? "good" : t.skipped ? "warn" : "bad"}>{t.passed ? "pass" : t.skipped ? "needs network" : "fail"}</Badge></li>
+              <Badge tone={t.passed ? "good" : t.skipped ? "warn" : "bad"}>{t.passed ? tr("pass") : t.skipped ? tr("needs network") : tr("fail")}</Badge></li>
           ))}
         </ul>
       )}
       <div className="row wrap">
-        <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> Check</button>
-        {hosts.length > 0 && u.report?.tests.some((t) => t.skipped) && <button className="btn btn-sm" onClick={() => check(true)}><FlaskConical size={14} /> Run tests (reads from {hosts.join(", ")})</button>}
-        {u.status === "ready" && <button className="btn btn-primary btn-sm" onClick={apply}><ShieldCheck size={14} /> Update…</button>}
-        <button className="btn btn-ghost btn-sm" onClick={() => setShowCode((s) => !s)}><Code2 size={14} /> {showCode ? "Hide new code" : "Show new code"}</button>
-        <button className="btn btn-ghost btn-sm" onClick={() => del(`/plugins/${id}/update`).then(onDone).catch(onError)}><Trash2 size={13} /> Discard update</button>
+        <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> {tr("Check")}</button>
+        {hosts.length > 0 && u.report?.tests.some((t) => t.skipped) && <button className="btn btn-sm" onClick={() => check(true)}><FlaskConical size={14} /> {tr("Run tests (reads from {hosts})", { hosts: hosts.join(", ") })}</button>}
+        {u.status === "ready" && <button className="btn btn-primary btn-sm" onClick={apply}><ShieldCheck size={14} /> {tr("Update…")}</button>}
+        <button className="btn btn-ghost btn-sm" onClick={() => setShowCode((s) => !s)}><Code2 size={14} /> {showCode ? tr("Hide new code") : tr("Show new code")}</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => del(`/plugins/${id}/update`).then(onDone).catch(onError)}><Trash2 size={13} /> {tr("Discard update")}</button>
       </div>
       {showCode && <pre className="file-preview" dir="ltr">{u.code}</pre>}
     </Card>
@@ -128,8 +128,8 @@ function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onErr
   return (
     <div className="stack">
       {back}
-      <PageHead title={x.manifest.name} sub={`${x.manifest.version} · ${x.source === "generated" ? "written by JARVIS" : "imported"} · ${timeAgo(x.createdAt)}`}
-        actions={<Badge tone={tone(x.status)}>{x.status}</Badge>} />
+      <PageHead title={x.manifest.name} sub={`${x.manifest.version} · ${x.source === "generated" ? tr("written by JARVIS") : tr("imported")} · ${timeAgo(x.createdAt)}`}
+        actions={<Badge tone={tone(x.status)}>{tr(x.status)}</Badge>} />
       {x.error && <div className="note warn small">{x.error}</div>}
       <Card title="What it may do" actions={<ShieldCheck size={15} className="muted" />}>
         <p className="small" dir="auto">{x.manifest.description}</p>
@@ -139,29 +139,29 @@ function Detail({ id, onBack, onError }: { id: string; onBack: () => void; onErr
         </ul>
       </Card>
       {x.report && (
-        <Card title="Checks" actions={x.report.networkTested ? <Badge>with network</Badge> : <Badge>network off</Badge>}>
+        <Card title="Checks" actions={x.report.networkTested ? <Badge>{tr("with network")}</Badge> : <Badge>{tr("network off")}</Badge>}>
           {x.report.problems.length > 0 && <ul className="bullets small bad">{x.report.problems.map((pr, i) => <li key={i}>{pr}</li>)}</ul>}
           <ul className="list">
             {x.report.tests.map((t, i) => (
               <li key={i}><span className="small grow"><span className="mono">{t.tool}</span> — {t.detail}{t.log.length > 0 && <span className="meta"> · {t.log.join(" · ")}</span>}</span>
-                <Badge tone={t.passed ? "good" : t.skipped ? "warn" : "bad"}>{t.passed ? "pass" : t.skipped ? "needs network" : "fail"}</Badge></li>
+                <Badge tone={t.passed ? "good" : t.skipped ? "warn" : "bad"}>{t.passed ? tr("pass") : t.skipped ? tr("needs network") : tr("fail")}</Badge></li>
             ))}
           </ul>
-          {x.report.tests.length === 0 && x.report.problems.length === 0 && <p className="small muted">It has no tests.</p>}
+          {x.report.tests.length === 0 && x.report.problems.length === 0 && <p className="small muted">{tr("It has no tests.")}</p>}
         </Card>
       )}
       {x.update && <UpdateCard id={id} x={x} onMsg={setMsg} onDone={() => void p.reload()} onError={onError} />}
       {approvals.map((a) => <div key={a.id} className="reply-card"><ApprovalCard approval={a} /></div>)}
       <div className="row wrap">
-        {(x.status === "draft" || x.status === "failed" || x.status === "ready") && <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> Re-check</button>}
+        {(x.status === "draft" || x.status === "failed" || x.status === "ready") && <button className="btn btn-sm" onClick={() => check(false)}><FlaskConical size={14} /> {tr("Re-check")}</button>}
         {(x.status === "ready" || x.status === "failed") && hosts.length > 0 && x.report?.tests.some((t) => t.skipped) && (
-          <button className="btn btn-sm" onClick={() => check(true)}><FlaskConical size={14} /> Run tests (reads from {hosts.join(", ")})</button>
+          <button className="btn btn-sm" onClick={() => check(true)}><FlaskConical size={14} /> {tr("Run tests (reads from {hosts})", { hosts: hosts.join(", ") })}</button>
         )}
-        {x.status === "ready" && <button className="btn btn-primary btn-sm" onClick={install}><ShieldCheck size={14} /> Install…</button>}
-        {x.status === "installed" && <button className="btn btn-sm" onClick={() => post(`/plugins/${id}/enabled`, { enabled: false }).then(() => p.reload()).catch(onError)}><Power size={14} /> Disable</button>}
-        {x.status === "disabled" && <button className="btn btn-sm" onClick={() => post(`/plugins/${id}/enabled`, { enabled: true }).then(() => p.reload()).catch(onError)}><Power size={14} /> Enable</button>}
-        <button className="btn btn-ghost btn-sm" onClick={() => setShowCode((s) => !s)}><Code2 size={14} /> {showCode ? "Hide code" : "Show code"}</button>
-        <ConfirmButton className="btn btn-ghost btn-sm" prompt={`Remove ${x.manifest.name} and its storage?`} onConfirm={() => del(`/plugins/${id}`).then(onBack).catch(onError)}><Trash2 size={13} /> Remove</ConfirmButton>
+        {x.status === "ready" && <button className="btn btn-primary btn-sm" onClick={install}><ShieldCheck size={14} /> {tr("Install…")}</button>}
+        {x.status === "installed" && <button className="btn btn-sm" onClick={() => post(`/plugins/${id}/enabled`, { enabled: false }).then(() => p.reload()).catch(onError)}><Power size={14} /> {tr("Disable")}</button>}
+        {x.status === "disabled" && <button className="btn btn-sm" onClick={() => post(`/plugins/${id}/enabled`, { enabled: true }).then(() => p.reload()).catch(onError)}><Power size={14} /> {tr("Enable")}</button>}
+        <button className="btn btn-ghost btn-sm" onClick={() => setShowCode((s) => !s)}><Code2 size={14} /> {showCode ? tr("Hide code") : tr("Show code")}</button>
+        <ConfirmButton className="btn btn-ghost btn-sm" prompt={tr("Remove {name} and its storage?", { name: x.manifest.name })} onConfirm={() => del(`/plugins/${id}`).then(onBack).catch(onError)}><Trash2 size={13} /> {tr("Remove")}</ConfirmButton>
       </div>
       {msg && <p className="small" dir="auto">{msg}</p>}
       {showCode && <Card title="main.js"><pre className="file-preview" dir="ltr">{x.code}</pre></Card>}

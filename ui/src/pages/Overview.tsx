@@ -64,10 +64,10 @@ export function Overview() {
         {approvals.map((a) => <div key={a.id} className="reply-card"><ApprovalCard approval={a} /></div>)}
         {!status?.ai?.anyAvailable && status && (
           <Card title={tr("Enable conversation (free, local)")} className="reply-card">
-            <p className="small">Direct commands work now. For open conversation and multi-step planning, JARVIS needs a local model:</p>
+            <p className="small">{tr("Direct commands work now. For open conversation and multi-step planning, JARVIS needs a local model:")}</p>
             <ol className="steps small">
-              <li>Install <strong>Ollama</strong> from <code>ollama.com</code>.</li>
-              <li>Download a model in <a href="#/settings/ai">Settings → AI</a> (qwen2.5:7b recommended, ~4.7 GB).</li>
+              <li>{tr("Install")} <strong>Ollama</strong> {tr("from")} <code>ollama.com</code>.</li>
+              <li>{tr("Download a model in")} <a href="#/settings/ai">{tr("Settings → AI")}</a> {tr("(qwen2.5:7b recommended, ~4.7 GB).")}</li>
             </ol>
           </Card>
         )}
@@ -81,7 +81,7 @@ export function Overview() {
                 <li key={t.id}>
                   <span className="truncate grow" dir="auto">{t.title}</span>
                   {t.dueAt && <span className="meta nowrap" dir="ltr">{formatTime(t.dueAt)}</span>}
-                  {t.priority !== "normal" && <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{t.priority}</Badge>}
+                  {t.priority !== "normal" && <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{tr(t.priority)}</Badge>}
                 </li>
               ))}
             </ul>
@@ -119,7 +119,7 @@ export function Overview() {
               {notes.data.slice(0, 4).map((n) => (
                 <li key={n.id}>
                   <span className="truncate grow" dir="auto">{n.title}</span>
-                  <Badge tone={n.status === "held" ? "info" : "neutral"}>{n.status}</Badge>
+                  <Badge tone={n.status === "held" ? "info" : "neutral"}>{tr(n.status)}</Badge>
                 </li>
               ))}
             </ul>
@@ -156,18 +156,18 @@ function MachineCard() {
     <Card title={tr("Systems")} actions={<a href="#/system" className="link small">{tr("Details")}</a>}>
       <div className="row" style={{ justifyContent: "space-around", flexWrap: "wrap", gap: 6 }}>
         <Gauge value={c?.cpuPercent} label="CPU" size={96} />
-        <Gauge value={c?.memoryPercent} label="Memory" size={96} />
+        <Gauge value={c?.memoryPercent} label={tr("Memory")} size={96} />
         {c?.gpuPercent != null ? <Gauge value={c.gpuPercent} label="GPU" size={96} /> : null}
       </div>
       <Sparkline values={hist.map((h) => h.cpuPercent)} max={100} height={44} />
       <div className="row between small">
-        <span className="row" title="Download"><ArrowDown size={13} className="dim" /> {fmtBytes(c?.netDownBytesPerSec, true)}</span>
-        <span className="row" title="Upload"><ArrowUp size={13} className="dim" /> {fmtBytes(c?.netUpBytesPerSec, true)}</span>
+        <span className="row" title={tr("Download")}><ArrowDown size={13} className="dim" /> {fmtBytes(c?.netDownBytesPerSec, true)}</span>
+        <span className="row" title={tr("Upload")}><ArrowUp size={13} className="dim" /> {fmtBytes(c?.netUpBytesPerSec, true)}</span>
         {c?.batteryPercent != null && (
-          <span className="row" title="Battery">{c.charging ? <BatteryCharging size={14} /> : <BatteryMedium size={14} />} {c.batteryPercent}%</span>
+          <span className="row" title={tr("Battery")}>{c.charging ? <BatteryCharging size={14} /> : <BatteryMedium size={14} />} {c.batteryPercent}%</span>
         )}
       </div>
-      <div className="meta">JARVIS itself: {c ? `${Math.round(c.runtimeMemoryMb)} MB · ${c.runtimeCpuPercent.toFixed(1)}% CPU` : "—"}</div>
+      <div className="meta">{c ? tr("JARVIS itself: {mem} MB · {cpu}% CPU", { mem: Math.round(c.runtimeMemoryMb), cpu: c.runtimeCpuPercent.toFixed(1) }) : tr("JARVIS itself: —")}</div>
     </Card>
   );
 }
@@ -187,16 +187,16 @@ function NowCard() {
     <Card title={tr("Now")}>
       <div className="row">
         {icon}
-        <strong className="small">{p.state === "Idle" ? "Away" : p.activity === "other" ? "Working" : p.activity}</strong>
-        {p.inMeeting && <Badge tone="warn">meeting</Badge>}
-        {p.isFullscreen && <Badge tone="info">fullscreen</Badge>}
+        <strong className="small">{tr(p.state === "Idle" ? "Away" : p.activity === "other" ? "Working" : p.activity)}</strong>
+        {p.inMeeting && <Badge tone="warn">{tr("meeting")}</Badge>}
+        {p.isFullscreen && <Badge tone="info">{tr("fullscreen")}</Badge>}
       </div>
       {p.activeProcess && (
         <div className="small truncate" title={p.activeWindowTitle ?? ""}>
           <span className="mono">{p.activeProcess}</span> <span className="muted" dir="auto">{p.activeWindowTitle}</span>
         </div>
       )}
-      {hint && <p className="small muted">{hint}</p>}
+      {hint && <p className="small muted">{tr(hint)}</p>}
     </Card>
   );
 }
@@ -223,9 +223,9 @@ function HomeCommand() {
     <>
       <form className="cmd" onSubmit={(e) => { e.preventDefault(); void send(); }}>
         <span className="prompt" aria-hidden>›</span>
-        <input dir="auto" placeholder={tr("Ask JARVIS… “what's happening today?”, “افتح VS Code”")} value={text} onChange={(e) => setText(e.target.value)} aria-label="Ask JARVIS" />
-        <span className="kbd" title="Command console">Ctrl K</span>
-        <button className="btn btn-primary btn-icon" disabled={busy || !text.trim()} type="submit" aria-label="Send"><CornerDownLeft size={16} /></button>
+        <input dir="auto" placeholder={tr("Ask JARVIS… “what's happening today?”, “افتح VS Code”")} value={text} onChange={(e) => setText(e.target.value)} aria-label={tr("Ask JARVIS")} />
+        <span className="kbd" title={tr("Command console")}>Ctrl K</span>
+        <button className="btn btn-primary btn-icon" disabled={busy || !text.trim()} type="submit" aria-label={tr("Send")}><CornerDownLeft size={16} /></button>
       </form>
       {busy && active && (
         <div className="reply-card stack-sm">

@@ -39,8 +39,8 @@ export function InboxPage() {
         sub="Your mail, sorted with the reason why. JARVIS drafts; only you send."
         actions={
           <>
-            <button className="btn btn-sm" disabled={syncing} onClick={sync}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? "Checking…" : "Check now"}</button>
-            <button className="btn btn-ghost btn-sm" onClick={() => navigate("settings", "accounts")}><Settings2 size={14} /> Accounts</button>
+            <button className="btn btn-sm" disabled={syncing} onClick={sync}><RefreshCw size={14} className={syncing ? "spin" : ""} /> {syncing ? tr("Checking…") : tr("Check now")}</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => navigate("settings", "accounts")}><Settings2 size={14} /> {tr("Accounts")}</button>
           </>
         }
       />
@@ -66,8 +66,8 @@ function NoAccounts({ s }: { s: InboxStatus }) {
     <div className="stack">
       <PageHead title={tr("Executive Inbox")} sub="Connect your email and JARVIS sorts it into urgent, needs reply, important, FYI and noise — and drafts replies you approve." />
       <Card title="Connect an account">
-        <p className="small muted">Gmail works with an app password; Yahoo, iCloud, Zoho and company mail servers work over IMAP/SMTP. JARVIS reads your inbox without changing it and never sends anything without your approval.</p>
-        <div className="row"><button className="btn btn-primary btn-sm" onClick={() => navigate("settings", "accounts")}><Mail size={14} /> Connect email</button></div>
+        <p className="small muted">{tr("Gmail works with an app password; Yahoo, iCloud, Zoho and company mail servers work over IMAP/SMTP. JARVIS reads your inbox without changing it and never sends anything without your approval.")}</p>
+        <div className="row"><button className="btn btn-primary btn-sm" onClick={() => navigate("settings", "accounts")}><Mail size={14} /> {tr("Connect email")}</button></div>
       </Card>
       <ConnectorTable s={s} />
     </div>
@@ -82,7 +82,7 @@ export function ConnectorTable({ s }: { s: InboxStatus }) {
         {s.connectors.map((c) => (
           <li key={c.id}>
             <span className="grow" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <span className="row wrap" style={{ gap: 8 }}><strong>{c.name}</strong> <Badge tone={tone(c.status)}>{c.status}</Badge></span>
+              <span className="row wrap" style={{ gap: 8 }}><strong>{c.name}</strong> <Badge tone={tone(c.status)}>{tr(c.status)}</Badge></span>
               <span className="small muted">{c.note}</span>
             </span>
           </li>
@@ -106,12 +106,12 @@ function MessageList({ category, onOpen }: { category: MailCategory; onOpen: (id
         <div className="row wrap">
           <div className="search grow">
             <Search size={15} />
-            <input className="input" dir="auto" placeholder="Search all mail… sender, subject, words" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search mail" />
+            <input className="input" dir="auto" placeholder={tr("Search all mail… sender, subject, words")} value={q} onChange={(e) => setQ(e.target.value)} aria-label={tr("Search mail")} />
           </div>
-          {!query && <label className="row small"><input type="checkbox" checked={showHandled} onChange={(e) => setShowHandled(e.target.checked)} /> Show handled</label>}
+          {!query && <label className="row small"><input type="checkbox" checked={showHandled} onChange={(e) => setShowHandled(e.target.checked)} /> {tr("Show handled")}</label>}
         </div>
         <ErrorNote error={list.error} />
-        {list.data?.length === 0 && <Empty>{query ? `No mail mentions “${query}”.` : "Nothing here."}</Empty>}
+        {list.data?.length === 0 && <Empty>{query ? tr("No mail mentions “{query}”.", { query }) : tr("Nothing here.")}</Empty>}
         <ul className="list list-rows">
           {list.data?.map((m) => (
             <li key={m.id}>
@@ -121,9 +121,9 @@ function MessageList({ category, onOpen }: { category: MailCategory; onOpen: (id
                   <span className="row wrap" style={{ gap: 6 }}>
                     <strong dir="auto" className="ellipsis">{m.fromName || m.fromAddress}</strong>
                     {query && <Badge tone={TONES[m.category]}>{tr(LABELS[m.category])}</Badge>}
-                    {m.handled && <Badge tone="good">handled</Badge>}
+                    {m.handled && <Badge tone="good">{tr("handled")}</Badge>}
                   </span>
-                  <span className="small ellipsis" dir="auto">{m.subject || "(no subject)"}</span>
+                  <span className="small ellipsis" dir="auto">{m.subject || tr("(no subject)")}</span>
                   <span className="small snippet" dir="auto">{m.snippet}</span>
                   {m.reason && <span className="meta">{m.reason}</span>}
                 </span>
@@ -163,46 +163,46 @@ function Reader({ id, onBack, onError }: { id: string; onBack: () => void; onErr
   return (
     <div className="stack">
       {back}
-      <Card title={<span dir="auto">{m.subject || "(no subject)"}</span>} actions={<Badge tone={TONES[m.category]}>{tr(LABELS[m.category])}</Badge>}>
+      <Card title={<span dir="auto">{m.subject || tr("(no subject)")}</span>} actions={<Badge tone={TONES[m.category]}>{tr(LABELS[m.category])}</Badge>}>
         <dl className="kv small">
-          <dt>From</dt><dd dir="auto">{m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress}</dd>
-          <dt>To</dt><dd dir="ltr">{m.to.join(", ")}{m.cc.length ? ` · cc ${m.cc.join(", ")}` : ""}</dd>
-          <dt>Received</dt><dd>{formatTime(m.receivedAt)}</dd>
-          <dt>Why here</dt><dd>{m.reason}{m.categorySource === "you" ? " (your choice)" : ""}</dd>
+          <dt>{tr("From")}</dt><dd dir="auto">{m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress}</dd>
+          <dt>{tr("To")}</dt><dd dir="ltr">{m.to.join(", ")}{m.cc.length ? ` · cc ${m.cc.join(", ")}` : ""}</dd>
+          <dt>{tr("Received")}</dt><dd>{formatTime(m.receivedAt)}</dd>
+          <dt>{tr("Why here")}</dt><dd>{m.reason}{m.categorySource === "you" ? ` ${tr("(your choice)")}` : ""}</dd>
         </dl>
         <div className="row wrap" style={{ marginTop: 10 }}>
-          <select className="input input-sm" value={m.category} aria-label="Move to"
+          <select className="input input-sm" value={m.category} aria-label={tr("Move to")}
             onChange={(e) => post(`/inbox/messages/${m.id}/category`, { category: e.target.value }).then(() => d.reload()).catch(onError)}>
             {(Object.keys(LABELS) as MailCategory[]).map((k) => <option key={k} value={k}>{tr(LABELS[k])}</option>)}
           </select>
           <button className="btn btn-sm" onClick={() => post(`/inbox/messages/${m.id}/handled`, { handled: !m.handled }).then(() => d.reload()).catch(onError)}>
-            <Check size={14} /> {m.handled ? "Mark not handled" : "Mark handled"}
+            <Check size={14} /> {m.handled ? tr("Mark not handled") : tr("Mark handled")}
           </button>
           {entities.map((e) => <span key={e.id} className="chip"><Link2 size={11} /> {e.name}</span>)}
         </div>
-        <p className="small muted" style={{ marginTop: 8 }}>Moving a message also moves future mail from this sender.</p>
+        <p className="small muted" style={{ marginTop: 8 }}>{tr("Moving a message also moves future mail from this sender.")}</p>
       </Card>
-      <Card title="Message" actions={<Badge title="Written by someone else. JARVIS treats it as information, never as instructions.">external</Badge>}>
+      <Card title="Message" actions={<Badge title={tr("Written by someone else. JARVIS treats it as information, never as instructions.")}>{tr("external")}</Badge>}>
         <pre className="file-preview mail-body" dir="auto">{m.body || m.snippet}</pre>
       </Card>
       <Card title="Reply" actions={
         <div className="row">
-          <button className="btn btn-sm" disabled={asking} onClick={askJarvis}><Wand2 size={14} /> {asking ? "Drafting…" : "Draft with JARVIS"}</button>
-          {reply === null && <button className="btn btn-sm" onClick={() => setReply("")}><PenLine size={14} /> Write</button>}
+          <button className="btn btn-sm" disabled={asking} onClick={askJarvis}><Wand2 size={14} /> {asking ? tr("Drafting…") : tr("Draft with JARVIS")}</button>
+          {reply === null && <button className="btn btn-sm" onClick={() => setReply("")}><PenLine size={14} /> {tr("Write")}</button>}
         </div>
       }>
         {note && <p className="small muted" dir="auto">{note}</p>}
         {reply !== null && (
           <div className="stack">
-            <textarea className="input" rows={6} dir="auto" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Your reply…" />
-            <div className="row"><button className="btn btn-primary btn-sm" disabled={!reply.trim()} onClick={saveReply}>Save draft</button><button className="btn btn-ghost btn-sm" onClick={() => setReply(null)}>Cancel</button></div>
+            <textarea className="input" rows={6} dir="auto" value={reply} onChange={(e) => setReply(e.target.value)} placeholder={tr("Your reply…")} />
+            <div className="row"><button className="btn btn-primary btn-sm" disabled={!reply.trim()} onClick={saveReply}>{tr("Save draft")}</button><button className="btn btn-ghost btn-sm" onClick={() => setReply(null)}>{tr("Cancel")}</button></div>
           </div>
         )}
         {drafts.filter((x) => x.status !== "discarded").map((x) => <DraftEditor key={x.id} draft={x} onError={onError} onChange={() => d.reload()} />)}
-        {reply === null && drafts.length === 0 && !note && <p className="small muted">No reply drafted yet.</p>}
+        {reply === null && drafts.length === 0 && !note && <p className="small muted">{tr("No reply drafted yet.")}</p>}
       </Card>
       {fromSender.length > 0 && (
-        <Card title={`Earlier from ${m.fromName || m.fromAddress}`}>
+        <Card title={tr("Earlier from {name}", { name: m.fromName || m.fromAddress })}>
           <ul className="list">{fromSender.map((x) => <li key={x.id}><span className="small ellipsis grow" dir="auto">{x.subject}</span><span className="meta nowrap">{timeAgo(x.receivedAt)}</span></li>)}</ul>
         </Card>
       )}
@@ -220,7 +220,7 @@ function Drafts({ onError }: { onError: (e: unknown) => void }) {
   };
   return (
     <div className="stack">
-      <div className="row"><button className="btn btn-sm" onClick={() => setCreating((c) => !c)}><PenLine size={14} /> New email</button></div>
+      <div className="row"><button className="btn btn-sm" onClick={() => setCreating((c) => !c)}><PenLine size={14} /> {tr("New email")}</button></div>
       {creating && (
         <Card title="New email">
           <div className="form-grid">
@@ -229,10 +229,10 @@ function Drafts({ onError }: { onError: (e: unknown) => void }) {
           </div>
           <Field label="Subject"><input className="input" dir="auto" value={n.subject} onChange={(e) => setN({ ...n, subject: e.target.value })} /></Field>
           <Field label="Message"><textarea className="input" rows={6} dir="auto" value={n.body} onChange={(e) => setN({ ...n, body: e.target.value })} /></Field>
-          <div className="row"><button className="btn btn-primary btn-sm" disabled={!n.to.trim()} onClick={create}>Save draft</button></div>
+          <div className="row"><button className="btn btn-primary btn-sm" disabled={!n.to.trim()} onClick={create}>{tr("Save draft")}</button></div>
         </Card>
       )}
-      {list.data?.length === 0 && !creating && <Empty>No drafts. Ask JARVIS to draft a reply, or write one.</Empty>}
+      {list.data?.length === 0 && !creating && <Empty>{tr("No drafts. Ask JARVIS to draft a reply, or write one.")}</Empty>}
       {list.data?.map((x) => <Card key={x.id}><DraftEditor draft={x} onError={onError} onChange={() => list.reload()} /></Card>)}
     </div>
   );
@@ -259,8 +259,8 @@ function DraftEditor({ draft, onError, onChange }: { draft: MailDraft; onError: 
   return (
     <div className="stack draft">
       <div className="row wrap small">
-        <Badge tone={draft.status === "sent" ? "good" : draft.status === "failed" ? "bad" : "neutral"}>{draft.status}</Badge>
-        <span className="muted">{draft.createdBy === "jarvis" ? "Drafted by JARVIS" : "Your draft"} · {timeAgo(draft.updatedAt)}</span>
+        <Badge tone={draft.status === "sent" ? "good" : draft.status === "failed" ? "bad" : "neutral"}>{tr(draft.status)}</Badge>
+        <span className="muted">{draft.createdBy === "jarvis" ? tr("Drafted by JARVIS") : tr("Your draft")} · {timeAgo(draft.updatedAt)}</span>
         {draft.error && <span className="bad">{draft.error}</span>}
       </div>
       <div className="form-grid">
@@ -270,9 +270,9 @@ function DraftEditor({ draft, onError, onChange }: { draft: MailDraft; onError: 
       <textarea className="input" rows={6} dir="auto" disabled={!editable} value={d.body} onChange={(e) => setD({ ...d, body: e.target.value })} />
       {editable && (
         <div className="row wrap">
-          <button className="btn btn-primary btn-sm" disabled={sending || !d.to.trim()} onClick={send}><Send size={14} /> {sending ? "Waiting for your approval…" : "Send…"}</button>
-          {dirty && <button className="btn btn-sm" onClick={save}>Save</button>}
-          <button className="btn btn-ghost btn-sm" onClick={() => del(`/inbox/drafts/${draft.id}`).then(onChange).catch(onError)}><Trash2 size={14} /> Discard</button>
+          <button className="btn btn-primary btn-sm" disabled={sending || !d.to.trim()} onClick={send}><Send size={14} /> {sending ? tr("Waiting for your approval…") : tr("Send…")}</button>
+          {dirty && <button className="btn btn-sm" onClick={save}>{tr("Save")}</button>}
+          <button className="btn btn-ghost btn-sm" onClick={() => del(`/inbox/drafts/${draft.id}`).then(onChange).catch(onError)}><Trash2 size={14} /> {tr("Discard")}</button>
         </div>
       )}
       {result && <p className="small" dir="auto">{result}</p>}

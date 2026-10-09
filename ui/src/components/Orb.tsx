@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { OrbState } from "../lib/orbState";
+import { tr } from "../lib/i18n";
 
 /**
  * JARVIS's visual identity: concentric HUD rings around a luminous core. Motion encodes state
@@ -12,7 +13,7 @@ export function Orb({ state, size = 48, label, hollow = false }: { state: OrbSta
   const small = typeof size === "number" && size < 80;
   const bars = small ? 12 : 28;
   return (
-    <div className={`orb ${small ? "small" : ""} ${hollow ? "hollow" : ""}`} data-state={st} style={{ width: size, height: size }} role="img" aria-label={`JARVIS: ${label ?? st}`}>
+    <div className={`orb ${small ? "small" : ""} ${hollow ? "hollow" : ""}`} data-state={st} style={{ width: size, height: size }} role="img" aria-label={`JARVIS: ${label ?? tr(st)}`}>
       <svg viewBox="0 0 200 200">
         <defs>
           <radialGradient id={`g${id}`}>

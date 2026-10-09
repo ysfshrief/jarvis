@@ -42,47 +42,47 @@ export function Tasks() {
       <h2>{tr("Tasks")}</h2>
       <Card>
         <form className="row wrap" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-          <input className="input grow" dir="auto" placeholder="New task…" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <select className="input" value={priority} onChange={(e) => setPriority(e.target.value)} aria-label="Priority">
-            {PRIORITIES.map((p) => <option key={p}>{p}</option>)}
+          <input className="input grow" dir="auto" placeholder={tr("New task…")} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <select className="input" value={priority} onChange={(e) => setPriority(e.target.value)} aria-label={tr("Priority")}>
+            {PRIORITIES.map((p) => <option key={p} value={p}>{tr(p)}</option>)}
           </select>
-          <input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} aria-label="Due" />
-          <select className="input" value={repeat} onChange={(e) => setRepeat(e.target.value)} aria-label="Repeat">
-            <option value="">Doesn't repeat</option>
-            <option value="daily">Every day</option>
-            <option value="weekdays">Every working day</option>
-            <option value="weekly">Every week</option>
-            <option value="monthly">Every month</option>
+          <input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} aria-label={tr("Due")} />
+          <select className="input" value={repeat} onChange={(e) => setRepeat(e.target.value)} aria-label={tr("Repeat")}>
+            <option value="">{tr("Doesn't repeat")}</option>
+            <option value="daily">{tr("Every day")}</option>
+            <option value="weekdays">{tr("Every working day")}</option>
+            <option value="weekly">{tr("Every week")}</option>
+            <option value="monthly">{tr("Every month")}</option>
           </select>
-          <button className="btn btn-primary" type="submit" disabled={!title.trim()}><Plus size={16} /> Add</button>
+          <button className="btn btn-primary" type="submit" disabled={!title.trim()}><Plus size={16} /> {tr("Add")}</button>
         </form>
         <ErrorNote error={error ?? tasks.error} />
       </Card>
 
       <div className="row">
-        <label className="row small"><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> Show completed and cancelled</label>
+        <label className="row small"><input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} /> {tr("Show completed and cancelled")}</label>
       </div>
 
       {grouped.length === 0 && <Empty>No tasks. Add one above, or say “add task …” / “ضيف مهمة …”.</Empty>}
       {grouped.map((g) => (
-        <Card key={g.state} title={`${g.state.replace("_", " ")} (${g.items.length})`}>
+        <Card key={g.state} title={`${tr(g.state.replace("_", " "))} (${g.items.length})`}>
           <ul className="list list-rows">
             {g.items.map((t) => (
               <li key={t.id}>
-                <input type="checkbox" aria-label="Done" checked={t.state === "completed"} onChange={(e) => update(t, { state: e.target.checked ? "completed" : "pending" })} />
+                <input type="checkbox" aria-label={tr("Done")} checked={t.state === "completed"} onChange={(e) => update(t, { state: e.target.checked ? "completed" : "pending" })} />
                 <div className="grow">
                   <div dir="auto" className={t.state === "completed" ? "done" : ""}>{t.title}</div>
                   <div className="muted small">
-                    {t.dueAt ? `Due ${formatTime(t.dueAt)} · ` : ""}created {timeAgo(t.createdAt)}
+                    {t.dueAt ? `${tr("Due {time}", { time: formatTime(t.dueAt) })} · ` : ""}{tr("created {ago}", { ago: timeAgo(t.createdAt) })}
                     {t.project ? ` · ${t.project}` : ""}
-                    {t.recurrence ? ` · repeats ${t.recurrence}` : ""}
+                    {t.recurrence ? ` · ${tr("repeats {when}", { when: tr(t.recurrence) })}` : ""}
                   </div>
                 </div>
-                <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{t.priority}</Badge>
-                <select className="input input-sm" value={t.state} onChange={(e) => update(t, { state: e.target.value })} aria-label="State">
-                  {STATES.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+                <Badge tone={t.priority === "urgent" ? "bad" : t.priority === "high" ? "warn" : "neutral"}>{tr(t.priority)}</Badge>
+                <select className="input input-sm" value={t.state} onChange={(e) => update(t, { state: e.target.value })} aria-label={tr("State")}>
+                  {STATES.map((s) => <option key={s} value={s}>{tr(s.replace("_", " "))}</option>)}
                 </select>
-                <button className="btn btn-ghost" onClick={() => del(`/tasks/${t.id}`)} aria-label="Delete task"><Trash2 size={16} /></button>
+                <button className="btn btn-ghost" onClick={() => del(`/tasks/${t.id}`)} aria-label={tr("Delete task")}><Trash2 size={16} /></button>
               </li>
             ))}
           </ul>
@@ -103,13 +103,13 @@ function Reminders({ reminders }: { reminders: Reminder[] }) {
     setText("");
   };
   return (
-    <Card title={<span className="row"><Bell size={16} /> Reminders</span>}>
+    <Card title={<span className="row"><Bell size={16} /> {tr("Reminders")}</span>}>
       <form className="row wrap" onSubmit={(e) => { e.preventDefault(); void add(); }}>
-        <input className="input grow" dir="auto" placeholder="Remind me to…" value={text} onChange={(e) => setText(e.target.value)} />
-        <span className="muted">in</span>
-        <input className="input input-sm" type="number" min={1} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label="Minutes" />
-        <span className="muted">min</span>
-        <button className="btn" type="submit" disabled={!text.trim()}><Plus size={16} /> Remind me</button>
+        <input className="input grow" dir="auto" placeholder={tr("Remind me to…")} value={text} onChange={(e) => setText(e.target.value)} />
+        <span className="muted">{tr("in")}</span>
+        <input className="input input-sm" type="number" min={1} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label={tr("Minutes")} />
+        <span className="muted">{tr("min")}</span>
+        <button className="btn" type="submit" disabled={!text.trim()}><Plus size={16} /> {tr("Remind me")}</button>
       </form>
       {reminders.length === 0 ? (
         <Empty>No upcoming reminders.</Empty>
@@ -119,7 +119,7 @@ function Reminders({ reminders }: { reminders: Reminder[] }) {
             <li key={r.id}>
               <div className="grow" dir="auto">{r.text}</div>
               <span className="muted small nowrap" dir="ltr">{formatTime(r.dueAt)} ({timeAgo(r.dueAt)})</span>
-              <button className="btn btn-ghost" onClick={() => del(`/reminders/${r.id}`)} aria-label="Cancel reminder"><X size={16} /></button>
+              <button className="btn btn-ghost" onClick={() => del(`/reminders/${r.id}`)} aria-label={tr("Cancel reminder")}><X size={16} /></button>
             </li>
           ))}
         </ul>

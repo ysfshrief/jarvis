@@ -2,6 +2,7 @@ import { CheckCircle2, CircleDashed, Clock, ShieldX, Wrench, XCircle } from "luc
 import type { ToolStep } from "../api";
 import type { LiveTool } from "../lib/turns";
 import { RiskBadge } from "./ui";
+import { tr } from "../lib/i18n";
 
 type AnyStep = Pick<LiveTool, "tool" | "summary" | "status" | "message" | "durationMs"> & { risk?: ToolStep["risk"] };
 
@@ -17,7 +18,7 @@ export function StepList({ steps }: { steps: AnyStep[] }) {
             <span className="step-tool">{s.tool}</span>
             <span className="truncate grow" dir="auto">{s.summary}</span>
             {s.risk && s.risk !== "Safe" && <RiskBadge risk={s.risk} />}
-            <span className="meta nowrap">{status === "running" ? "running" : s.durationMs != null ? `${s.durationMs} ms` : status}</span>
+            <span className="meta nowrap">{status === "running" ? tr("running") : s.durationMs != null ? `${s.durationMs} ms` : tr(status)}</span>
           </div>
         );
       })}

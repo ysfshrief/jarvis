@@ -75,6 +75,11 @@ export function trNode<T>(node: T): T | string {
   return typeof node === "string" ? tr(node) : node;
 }
 
+/** Dates and times in the interface language (Arabic uses Egyptian formatting). */
+export function uiLocale(): string | undefined {
+  return uiLang() === "ar" ? "ar-EG" : undefined;
+}
+
 /** For tests and tooling: every English key that has an Arabic translation. */
 export function arabicKeys(): string[] {
   return Object.keys(AR);

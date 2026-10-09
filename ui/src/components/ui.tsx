@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Risk } from "../api";
-import { tr, trNode } from "../lib/i18n";
+import { tr, trNode, uiLocale } from "../lib/i18n";
 
 export function Card({ title, actions, children, className = "" }: { title?: ReactNode; actions?: ReactNode; children?: ReactNode; className?: string }) {
   return (
@@ -93,10 +93,11 @@ export function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "";
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
   const abs = Math.abs(diff);
-  const fmt = (n: number, u: string) => `${Math.round(n)} ${u}${Math.round(n) === 1 ? "" : "s"}`;
-  const s = abs < 60 ? "just now" : abs < 3600 ? fmt(abs / 60, "min") : abs < 86400 ? fmt(abs / 3600, "hour") : fmt(abs / 86400, "day");
-  if (s === "just now") return s;
-  return diff >= 0 ? `${s} ago` : `in ${s}`;
+  if (abs < 60) return tr("just now");
+  const [n, unit] = abs < 3600 ? [Math.round(abs / 60), "min"] : abs < 86400 ? [Math.round(abs / 3600), "hour"] : [Math.round(abs / 86400), "day"];
+  const plural = n === 1 ? "" : "s";
+  // Keys like "{n} min ago" / "in {n} hours" — Arabic word order differs, so the whole phrase is translated.
+  return diff >= 0 ? tr(`{n} ${unit}${plural} ago`, { n }) : tr(`in {n} ${unit}${plural}`, { n });
 }
 
 export function formatTime(iso: string | null | undefined): string {
@@ -104,8 +105,8 @@ export function formatTime(iso: string | null | undefined): string {
   const d = new Date(iso);
   const sameDay = d.toDateString() === new Date().toDateString();
   return sameDay
-    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : d.toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+    ? d.toLocaleTimeString(uiLocale() ?? [], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleString(uiLocale() ?? [], { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
 export function ConfirmButton({ onConfirm, children, prompt, className = "btn btn-danger" }: { onConfirm: () => void; children: ReactNode; prompt: string; className?: string }) {

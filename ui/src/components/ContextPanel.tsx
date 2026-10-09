@@ -7,7 +7,7 @@ import { useLatestTurn } from "../lib/turns";
 import { useApprovals } from "./Approvals";
 import { Orb } from "./Orb";
 import { Timeline } from "./Timeline";
-import { Badge, formatTime, timeAgo, useLoad } from "./ui";
+import { Badge, formatTime, useLoad } from "./ui";
 import { tr } from "../lib/i18n";
 
 /** The right-hand panel: what's happening now and what's next, always one glance away. */
@@ -26,17 +26,17 @@ export function ContextPanel({ open, onClose }: { open: boolean; onClose: () => 
   const providers = status?.ai?.providers?.filter((x) => x.available) ?? [];
 
   return (
-    <aside className={`ctx ${open ? "open" : ""}`} aria-label="Context">
+    <aside className={`ctx ${open ? "open" : ""}`} aria-label={tr("Context")}>
       <div className="row between">
         <span className="hud-label">{tr("Context")}</span>
-        <button className="btn btn-ghost btn-icon ctx-toggle" onClick={onClose} aria-label="Close context panel"><X size={16} /></button>
+        <button className="btn btn-ghost btn-icon ctx-toggle" onClick={onClose} aria-label={tr("Close context panel")}><X size={16} /></button>
       </div>
 
       <div className="card card-glow">
         <div className="row">
           <Orb state={orb.state} size={54} label={orb.label} />
           <div className="grow">
-            <div className="orb-label" style={{ textAlign: "start" }}>{orb.state}</div>
+            <div className="orb-label" style={{ textAlign: "start" }}>{tr(orb.state)}</div>
             <div className="small truncate" title={orb.label}>{orb.label}</div>
           </div>
         </div>
@@ -68,13 +68,13 @@ export function ContextPanel({ open, onClose }: { open: boolean; onClose: () => 
 
       {p && p.state !== "Unknown" && (
         <div className="card">
-          <div className="card-head"><h3>{tr("Now")}</h3>{p.inMeeting && <Badge tone="warn"><Bell size={11} /> held</Badge>}</div>
+          <div className="card-head"><h3>{tr("Now")}</h3>{p.inMeeting && <Badge tone="warn"><Bell size={11} /> {tr("held")}</Badge>}</div>
           <div className="row">
             {p.activity === "coding" ? <Code2 size={16} /> : p.activity === "meeting" ? <Users size={16} /> : <MessageCircle size={16} />}
-            <span className="small">{activityLabel(p.activity, p.state)}</span>
+            <span className="small">{tr(activityLabel(p.activity, p.state))}</span>
           </div>
           {p.activeProcess && <div className="small truncate" dir="auto" title={p.activeWindowTitle ?? ""}><span className="mono">{p.activeProcess}</span> · <span className="muted">{p.activeWindowTitle}</span></div>}
-          {p.inMeeting && <div className="small muted">Non-urgent notifications are held until the meeting ends.</div>}
+          {p.inMeeting && <div className="small muted">{tr("Non-urgent notifications are held until the meeting ends.")}</div>}
         </div>
       )}
 
@@ -102,15 +102,24 @@ export function ContextPanel({ open, onClose }: { open: boolean; onClose: () => 
       <div className="card">
         <div className="card-head"><h3>{tr("Systems")}</h3></div>
         <dl className="kv small">
-          <dt>{tr("Core")}</dt><dd>{connected ? "linked" : "reconnecting"}</dd>
-          <dt>{tr("Network")}</dt><dd>{status?.online ? "online" : "offline"}{(status?.queuedActions ?? 0) > 0 ? ` · ${status?.queuedActions} queued` : ""}</dd>
-          <dt>{tr("AI")}</dt><dd>{providers.length ? providers.map((x) => x.name.replace(/\s*\(.*\)/, "")).join(", ") : "no model"}</dd>
-          <dt>{tr("Voice")}</dt><dd>{status?.voice?.sttReady ? (status.voice.microphoneActive ? "mic open" : "ready") : "not set up"}</dd>
-          <dt>{tr("Uptime")}</dt><dd>{status?.uptimeSeconds != null ? timeAgo(new Date(Date.now() - status.uptimeSeconds * 1000).toISOString()).replace(" ago", "") : "—"}</dd>
+          <dt>{tr("Core")}</dt><dd>{tr(connected ? "linked" : "reconnecting")}</dd>
+          <dt>{tr("Network")}</dt><dd>{tr(status?.online ? "online" : "offline")}{(status?.queuedActions ?? 0) > 0 ? tr(" · {n} queued", { n: status?.queuedActions ?? 0 }) : ""}</dd>
+          <dt>{tr("AI")}</dt><dd>{providers.length ? providers.map((x) => x.name.replace(/\s*\(.*\)/, "")).join(", ") : tr("no model")}</dd>
+          <dt>{tr("Voice")}</dt><dd>{tr(status?.voice?.sttReady ? (status.voice.microphoneActive ? "mic open" : "ready") : "not set up")}</dd>
+          <dt>{tr("Uptime")}</dt><dd>{status?.uptimeSeconds != null ? uptime(status.uptimeSeconds) : "—"}</dd>
         </dl>
       </div>
     </aside>
   );
+}
+
+/** How long JARVIS has been running, in the same units timeAgo uses ("3 hours"), translated. */
+function uptime(seconds: number) {
+  const abs = Math.abs(seconds);
+  if (abs < 60) return tr("just now");
+  const [n, unit] = abs < 3600 ? [abs / 60, "min"] : abs < 86400 ? [abs / 3600, "hour"] : [abs / 86400, "day"];
+  const r = Math.round(n);
+  return tr(`{n} ${unit}${r === 1 ? "" : "s"}`, { n: r });
 }
 
 function rank(p: string) {

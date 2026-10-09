@@ -212,7 +212,7 @@ function Rail({ page }: { page: PageId }) {
   const orb = useOrbState(status, connected, approvals.length);
   let section = "";
   return (
-    <nav className="rail" aria-label="Main">
+    <nav className="rail" aria-label={tr("Main navigation")}>
       <div className="brand">
         <Orb state={orb.state} size={38} label={orb.label} />
         <div>
@@ -235,7 +235,7 @@ function Rail({ page }: { page: PageId }) {
         );
       })}
       <div className="rail-foot">
-        <button className="btn btn-ghost" onClick={openConsole} title="Command console (Ctrl+K)">
+        <button className="btn btn-ghost" onClick={openConsole} title={tr("Command console (Ctrl+K)")}>
           <Terminal size={16} /> <span className="nav-label-console">{tr("Console")}</span> <span className="kbd">Ctrl K</span>
         </button>
         <div className="meta">{status?.platformDescription}</div>
@@ -282,20 +282,20 @@ function TopBar({ onToggleCtx }: { onToggleCtx?: () => void }) {
         <Chip ok={status?.ai?.anyAvailable} label={tr(status?.ai?.anyAvailable ? "AI ready" : "No AI model")} />
         <Chip ok={voice?.sttReady && voice?.audioAvailable ? true : voice ? false : null} label={tr(voiceLabel(status))} warn={!!voice?.microphoneActive} />
         {presence && presence.state !== "Unknown" && <Chip ok={null} label={tr(presenceLabel(presence.state, presence.activeProcess))} />}
-        {(status?.queuedActions ?? 0) > 0 && <Chip ok={false} label={`${status?.queuedActions} ${tr("queued")}`} />}
+        {(status?.queuedActions ?? 0) > 0 && <Chip ok={false} label={tr("{n} queued", { n: status?.queuedActions ?? 0 })} />}
       </div>
       <CameraFlash />
       {status?.recording && <RecChip rec={status.recording} onStop={async () => { await post("/meetings/stop"); await refresh(); }} />}
-      <button className="btn btn-ghost btn-sm" onClick={togglePause} title={status?.paused ? "Resume JARVIS" : "Pause listening and voice"}>
+      <button className="btn btn-ghost btn-sm" onClick={togglePause} title={tr(status?.paused ? "Resume JARVIS" : "Pause listening and voice")}>
         {status?.paused ? <Play size={14} /> : <Pause size={14} />} {tr(status?.paused ? "Resume" : "Pause")}
       </button>
       {status?.pinSet && (
-        <button className="btn btn-ghost btn-icon" onClick={async () => { await post("/auth/lock"); location.reload(); }} title="Lock the dashboard" aria-label="Lock">
+        <button className="btn btn-ghost btn-icon" onClick={async () => { await post("/auth/lock"); location.reload(); }} title={tr("Lock the dashboard")} aria-label={tr("Lock")}>
           <Lock size={15} />
         </button>
       )}
       {onToggleCtx && (
-        <button className="btn btn-ghost btn-icon ctx-toggle" onClick={onToggleCtx} title="Context panel" aria-label="Context panel">
+        <button className="btn btn-ghost btn-icon ctx-toggle" onClick={onToggleCtx} title={tr("Context panel")} aria-label={tr("Context panel")}>
           <PanelRight size={16} />
         </button>
       )}
@@ -319,7 +319,7 @@ function RecChip({ rec, onStop }: { rec: NonNullable<Status["recording"]>; onSto
   const secs = Math.max(0, Math.floor((Date.now() - new Date(rec.startedAt).getTime()) / 1000));
   const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
   return (
-    <div className="rec-chip" role="status" title={`Recording “${rec.title}” — ${rec.source}`}>
+    <div className="rec-chip" role="status" title={tr("Recording “{title}” — {source}", { title: rec.title, source: rec.source })}>
       <span className="rec-dot" /> <span>{tr("REC")}</span> <span className="mono" dir="ltr">{clock}</span>
       <button className="btn btn-sm" onClick={onStop}>{tr("Stop")}</button>
     </div>
@@ -359,13 +359,13 @@ function TokenScreen({ onDone }: { onDone: () => void }) {
       <Ambient />
       <div className="gate">
         <Orb state="idle" size={140} />
-        <h1>CONNECT TO JARVIS</h1>
+        <h1>{tr("CONNECT TO JARVIS")}</h1>
         <p className="muted">
-          Open the dashboard from the JARVIS tray icon, or paste the access token from <code>%LOCALAPPDATA%\JARVIS\runtime.json</code>.
+          {tr("Open the dashboard from the JARVIS tray icon, or paste the access token from")} <code>%LOCALAPPDATA%\JARVIS\runtime.json</code>.
         </p>
         <form onSubmit={(e) => { e.preventDefault(); setToken(value); onDone(); }} className="gate-form">
-          <input className="input" placeholder="Access token" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
-          <button className="btn btn-primary" type="submit" disabled={!value.trim()}>Connect</button>
+          <input className="input" placeholder={tr("Access token")} value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+          <button className="btn btn-primary" type="submit" disabled={!value.trim()}>{tr("Connect")}</button>
         </form>
       </div>
     </>
@@ -380,7 +380,7 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
       await post("/auth/unlock", { pin });
       onUnlocked();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Wrong PIN");
+      setError(e instanceof Error ? e.message : tr("Wrong PIN"));
       setPin("");
     }
   };
@@ -389,11 +389,11 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
       <Ambient />
       <div className="gate">
         <Orb state="offline" size={140} />
-        <h1>JARVIS IS LOCKED</h1>
-        <p className="muted">Enter your PIN to continue.</p>
+        <h1>{tr("JARVIS IS LOCKED")}</h1>
+        <p className="muted">{tr("Enter your PIN to continue.")}</p>
         <form onSubmit={(e) => { e.preventDefault(); void submit(); }} className="gate-form">
-          <input className="input pin" type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus aria-label="PIN" />
-          <button className="btn btn-primary" type="submit" disabled={pin.length < 4}>Unlock</button>
+          <input className="input pin" type="password" inputMode="numeric" autoComplete="current-password" value={pin} onChange={(e) => setPin(e.target.value)} autoFocus aria-label={tr("PIN")} />
+          <button className="btn btn-primary" type="submit" disabled={pin.length < 4}>{tr("Unlock")}</button>
         </form>
         {error && <div className="error-note">{error}</div>}
       </div>
