@@ -18,19 +18,22 @@ public sealed record LearnResult(int Proposed, int Updated, int SkippedRejected,
 /// turns a guess into a fact: the user confirms (it becomes a fact) or rejects (it is never proposed
 /// again). Learned preferences reach the AI only as labelled hints.
 /// </summary>
-public sealed partial class PatternLearner(ActivityLog activity, KnowledgeService knowledge, JarvisDatabase db, ISettingsStore settings)
+public sealed partial class PatternLearner(ActivityLog activity, KnowledgeService knowledge, JarvisDatabase db, ISettingsStore settings, Learning.WritingSamples writing)
 {
     public const string TagPrefix = "learn:";
     public static readonly TimeSpan Window = TimeSpan.FromDays(14);
 
     public LearnResult Run(DateTimeOffset now, bool force = false)
     {
-        if (!force && !settings.Current.Memory.LearnPatterns) return new LearnResult(0, 0, 0, []);
-        if (!settings.Current.Memory.AllowedKinds.Contains(MemoryKinds.Pattern) && !settings.Current.Memory.AllowedKinds.Contains(MemoryKinds.Preference))
+        var mem = settings.Current.Memory;
+        if (!force && !mem.LearnPatterns && !mem.LearnWritingStyle) return new LearnResult(0, 0, 0, []);
+        if (!mem.AllowedKinds.Contains(MemoryKinds.Pattern) && !mem.AllowedKinds.Contains(MemoryKinds.Preference))
             return new LearnResult(0, 0, 0, []);
 
-        var entries = activity.Since(now - Window);
-        var patterns = Analyze(entries, now);
+        var patterns = new List<LearnedPattern>();
+        if (force || mem.LearnPatterns) patterns.AddRange(Analyze(activity.Since(now - Window), now));
+        // Writing style comes only from email the user sent, and only when they turned it on.
+        if (mem.LearnWritingStyle && Learning.WritingStyle.Analyze(writing.Recent()) is { } style) patterns.Add(style);
         int proposed = 0, updated = 0, rejected = 0;
         foreach (var p in patterns)
         {

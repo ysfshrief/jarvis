@@ -118,6 +118,56 @@ public sealed class InboxLiveTests
     }
 
     [MailServerFact]
+    public async Task Learns_writing_style_from_the_sent_folder_only_when_allowed()
+    {
+        var (host, _) = await Connected();
+        using var _h = host;
+        // The user's own Sent folder, as a mail app would have filled it.
+        using (var imap = new ImapClient())
+        {
+            await imap.ConnectAsync(Host, 3143, SecureSocketOptions.None);
+            await imap.AuthenticateAsync(_me, _me);
+            var sent = await imap.GetFolder(imap.PersonalNamespaces[0]).CreateAsync("Sent", true);
+            string[] bodies =
+            [
+                "Hi Ahmed,\n\nThe contract is ready. I'll send it tonight.\n\nBest regards,\nYoussef",
+                "Hi Mona,\n\nThanks for the pricing. Let's meet on Sunday.\n\nBest regards,\nYoussef",
+                "Hi Sara,\n\nPlease find the deck attached. Call me if anything is unclear.\n\nBest regards,\nYoussef",
+                "Hi Omar,\n\nConfirmed for 10am. See you there.\n\nBest regards,\nYoussef\n\nOn Tue, Omar wrote:\n> can we do 10?",
+                "Hi team,\n\nShort update: the proposal went out today.\n\nBest regards,\nYoussef",
+                "Hi Karim,\n\nI reviewed the numbers and they look right.\n\nBest regards,\nYoussef",
+            ];
+            foreach (var b in bodies)
+            {
+                var m = new MimeMessage();
+                m.From.Add(new MailboxAddress("Youssef", _me));
+                m.To.Add(MailboxAddress.Parse(_ahmed));
+                m.Subject = "Re: update";
+                m.Body = new TextPart("plain") { Text = b };
+                await sent.AppendAsync(m, MessageFlags.Seen);
+            }
+            await imap.DisconnectAsync(true);
+        }
+
+        var inbox = host.Get<InboxService>();
+        Assert.Equal(0, await inbox.CollectWritingSamplesAsync(default)); // off by default: nothing is read
+        host.Settings.Update(s => s.Memory.LearnWritingStyle = true);
+        Assert.Equal(6, await inbox.CollectWritingSamplesAsync(default));
+
+        var learner = host.Get<Jarvis.Core.Memory.PatternLearner>();
+        learner.Run(DateTimeOffset.Now);
+        var style = host.Get<Jarvis.Core.Memory.MemoryStore>().List(confirmed: false).Single(m => m.Tags == "learn:" + Jarvis.Core.Learning.WritingStyle.Key);
+        Assert.Contains("“Hi <name>,”", style.Content);
+        Assert.Contains("Best regards, / Youssef", style.Content);
+        Assert.Contains("6 emails", style.Provenance!.Reason);
+        Assert.DoesNotContain("can we do 10", string.Join(" ", host.Get<Jarvis.Core.Learning.WritingSamples>().Recent().Select(r => r.Text))); // quoted reply removed
+
+        host.Settings.Update(s => s.Memory.LearnWritingStyle = false);
+        await inbox.CollectWritingSamplesAsync(default);
+        Assert.Equal(0, host.Get<Jarvis.Core.Learning.WritingSamples>().Count()); // turned off: samples deleted
+    }
+
+    [MailServerFact]
     public async Task Wrong_password_is_refused_and_nothing_is_kept()
     {
         using var host = new TestHost();

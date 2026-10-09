@@ -17,17 +17,17 @@ Version: `Directory.Build.props` `<Version>` + `.{run number}` for CI builds.
 
 ```bash
 # bump <Version> in Directory.Build.props if needed, commit, then:
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.2.0` with both files and
+The workflow builds, tests, smoke-tests and creates the GitHub Release `v0.3.0` with both files and
 generated notes.
 
 ## Local packaging
 
 ```powershell
-./build/package.ps1 -Version 0.2.0      # artifacts/JARVIS-Setup-x64.exe, artifacts/JARVIS-Portable-x64.zip
+./build/package.ps1 -Version 0.3.0      # artifacts/JARVIS-Setup-x64.exe, artifacts/JARVIS-Portable-x64.zip
 ./build/smoke-test.ps1
 ```
 

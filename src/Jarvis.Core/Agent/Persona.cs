@@ -65,7 +65,10 @@ public static class Persona
             foreach (var m in memories)
             {
                 var subject = string.IsNullOrEmpty(m.Subject) ? "" : $"[{m.Subject}] ";
-                sb.AppendLine($"  • {subject}{Trim(m.Content, 300)} ({m.Kind}/{m.Source}/{m.Confidence:0.##})");
+                // Notes learned from web pages/documents are someone else's claims until the user confirms them.
+                var origin = !m.IsConfirmed && m.Tags?.Contains(Learning.KnowledgeIngestion.Tag) == true
+                    ? $"; unverified, from {Trim(m.Provenance?.Quote ?? "a source", 80)}{(m.Tags.Contains("conflict") ? "; CONTRADICTS another note" : "")}" : "";
+                sb.AppendLine($"  • {subject}{Trim(m.Content, 300)} ({m.Kind}/{m.Source}/{m.Confidence:0.##}{origin})");
             }
         }
 

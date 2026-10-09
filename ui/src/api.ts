@@ -343,7 +343,7 @@ export interface Settings {
   companion: { enabled: boolean; port: number; allowApprovals: boolean };
   web: { browserEnabled: boolean; browserPath: string; headless: boolean; allowLocalPages: boolean };
   files: { allowedRoots: string[]; maxReadBytes: number; indexEnabled: boolean; indexRoots: string[]; indexMaxFileMb: number };
-  memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean };
+  memory: { enabled: boolean; storeConversations: boolean; conversationRetentionDays: number; allowedKinds: string[]; learnPatterns: boolean; learnWritingStyle: boolean };
   notifications: {
     toastsEnabled: boolean;
     speakImportant: boolean;

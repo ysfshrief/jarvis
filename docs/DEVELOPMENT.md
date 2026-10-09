@@ -38,6 +38,14 @@ dotnet test tests/Jarvis.Core.Tests        # unit + agent loop (any OS)
 dotnet test tests/Jarvis.Runtime.Tests     # HTTP API integration (any OS)
 dotnet test tests/Jarvis.Platform.Windows.Tests   # real Windows integration (Windows only)
 
+# Live tests against real services (opt-in; CI runs them)
+#   GreenMail:  java -Dgreenmail.setup.test.smtp -Dgreenmail.setup.test.imap -Dgreenmail.hostname=127.0.0.1 -jar greenmail-standalone-2.1.3.jar
+$env:JARVIS_TEST_MAIL = "127.0.0.1"           # IMAP/SMTP inbox tests, Sent-folder writing style
+$env:JARVIS_OLLAMA_URL = "http://127.0.0.1:11434"; $env:JARVIS_OLLAMA_MODEL = "qwen2.5:1.5b"   # real-model tests
+
+# Android companion (JDK 17 + Android SDK, Gradle 8.9+)
+cd android; gradle testDebugUnitTest assembleDebug; cd ..
+
 # Package + smoke test (Windows)
 ./build/package.ps1
 ./build/smoke-test.ps1
@@ -76,6 +84,9 @@ dotnet test tests/Jarvis.Platform.Windows.Tests   # real Windows integration (Wi
 | `logs/` | `jarvis-core-*.log`, `desktop.log` |
 | `models/` | Downloaded Whisper models |
 | `webview/` | WebView2 profile for the dashboard |
+| `browser/` | JARVIS's own Edge/Chrome profile for the browser agent |
+| `plugins/` | Installed and draft plugins (`plugin.json` + `main.js`) |
+| `companion.pfx` | The phone companion's self-signed certificate (password in the secret store) |
 
 ## Configuration
 

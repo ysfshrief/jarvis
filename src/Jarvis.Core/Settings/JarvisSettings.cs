@@ -286,6 +286,8 @@ public sealed class MemorySettings
     public List<string> AllowedKinds { get; set; } = ["fact", "preference", "person", "project", "context", "pattern"];
     /// <summary>Let JARVIS infer patterns from behaviour (stored as unconfirmed, low confidence).</summary>
     public bool LearnPatterns { get; set; }
+    /// <summary>Learn how the user writes from email they sent (opt-in). Samples are deleted when turned off.</summary>
+    public bool LearnWritingStyle { get; set; }
 }
 
 public sealed class NotificationSettings

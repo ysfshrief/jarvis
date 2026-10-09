@@ -136,6 +136,11 @@ public static class CoreServices
         AddTool<Plugins.PluginCreateTool>(services);
         AddTool<Plugins.PluginInstallTool>(services);
         AddTool<Plugins.PluginListTool>(services);
+        services.AddSingleton<Learning.IResearchSources, Learning.ToolResearchSources>();
+        services.AddSingleton<Learning.WritingSamples>();
+        services.AddSingleton<Learning.KnowledgeIngestion>();
+        AddTool<Learning.ResearchTopicTool>(services);
+        AddTool<Learning.LearnFromSourceTool>(services);
         services.AddSingleton<Meetings.MeetingStore>();
         services.AddSingleton<Meetings.MeetingRecorder>();
         AddTool<Vision.ScreenDescribeTool>(services);

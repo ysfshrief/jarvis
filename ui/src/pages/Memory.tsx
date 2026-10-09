@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Brain, Check, ChevronDown, ChevronRight, Link2, Pencil, Plus, RefreshCw, Save, Search, Sparkles, Trash2, Users, X } from "lucide-react";
+import { Brain, Check, ChevronDown, ChevronRight, GraduationCap, Link2, Pencil, Plus, RefreshCw, Save, Search, Sparkles, Trash2, Users, X } from "lucide-react";
 import { del, get, post, put, type Entity, type EntityProfile, type MemoryItem, type MemoryStatus } from "../api";
 import { useEvents } from "../events";
 import { Badge, Card, ConfirmButton, Empty, ErrorNote, formatTime, PageHead, Segmented, timeAgo, useLoad } from "../components/ui";
@@ -72,6 +72,8 @@ export function MemoryPage() {
           {!s?.semantic.available && <a className="link small" href="#/settings/ai">Get the free model →</a>}
         </Card>
       </div>
+
+      <LearnCard onDone={() => setTab("review")} onError={setError} />
 
       <Segmented label="View" value={tab} onChange={setTab} options={[["memories", "Memories"], ["review", `To review${s?.inferred ? ` (${s.inferred})` : ""}`], ["people", "People & things"]]} />
 
@@ -212,6 +214,8 @@ function MemoryRow({ m, onEntity, onError, review }: { m: MemoryItem; onEntity: 
             {SOURCE_LABEL[m.source] ?? m.source} · {Math.round(m.confidence * 100)}%
           </Badge>
           {m.semantic && <Badge tone="info" title="Found by meaning, not just matching words">semantic</Badge>}
+          {hasTag(m, "research") && <Badge tone="info" title="Learned from a web page or document — check the source before confirming">from a source</Badge>}
+          {hasTag(m, "conflict") && <Badge tone="bad" title="Contradicts something JARVIS already had — see “Why is this here?”">conflict</Badge>}
           {m.entities.map((e) => (
             <button key={e.id} className="link small" onClick={() => onEntity(e.id)} title={e.type}><Link2 size={11} /> {e.name}</button>
           ))}
@@ -225,7 +229,9 @@ function MemoryRow({ m, onEntity, onError, review }: { m: MemoryItem; onEntity: 
               {" · "}{formatTime(m.createdAt)}
               {m.confirmedAt && <> · confirmed {timeAgo(m.confirmedAt)}</>}
             </div>
-            {p?.quote && <div dir="auto">You said: “{p.quote}”</div>}
+            {p?.quote && (p.via === "research"
+              ? <div className="mono small" dir="ltr">Source: {/^https?:\/\//.test(p.quote) ? <a className="link" href={p.quote} target="_blank" rel="noreferrer noopener">{p.quote}</a> : p.quote}</div>
+              : <div dir="auto">You said: “{p.quote}”</div>)}
             {p?.reason && <div dir="auto">Evidence: {p.reason}</div>}
             {p?.tool && <div className="meta">via tool {p.tool}{p.conversationId ? ` · conversation ${p.conversationId}` : ""}</div>}
           </div>
@@ -252,12 +258,47 @@ function MemoryRow({ m, onEntity, onError, review }: { m: MemoryItem; onEntity: 
   );
 }
 
+function hasTag(m: MemoryItem, tag: string) {
+  return (m.tags ?? "").split(/[ ,]+/).includes(tag);
+}
+
+/** Research a topic or learn from one page/document; results land in "To review" with their sources. */
+function LearnCard({ onDone, onError }: { onDone: () => void; onError: (e: unknown) => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ success: boolean; message: string; status: string } | null>(null);
+  const isSource = /^https?:\/\//i.test(text.trim()) || /^([a-z]:\\|\/|~)/i.test(text.trim());
+  const run = async () => {
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await post<{ success: boolean; message: string; status: string }>("/memory/research", isSource ? { source: text.trim() } : { topic: text.trim() });
+      setResult(r);
+      if (r.success) onDone();
+    } catch (e) { onError(e); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Card title={<><GraduationCap size={14} /> {tr("Learn something")}</>}>
+      <p className="small muted">
+        {tr("A topic to research on the web, or a web address / file path to learn from. JARVIS reads the sources, keeps the key facts with where they came from, and flags anything that contradicts what it already knows. Nothing becomes a fact until you confirm it. Needs an AI model.")}
+      </p>
+      <form className="row" onSubmit={(e) => { e.preventDefault(); if (text.trim().length > 1 && !busy) void run(); }}>
+        <input className="input grow" dir="auto" value={text} onChange={(e) => setText(e.target.value)} placeholder={tr("e.g. CityCrep's competitors · https://… · C:\\Docs\\brief.pdf")} />
+        <button className="btn btn-primary btn-sm" disabled={busy || text.trim().length < 2}>{busy ? tr("Reading…") : isSource ? tr("Learn from it") : tr("Research")}</button>
+      </form>
+      {result && <pre className={`note small${result.success ? "" : " warn"}`} dir="auto" style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>{result.message}</pre>}
+    </Card>
+  );
+}
+
 function viaLabel(via: string) {
   switch (via) {
     case "text": case "chat": return "You told me in a conversation";
     case "voice": return "You told me by voice";
     case "dashboard": return "Added in the dashboard";
-    case "learner": return "Noticed in your activity (pattern learning)";
+    case "learner": return "Noticed in your activity or the email you sent (opt-in learning)";
+    case "research": return "Learned from a source — not verified";
     default: return `Added via ${via}`;
   }
 }

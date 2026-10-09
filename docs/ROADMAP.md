@@ -142,7 +142,7 @@ The same matrix is visible in the app under **System → What this build can do*
 | Opt-in pattern learning from JARVIS's activity log: app routines, start of day, repeated requests, preferred language, preference for short answers | Working |
 | Review screen (Memory → To review) with evidence; confirm or reject; rejected patterns are never re-proposed | Working |
 | Learned preferences shape replies only as labelled hints | Working |
-| Writing-style learning from your sent messages (needs the inbox connectors) | Planned |
+| Writing-style learning (opt-in): from your Sent folder (read-only) and drafts you approved; quoted replies removed; proposes greeting, sign-off, length, sentence length, language and tone markers with the evidence; samples deleted when turned off | Working — verified against a real IMAP server (GreenMail) |
 
 ## Phase 9 — Plugins
 
@@ -158,7 +158,14 @@ The same matrix is visible in the app under **System → What this build can do*
 
 ## Phase 10 — Continuous learning
 
-Research → knowledge ingestion with source attribution and conflict detection. **Planned.**
+| Capability | Status |
+| --- | --- |
+| Research a topic (“research CityCrep's competitors”, «اتعلم عن …»): web search → read a few sources → the model extracts self-contained facts that cite their source | Working — needs an AI model; web search uses DuckDuckGo's free endpoint and fails honestly when it's rate-limited |
+| Learn from one page or document (“learn from https://…”, a PDF/Word/text path) through the normal web/file tools (private addresses refused, files outside your folders ask first) | Working |
+| Source attribution: each fact is an unconfirmed note with the address/path it came from; the AI sees it labelled “unverified, from …” | Working |
+| Conflict detection: new facts are compared with related notes; contradictions are tagged and explained in Memory → To review; what you told JARVIS is never overwritten | Working — judged by the model, so it can miss subtle conflicts |
+| Source text is untrusted: passed as data, instruction-like “facts” are dropped, and anything sensitive later in the same request needs your confirmation | Working |
+| Scheduled re-research of tracked topics | Planned |
 
 ## Phase 11 — Phone companion
 

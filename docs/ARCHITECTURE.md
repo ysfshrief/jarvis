@@ -249,6 +249,24 @@ All endpoints are under `/api`, JSON, camelCase, require the token (`X-Jarvis-To
 Bearer`), and only accept loopback Host headers. Events stream on `/ws?access_token=…` as
 `{type, data, timestamp}`. The main API never listens beyond `127.0.0.1`.
 
+## Continuous learning
+
+`KnowledgeIngestion` (`src/Jarvis.Core/Learning/`) reads sources through `IResearchSources`, whose default
+implementation calls the `web_search`, `web_read` and `file_extract` tools via `ToolExecutor` — so the
+normal permissions, private-address blocking, approvals and audit apply, and the request is marked as having
+read untrusted content. Source text goes to the model inside `<source>` blocks under a system prompt that
+calls it untrusted data; the model returns JSON facts with a source number. Facts without a valid source,
+or that read like instructions, are dropped. Each fact becomes a `derived` memory tagged `research` with
+provenance `via = "research"`, `quote = <url or path>`. A second model call compares new facts with related
+existing memories (`RecallAsync`) and tags contradictions (`conflict`, lower confidence, explanation in the
+provenance). `Persona` labels such notes “unverified, from …” for the model.
+
+Writing style: `WritingSamples` (schema v10 `writing_samples`, at most 200) holds the user's own text —
+approved drafts on send, and the IMAP Sent folder (`IMailConnector.FetchSentAsync`, read-only, Message-ID as
+id) collected by `InboxService.CollectWritingSamplesAsync`. `WritingStyle.Analyze` is deterministic and
+`PatternLearner` proposes its result as a learned preference (`learn:style:writing`) in the same review
+queue, with the same never-again-after-reject rule.
+
 ## Phone companion
 
 `CompanionServer` (hosted service, `src/Jarvis.Runtime/Companion.cs`) starts a second, separate Kestrel

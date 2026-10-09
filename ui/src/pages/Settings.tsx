@@ -465,6 +465,8 @@ function MemorySettings({ s, set }: P) {
       <Toggle label="Keep conversation history" checked={s.memory.storeConversations} onChange={(v) => set((x) => { x.memory.storeConversations = v; })} />
       <Toggle label="Learn from my activity" hint="Off by default. JARVIS reviews its own activity log every few hours for routines and preferences, and proposes them as unconfirmed items you confirm or reject in Memory → To review. Nothing becomes a fact without you."
         checked={s.memory.learnPatterns} onChange={(v) => set((x) => { x.memory.learnPatterns = v; })} />
+      <Toggle label="Learn my writing style" hint="Off by default. JARVIS reads the email you sent (your Sent folder, read-only, and drafts you approved) and proposes a description of how you write — greeting, sign-off, length, language — for drafts in your voice. You confirm or reject it in Memory → To review. Turning this off deletes the collected samples."
+        checked={s.memory.learnWritingStyle} onChange={(v) => set((x) => { x.memory.learnWritingStyle = v; })} />
       <Field label="Delete conversations older than (days)" hint="0 keeps them forever.">
         <input className="input" type="number" min={0} value={s.memory.conversationRetentionDays} onChange={(e) => set((x) => { x.memory.conversationRetentionDays = Number(e.target.value); })} />
       </Field>

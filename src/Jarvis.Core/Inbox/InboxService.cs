@@ -22,6 +22,7 @@ public sealed class InboxService(
     NotificationCenter notifications,
     ISettingsStore settings,
     ActivityLog activity,
+    Learning.WritingSamples writing,
     ILogger<InboxService> logger)
 {
     private readonly SemaphoreSlim _sync = new(1, 1);
@@ -62,6 +63,35 @@ public sealed class InboxService(
         secrets.Remove(a.PasswordSecret);
         activity.Record(ActivityKinds.System, $"Mail account removed: {a.Address}", status: "ok");
         return store.RemoveAccount(id);
+    }
+
+    /// <summary>
+    /// Reads recent email from each account's Sent folder (read-only) into the writing samples, for
+    /// writing-style learning. Does nothing unless that's turned on; turning it off deletes the samples.
+    /// </summary>
+    public async Task<int> CollectWritingSamplesAsync(CancellationToken ct)
+    {
+        if (!settings.Current.Memory.LearnWritingStyle)
+        {
+            if (writing.Count() > 0) writing.Clear();
+            return 0;
+        }
+        var added = 0;
+        foreach (var a in store.Accounts().Where(a => a.Enabled))
+        {
+            var secret = secrets.Get(a.PasswordSecret);
+            if (secret is null) continue;
+            try
+            {
+                foreach (var m in await Connector(a.Kind).FetchSentAsync(a, secret, 60, ct).ConfigureAwait(false))
+                    if (writing.Add($"sent:{a.Id}:{m.ExternalId}", "sent folder", m.Body, m.ReceivedAt)) added++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogInformation(ex, "Couldn't read the Sent folder of {Account}", a.Address);
+            }
+        }
+        return added;
     }
 
     public async Task<SyncResult> SyncAsync(CancellationToken ct, string? accountId = null)
@@ -144,6 +174,8 @@ public sealed class InboxService(
             var id = await Connector(a.Kind).SendAsync(a, secret, new OutgoingMail(a.Address, a.DisplayName, d.To, d.Cc, d.Subject, d.Body, replyTo?.MessageIdHeader), ct).ConfigureAwait(false);
             store.SetDraftStatus(d.Id, DraftStatus.Sent);
             if (replyTo is not null) store.SetHandled(replyTo.Id, true);
+            // What the user approved and sent is how they write (opt-in).
+            if (settings.Current.Memory.LearnWritingStyle) writing.Add("draft:" + d.Id, "sent draft", d.Body, DateTimeOffset.Now);
             activity.Record(ActivityKinds.Tool, $"Email sent to {string.Join(", ", d.To)}: {d.Subject}", "inbox_send", status: "ok", details: id);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

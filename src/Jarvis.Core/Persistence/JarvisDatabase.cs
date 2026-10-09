@@ -522,5 +522,15 @@ public sealed class JarvisDatabase
             revoked_at TEXT
         );
         """,
+        // v10: text the user wrote (sent email), kept only while writing-style learning is on.
+        """
+        CREATE TABLE writing_samples (
+            id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            text TEXT NOT NULL,
+            written_at TEXT NOT NULL
+        );
+        CREATE INDEX ix_writing_samples_time ON writing_samples(written_at DESC);
+        """,
     ];
 }

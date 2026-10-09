@@ -151,11 +151,21 @@ public static class Api
             log.Record(ActivityKinds.Memory, $"Rejected: {m.Content}", status: "ok");
             return Results.Ok(new { rejected = id });
         });
-        api.MapPost("/memory/learn", (PatternLearner learner, ActivityLog log) =>
+        api.MapPost("/memory/learn", async (PatternLearner learner, Jarvis.Core.Inbox.InboxService inbox, ActivityLog log, CancellationToken ct) =>
         {
+            await inbox.CollectWritingSamplesAsync(ct); // no-op unless writing-style learning is on
             var r = learner.Run(DateTimeOffset.Now, force: true);
             log.Record(ActivityKinds.Memory, $"Pattern review: {r.Proposed} new, {r.Updated} updated", status: "ok");
             return Results.Ok(r);
+        });
+        // Research and learning from sources (both go through the tools, so permissions and the audit log apply).
+        api.MapPost("/memory/research", async (ResearchDto dto, ToolExecutor executor, ISettingsStore settings, CancellationToken ct) =>
+        {
+            var ctx = new ToolContext { Settings = settings.Current, ConversationId = "dashboard", Via = "dashboard", CancellationToken = ct, Lang = settings.Current.General.Language == "ar" ? Jarvis.Core.Language.Lang.Ar : Jarvis.Core.Language.Lang.En };
+            var (r, step) = string.IsNullOrWhiteSpace(dto.Source)
+                ? await executor.ExecuteAsync("research_topic", ToolArgs.From(new { topic = dto.Topic ?? "", sources = dto.Sources ?? 3 }), ctx)
+                : await executor.ExecuteAsync("learn_from_source", ToolArgs.From(new { source = dto.Source, topic = dto.Topic }), ctx);
+            return Results.Ok(new { r.Success, r.Message, r.Data, status = r.Status.ToString() });
         });
         api.MapPost("/memory/reindex", async (KnowledgeService knowledge, CancellationToken ct) =>
         {
@@ -813,3 +823,5 @@ public sealed record PluginGenerateDto(string? Description);
 public sealed record PluginImportDto(string? Manifest, string? Code);
 public sealed record PluginCheckDto(bool Network);
 public sealed record PluginEnableDto(bool Enabled);
+
+public sealed record ResearchDto(string? Topic, string? Source, int? Sources);

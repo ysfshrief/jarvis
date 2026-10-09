@@ -17,6 +17,8 @@ public interface IMailConnector
     string Kind { get; }
     Task TestAsync(MailAccount account, string secret, CancellationToken ct);
     Task<IReadOnlyList<FetchedMail>> FetchAsync(MailAccount account, string secret, DateTimeOffset since, int max, CancellationToken ct);
+    /// <summary>The most recent messages in the account's Sent folder (read-only); empty if there isn't one.</summary>
+    Task<IReadOnlyList<FetchedMail>> FetchSentAsync(MailAccount account, string secret, int max, CancellationToken ct);
     /// <summary>Sends and returns the Message-ID. Called only after the user approved this exact message.</summary>
     Task<string> SendAsync(MailAccount account, string secret, OutgoingMail mail, CancellationToken ct);
 }
@@ -57,6 +59,35 @@ public sealed class ImapSmtpConnector : IMailConnector
             var date = msg.Date != DateTimeOffset.MinValue ? msg.Date : s?.InternalDate ?? DateTimeOffset.Now;
             if (date < since.AddDays(-1)) continue;
             list.Add(Map(msg, $"{folder.UidValidity}:{uid.Id}", s?.Flags?.HasFlag(MessageFlags.Seen) == true) with { ReceivedAt = date });
+        }
+        await imap.DisconnectAsync(true, ct).ConfigureAwait(false);
+        return list;
+    }
+
+    private static readonly string[] SentNames = ["Sent", "Sent Items", "Sent Mail", "Sent Messages", "[Gmail]/Sent Mail", "INBOX.Sent", "INBOX/Sent", "المرسل", "البريد المرسل"];
+
+    public async Task<IReadOnlyList<FetchedMail>> FetchSentAsync(MailAccount account, string secret, int max, CancellationToken ct)
+    {
+        using var imap = await ImapAsync(account, secret, ct).ConfigureAwait(false);
+        IMailFolder? sent = null;
+        if ((imap.Capabilities & (ImapCapabilities.SpecialUse | ImapCapabilities.XList)) != 0)
+        {
+            try { sent = imap.GetFolder(SpecialFolder.Sent); } catch (NotSupportedException) { }
+        }
+        if (sent is null && imap.PersonalNamespaces.Count > 0)
+        {
+            var all = await imap.GetFoldersAsync(imap.PersonalNamespaces[0], cancellationToken: ct).ConfigureAwait(false);
+            sent = all.FirstOrDefault(f => SentNames.Any(n => n.Equals(f.FullName, StringComparison.OrdinalIgnoreCase)))
+                ?? all.FirstOrDefault(f => SentNames.Any(n => n.Equals(f.Name, StringComparison.OrdinalIgnoreCase)));
+        }
+        if (sent is null) { await imap.DisconnectAsync(true, ct).ConfigureAwait(false); return []; }
+        await sent.OpenAsync(FolderAccess.ReadOnly, ct).ConfigureAwait(false);
+        var list = new List<FetchedMail>();
+        for (var i = sent.Count - 1; i >= 0 && list.Count < max; i--)
+        {
+            var msg = await sent.GetMessageAsync(i, ct).ConfigureAwait(false);
+            if (!msg.From.Mailboxes.Any(m => m.Address.Equals(account.Address, StringComparison.OrdinalIgnoreCase))) continue;
+            list.Add(Map(msg, msg.MessageId ?? $"{sent.UidValidity}:{i}", true)); // Message-ID: stable as new mail arrives
         }
         await imap.DisconnectAsync(true, ct).ConfigureAwait(false);
         return list;

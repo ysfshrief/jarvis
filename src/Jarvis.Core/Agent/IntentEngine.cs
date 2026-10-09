@@ -95,6 +95,10 @@ public static partial class IntentEngine
         if (ListPlugins().IsMatch(t)) return new ToolIntent("plugin_list", new ToolArgs());
         if ((m = MakePlugin().Match(t)).Success)
             return new ToolIntent("plugin_create", ToolArgs.From(new { description = Original(rawText, m.Groups["x"].Value) }));
+        if ((m = LearnFrom().Match(t)).Success)
+            return new ToolIntent("learn_from_source", ToolArgs.From(new { source = Original(rawText, m.Groups["x"].Value).Trim('"', '\'') }));
+        if ((m = Research().Match(t)).Success)
+            return new ToolIntent("research_topic", ToolArgs.From(new { topic = Original(rawText, m.Groups["x"].Value).TrimEnd('.', '?', '!') }));
         if (StopRecording().IsMatch(t)) return new ToolIntent("meeting_record_stop", new ToolArgs());
         if (MeetingNotesQ().IsMatch(t)) return new ToolIntent("meeting_notes", new ToolArgs(), PreferAi: true);
         if ((m = Agenda().Match(t)).Success)
@@ -330,6 +334,12 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:make|create|write|build) (?:me )?(?:a |an )?(?:plugin|extension|add-on|new tool)(?: that| to| which| for)? (?<x>.+)$|^(?:اعمل|اكتب|اعملي)(?: لي)? (?:اضافه|بلجن|اداه)(?: بت| ت| عشان| علشان)? ?(?<x>.+)$")]
     private static partial Regex MakePlugin();
+
+    [GeneratedRegex(@"^(?:research|learn about|read up on|find out everything about)(?: the)? (?<x>.{2,120})$|^(?:اتعلم|اقرا) عن (?<x>.{2,120})$|^اعمل(?: لي)? بحث عن (?<x>.{2,120})$")]
+    private static partial Regex Research();
+
+    [GeneratedRegex(@"^(?:learn|study|read and remember)(?: from)?(?: this| the)?(?: page| article| file| document| pdf)? (?<x>https?://\S+|""?[^""]+\.(?:pdf|docx?|pptx?|xlsx?|odt|txt|md|html?)""?)$|^اتعلم من (?<x>https?://\S+|.+\.(?:pdf|docx?|pptx?|xlsx?|odt|txt|md|html?))$")]
+    private static partial Regex LearnFrom();
 
     [GeneratedRegex(@"^(?:stop|end|finish) (?:the )?(?:meeting )?recording$|^stop recording(?: the meeting)?$|^(?:وقف|اقفل|خلص) (?:ال)?تسجيل$")]
     private static partial Regex StopRecording();

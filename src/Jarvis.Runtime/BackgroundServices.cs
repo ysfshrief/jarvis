@@ -145,22 +145,29 @@ public sealed class KnowledgeIndexService(Jarvis.Core.Memory.KnowledgeService kn
     }
 }
 
-/// <summary>Runs the opt-in pattern learner a few minutes after start and then every six hours.</summary>
-public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner learner, ISettingsStore settings, ILogger<PatternLearnerService> logger) : BackgroundService
+/// <summary>
+/// Runs the opt-in learners a few minutes after start and then every six hours: activity patterns, and writing
+/// style from sent email. Turning writing-style learning off deletes the collected samples straight away.
+/// </summary>
+public sealed class PatternLearnerService(Jarvis.Core.Memory.PatternLearner learner, Jarvis.Core.Inbox.InboxService inbox,
+    Jarvis.Core.Learning.WritingSamples writing, ISettingsStore settings, ILogger<PatternLearnerService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        settings.Changed += s => { if (!s.Memory.LearnWritingStyle) try { writing.Clear(); } catch (Exception ex) { logger.LogWarning(ex, "Couldn't clear writing samples"); } };
         await Task.Delay(TimeSpan.FromMinutes(3), stoppingToken);
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (settings.Current.Memory.LearnPatterns)
+            var mem = settings.Current.Memory;
+            if (mem.LearnPatterns || mem.LearnWritingStyle)
             {
                 try
                 {
+                    if (mem.LearnWritingStyle) await inbox.CollectWritingSamplesAsync(stoppingToken);
                     var r = learner.Run(DateTimeOffset.Now);
                     if (r.Proposed + r.Updated > 0) logger.LogInformation("Pattern learner proposed {New} and updated {Updated} patterns", r.Proposed, r.Updated);
                 }
-                catch (Exception ex) { logger.LogWarning(ex, "Pattern learner failed"); }
+                catch (Exception ex) when (ex is not OperationCanceledException) { logger.LogWarning(ex, "Pattern learner failed"); }
             }
             await Task.Delay(TimeSpan.FromHours(6), stoppingToken);
         }
