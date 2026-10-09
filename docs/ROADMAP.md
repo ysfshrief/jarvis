@@ -160,7 +160,15 @@ The same matrix is visible in the app under **System → What this build can do*
 
 Research → knowledge ingestion with source attribution and conflict detection. **Planned.**
 
-## Phase 11 — Android companion
+## Phase 11 — Phone companion
 
-Device pairing (per-device tokens, explicit permissions), notifications, tasks, commands, conversation
-continuation over the existing API/event protocol. **Foundation** (protocol in place).
+| Capability | Status |
+| --- | --- |
+| Opt-in companion server (off by default) on its own LAN port with JARVIS's self-generated certificate; the dashboard API stays this-PC-only | Working |
+| Pairing: one-time 8-character code (5 minutes, single use, cancelled after ten wrong guesses), QR code with the certificate fingerprint; per-phone 256-bit tokens stored only as hashes; remove a phone any time | Working — verified end to end over pinned TLS in the runtime tests |
+| Narrow, rate-limited phone API: status, briefing, chat, approvals (audited, can be switched off), alerts | Working |
+| Phone requests: anything sensitive or critical always waits for confirmation, even with auto-approve on | Working |
+| Mobile companion page (Today / Approvals / Ask / Alerts) for any phone browser | Working |
+| Android app: QR pairing with certificate pinning, the companion page inside the app, token encrypted with the Android Keystore and never backed up, notifications with Approve/Refuse (screen unlock required on Android 12+), opt-in “Stay connected” | Partial — built and unit-tested in CI (debug APK artifact); not yet tried on a physical phone |
+| Reaching JARVIS away from home (relay or VPN) | Not built — use your own VPN (e.g. WireGuard/Tailscale) to the PC if you need it |
+| Push notifications without polling | Not built — would need Google's Firebase (a cloud service); polling keeps everything local |

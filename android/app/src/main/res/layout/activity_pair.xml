@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" android:padding="24dp">
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:text="@string/pair_title" android:textSize="24sp" android:letterSpacing="0.1"
+            android:textColor="#E6FAFF" android:layout_marginTop="24dp" />
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/pair_hint" android:textColor="#9FB3C2" android:layout_marginTop="8dp" />
+        <Button android:id="@+id/scan" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/scan" android:layout_marginTop="20dp" />
+        <EditText android:id="@+id/address" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="@string/address" android:inputType="textUri" android:autofillHints="" android:layout_marginTop="16dp" />
+        <EditText android:id="@+id/code" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="@string/code" android:inputType="textCapCharacters|textNoSuggestions" android:autofillHints="" />
+        <EditText android:id="@+id/fingerprint" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="@string/fingerprint" android:inputType="textNoSuggestions|textMultiLine" android:typeface="monospace"
+            android:textSize="12sp" android:autofillHints="" />
+        <EditText android:id="@+id/name" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="@string/device_name" android:inputType="textPersonName" android:autofillHints="" />
+        <Button android:id="@+id/pair" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="@string/pair" android:layout_marginTop="16dp" />
+        <TextView android:id="@+id/status" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:textColor="#FF8A95" android:layout_marginTop="12dp" />
+    </LinearLayout>
+</ScrollView>

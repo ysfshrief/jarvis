@@ -59,6 +59,11 @@ Requirements: Windows 10 (2004) or Windows 11, x64. No .NET installation is need
    upcoming reminders, the assistant (with live progress: understanding → analyzing → selecting tool →
    executing → completed), executive inbox, calendar, meetings, tasks, workflows, memory, files, system monitor, activity log and a settings control center
    (appearance, sounds, shortcuts, privacy…). The interface is available in English and Arabic (right-to-left).
+6. **Use it from your phone (optional):** Settings → Devices → turn on *Allow paired phones*, save, then
+   *Show pairing code*. Scan the QR code with the JARVIS Android app (`JARVIS-companion-android` artifact on
+   the Actions tab), or open the link in any phone browser on the same Wi-Fi and type the code. You get
+   today's briefing, approvals, alerts and chat; anything the phone asks for that changes something still
+   asks you to confirm.
 
 ## What makes it different
 

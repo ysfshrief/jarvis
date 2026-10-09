@@ -247,8 +247,27 @@ the microphone ⇒ "in a meeting". No camera is used.
 
 All endpoints are under `/api`, JSON, camelCase, require the token (`X-Jarvis-Token` or `Authorization:
 Bearer`), and only accept loopback Host headers. Events stream on `/ws?access_token=…` as
-`{type, data, timestamp}`. This is deliberately the same contract the Android companion will use, via a
-paired-device token instead of the local token (see roadmap Phase 11).
+`{type, data, timestamp}`. The main API never listens beyond `127.0.0.1`.
+
+## Phone companion
+
+`CompanionServer` (hosted service, `src/Jarvis.Runtime/Companion.cs`) starts a second, separate Kestrel
+instance on `0.0.0.0:47322` only while Settings → Devices → Companion is on. It uses `CompanionCertificate`, a
+self-signed RSA certificate generated on first use (PFX in the data folder, its password in the secret store),
+and serves only the companion page (`ui/companion.html`, a second Vite entry) and `/companion/api/*`:
+`pair` (unauthenticated, one-time code), then with `Authorization: Bearer <device token>`: `status`,
+`briefing`, `chat` (agent input with `InputSource.Remote`), `approvals` (list/decide, audited), `notifications`.
+It has a per-address rate limiter and a 64 KB body limit.
+
+`DeviceStore` (schema v9 `devices`) issues one-time codes, exchanges them for a random 256-bit token (only its
+SHA-256 is stored), authenticates and revokes. `ToolExecutor` turns any sensitive/critical action requested
+with `Via = "remote"` into an approval. The dashboard's `POST /api/devices/pairing` returns the code, the
+certificate's SHA-256 fingerprint and `jarvis://pair?u=…&c=…&fp=…` for the QR code.
+
+The Android app (`android/`, Kotlin, no AndroidX UI libraries) pins that fingerprint for every connection
+(its own `X509TrustManager`, and `onReceivedSslError` in the WebView), keeps the token encrypted with an
+Android Keystore key, shows the companion page in a WebView, and polls approvals/alerts with WorkManager
+(every 15 minutes) or, if the user turns on “Stay connected”, a foreground service every 15 seconds.
 
 ## Plugins
 

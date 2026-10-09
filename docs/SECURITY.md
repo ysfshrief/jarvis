@@ -20,6 +20,7 @@ builds, stronger isolation).
 | Microphone privacy | Mic is open only for push-to-talk or when the wake word is enabled (off by default); state is shown on the orb and in the dashboard; audio is never stored. |
 | Meeting recording | Never automatic: starting is a critical action that asks every time and reminds you that everyone should know. Always visible while running (REC chip with Stop on every dashboard page, red dot on the orb, status API), stops by itself after the configured limit. Audio is transcribed locally and never written to disk; transcripts can be deleted. |
 | Camera | Off by default (Settings → Privacy). When allowed, `camera_look` is critical — it asks every time — takes a single still photo, keeps it in memory for the vision model only, and never records video; the dashboard flashes "Camera used" and Windows' camera light comes on. Presence detection never uses the camera. |
+| Phone companion | Off by default. A separate server (the dashboard API never leaves `127.0.0.1`) with JARVIS's own certificate, which phones pin by SHA-256 fingerprint shown on the PC. Pairing needs a one-time code from the PC (5 minutes, single use; ten wrong guesses cancel it); each phone gets its own random token, stored only as a hash, revocable in Settings → Devices. Only status, briefing, chat, approvals and alerts are exposed, rate limited and audited. Anything a phone asks for that changes something always needs confirmation, and approving from phones can be switched off. On Android the token is encrypted with a Keystore key and excluded from backups, and notification Approve/Refuse buttons require unlocking the phone (Android 12+). |
 | Plugins (including ones JARVIS writes) | Run in a Jint sandbox with no access to .NET, files, processes or JARVIS's data; the only abilities are those declared and approved (read from listed https hosts, send to listed hosts, own storage, notifications). Before approval, checks run with the network off; installing is critical and shows the permissions; approved code is fingerprinted and kept in memory, and changed files stop the plugin from loading. Plugin tools can't replace built-in tools and go through the same permission checks and audit log. |
 | Operating other apps (UI Automation, mouse) | Pressing a control labelled send/delete/buy/publish/subscribe/… (EN/AR) and typing into password fields are critical; other presses and typing are sensitive. The control is re-read before acting, and the result is verified by reading the field back. |
 
@@ -33,6 +34,8 @@ builds, stronger isolation).
   (still requires approval by default) rather than "critical".
 - Any process running as your Windows user can read `runtime.json` and call the API (same trust boundary
   as the user account).
+- Anyone on your Wi-Fi can reach the companion port while it's on (they still need a pairing code or a
+  device token). The Android APK built by CI is debug-signed.
 
 ## Reporting
 

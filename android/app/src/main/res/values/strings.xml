@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="pair_title">Pair with JARVIS</string>
+    <string name="pair_hint">On your PC open Settings → Devices, turn on the phone companion and press “Show pairing code”. Scan the QR code, or type the details below.</string>
+    <string name="scan">Scan QR code</string>
+    <string name="address">Address (https://…:47322)</string>
+    <string name="code">Pairing code</string>
+    <string name="fingerprint">Certificate fingerprint</string>
+    <string name="device_name">Name for this phone</string>
+    <string name="pair">Pair</string>
+    <string name="stay_connected">Stay connected</string>
+    <string name="check_now">Check now</string>
+    <string name="unpair">Unpair this phone</string>
+    <string name="channel_approvals">Approvals</string>
+    <string name="channel_alerts">Alerts</string>
+    <string name="channel_live">Connection</string>
+    <string name="approve">Approve</string>
+    <string name="deny">Refuse</string>
+</resources>

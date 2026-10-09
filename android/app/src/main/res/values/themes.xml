@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Jarvis" parent="@android:style/Theme.Material">
+        <item name="android:colorPrimary">#0B1A24</item>
+        <item name="android:colorPrimaryDark">#05090D</item>
+        <item name="android:colorAccent">#3FD0FF</item>
+        <item name="android:windowBackground">#05090D</item>
+        <item name="android:statusBarColor">#05090D</item>
+        <item name="android:navigationBarColor">#05090D</item>
+    </style>
+</resources>

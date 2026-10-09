@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/stay_connected" android:title="@string/stay_connected" android:checkable="true" android:showAsAction="never" />
+    <item android:id="@+id/check_now" android:title="@string/check_now" android:showAsAction="never" />
+    <item android:id="@+id/unpair" android:title="@string/unpair" android:showAsAction="never" />
+</menu>
