@@ -99,14 +99,32 @@ public sealed class RetentionService(ConversationStore conversations, ISettingsS
     }
 }
 
-/// <summary>Probes AI providers at startup so the first request doesn't pay the discovery cost.</summary>
-public sealed class ProviderWarmupService(ProviderRegistry providers, ILogger<ProviderWarmupService> logger) : BackgroundService
+/// <summary>
+/// Probes AI providers at startup so the first request doesn't pay the discovery cost, then (unless turned off in
+/// Settings → AI) gets the local model ready: loaded, with JARVIS's fixed instructions already read.
+/// </summary>
+public sealed class ProviderWarmupService(ProviderRegistry providers, ISettingsStore settings, Jarvis.Core.Agent.AgentOrchestrator agent,
+    ILogger<ProviderWarmupService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
         foreach (var status in await providers.CheckAllAsync(stoppingToken))
             logger.LogInformation("AI provider {Provider}: {Available} — {Message}", status.ProviderId, status.Available ? "available" : "unavailable", status.Message);
+
+        if (!settings.Current.Ai.PrepareModelAtStartup) return;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        limit.CancelAfter(TimeSpan.FromMinutes(15)); // a very slow PC: give up rather than hold the model busy forever
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            if (await agent.PrepareAsync(limit.Token) is { } ready)
+                logger.LogInformation("Local model ready in {Seconds:0} s: {Model}", clock.Elapsed.TotalSeconds, ready);
+        }
+        catch (Exception ex) when (ex is Jarvis.Core.AI.AiProviderException or HttpRequestException or OperationCanceledException && !stoppingToken.IsCancellationRequested)
+        {
+            logger.LogWarning("Couldn't get the local model ready ({Error}); the first message will load it instead", ex.Message);
+        }
     }
 }
 

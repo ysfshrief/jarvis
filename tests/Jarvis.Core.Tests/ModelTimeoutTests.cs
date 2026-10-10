@@ -83,9 +83,46 @@ public sealed class ModelTimeoutTests
         var r = await host.Say("tell me something long");
 
         Assert.False(r.Success);
-        Assert.Contains("big:7b went 10 seconds without answering", r.Reply);
+        Assert.Matches(@"big:7b went \d+ seconds without answering", r.Reply);
         Assert.Contains("qwen2.5:3b", r.Reply); // a 7B model on a slow PC: suggest the smaller one
         Assert.Equal(["chat big:7b"], model.Calls); // small:3b was not loaded on top of it
+    }
+
+    [Fact]
+    public async Task Reading_a_long_prompt_before_the_first_word_gets_extra_time()
+    {
+        var (host, model) = Host();
+        using var _ = host;
+        model.Answer = async (req, ct) =>
+        {
+            await Task.Delay(1000, ct); // five times the 200 ms silence limit: a slow PC reading ~1,700 tokens
+            req.OnProgress?.Invoke();
+            return new ChatResponse { Content = "Here you go." };
+        };
+
+        var r = await host.Say("tell me something long");
+
+        Assert.True(r.Success, r.Reply);
+    }
+
+    [Fact]
+    public async Task Getting_ready_reads_exactly_the_start_of_every_request()
+    {
+        var (host, model) = Host();
+        using var _ = host;
+        model.Loaded = false;
+        var requests = new List<ChatRequest>();
+        model.Answer = (req, _) => { lock (requests) requests.Add(req); return Task.FromResult(new ChatResponse { Content = "ok" }); };
+
+        Assert.Contains("big:7b", await host.Agent.PrepareAsync(default));
+        await host.Say("what's on my mind today, roughly?");
+
+        Assert.StartsWith("load big:7b", model.Calls[0]); // loaded first, then read
+        var (ready, real) = (requests[0], requests[1]);
+        Assert.Equal(1, ready.MaxTokens); // reads; writes nothing worth waiting for
+        Assert.Equal(real.Messages[0].Content, ready.Messages[0].Content);
+        Assert.Equal(ready.Tools.Select(t => t.Name), real.Tools.Select(t => t.Name).Take(ready.Tools.Count));
+        Assert.Equal(real.ContextTokens, ready.ContextTokens);
     }
 
     [Fact]

@@ -244,6 +244,37 @@ public sealed class AgentOrchestrator(
         return await RunAiAsync(text, input, conv, lang, phr, toolCtx, s, route, ct).ConfigureAwait(false);
     }
 
+    private static int ContextTokensFor(RouteDecision route, JarvisSettings s) => route.Provider!.IsLocal
+        ? Math.Min(s.Ai.LocalContextTokens, route.Info?.ContextLength ?? int.MaxValue)
+        : CloudContextTokens;
+
+    /// <summary>
+    /// Gets the local model ready before anyone asks: loads it and has it read the system prompt and core tools,
+    /// the part every message starts with. The server keeps what it read, so the first message only costs its own
+    /// words. Returns what was prepared, or null when there is no local model to prepare.
+    /// </summary>
+    public async Task<string?> PrepareAsync(CancellationToken ct)
+    {
+        var s = settings.Current;
+        var route = await router.RouteAsync("", ct, ModelRoles.General, null).ConfigureAwait(false);
+        if (!route.HasModel || !route.Provider!.IsLocal) return null;
+        var provider = route.Provider;
+        var contextTokens = ContextTokensFor(route, s);
+        if (provider is IModelLoader loader && !await loader.IsLoadedAsync(route.Model!, ct).ConfigureAwait(false))
+            await loader.LoadAsync(route.Model!, contextTokens, ct).ConfigureAwait(false);
+        var system = Persona.SystemPrompt(s, platform.Description);
+        await provider.CompleteAsync(new ChatRequest
+        {
+            Model = route.Model!,
+            // Exactly how every request begins (see RunAiAsync): the same system prompt and the core tools first.
+            Messages = [ChatMessage.System(route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote), ChatMessage.User(Persona.WithContext("- Reply in: English", "Ready?"))],
+            Tools = route.SupportsTools ? ToolSelector.Select("", tools.AvailableFor(s), compact: true) : [],
+            MaxTokens = 1,
+            ContextTokens = contextTokens,
+        }, ct).ConfigureAwait(false);
+        return route.Label;
+    }
+
     private async Task<AgentTurnResult> RunAiAsync(string text, UserInput input, ConversationContext conv, Lang lang,
         ToolCtx phr, ToolContext toolCtx, JarvisSettings s, RouteDecision route, CancellationToken ct, Grounding? grounding = null)
     {
@@ -297,9 +328,7 @@ public sealed class AgentOrchestrator(
             var current = history.FindLastIndex(m => m.Role == ChatRole.User);
             List<ChatMessage> turn = [.. history];
             if (current >= 0) turn[current] = turn[current] with { Content = Persona.WithContext(context, turn[current].Content ?? "") };
-            var contextTokens = provider.IsLocal
-                ? Math.Min(s.Ai.LocalContextTokens, route.Info?.ContextLength ?? int.MaxValue)
-                : CloudContextTokens;
+            var contextTokens = ContextTokensFor(route, s);
             var maxTokens = provider.IsLocal ? (spoken ? 512 : 2048) : (spoken ? 1024 : 4096);
             var fitted = ContextBudget.Fit(sys, route.SupportsTools ? [.. turn, .. grounded, .. added] : [.. turn, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
             trimmedAny |= fitted.Trimmed;
@@ -309,6 +338,8 @@ public sealed class AgentOrchestrator(
             var limit = TimeoutUnit * s.Ai.RequestTimeoutSeconds;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var loading = false;
+            var started = false;
+            var reading = 0;
             try
             {
                 // A model that isn't in memory yet is loaded first, as its own step with its own allowance: reading
@@ -323,8 +354,10 @@ public sealed class AgentOrchestrator(
                     Phase(toolCtx, TurnPhases.Analyzing, route.Label);
                 }
                 // The limit is on silence, not on the whole answer: everything the model streams restarts it, so a slow
-                // PC that is still writing isn't cut off mid-reply.
-                timeout.CancelAfter(limit);
+                // PC that is still writing isn't cut off mid-reply. Before the first chunk a local model is silently
+                // reading the prompt — about a second per ten tokens it hasn't read before on a PC without a GPU.
+                reading = provider.IsLocal ? fitted.EstimatedTokens / 10 : 0;
+                timeout.CancelAfter(TimeoutUnit * (s.Ai.RequestTimeoutSeconds + reading));
                 response = await provider.CompleteAsync(new ChatRequest
                 {
                     Model = model,
@@ -333,7 +366,7 @@ public sealed class AgentOrchestrator(
                     MaxTokens = maxTokens,
                     ContextTokens = provider.IsLocal ? contextTokens : null,
                     OnTextDelta = stream is null ? null : stream.Add,
-                    OnProgress = () => timeout.CancelAfter(limit),
+                    OnProgress = () => { started = true; timeout.CancelAfter(limit); },
                 }, timeout.Token).ConfigureAwait(false);
                 stream?.Flush();
             }
@@ -362,7 +395,7 @@ public sealed class AgentOrchestrator(
                 }
                 Commit(conv, added);
                 var failure = timedOut && provider.IsLocal
-                    ? Persona.ModelTooSlow(phr, model, s.Ai.RequestTimeoutSeconds + (loading ? ModelLoadSeconds : 0), loading,
+                    ? Persona.ModelTooSlow(phr, model, s.Ai.RequestTimeoutSeconds + (loading ? ModelLoadSeconds : started ? 0 : reading), loading,
                         suggestSmaller: (ModelRouter.ParseBillions(route.Info?.ParameterSize) ?? ModelRouter.ParseBillions(model.Split(':').ElementAtOrDefault(1)) ?? 8) > 4)
                     : Persona.ModelFailed(phr, msg);
                 return Result(conv, lang, failure, "ai", input.Source, steps, false, route.Label) with

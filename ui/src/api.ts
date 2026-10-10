@@ -337,6 +337,7 @@ export interface Settings {
     requestTimeoutSeconds: number;
     localContextTokens: number;
     streamResponses: boolean;
+    prepareModelAtStartup: boolean;
     embeddingModel: string;
   };
   voice: {

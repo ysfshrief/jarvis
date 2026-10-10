@@ -186,6 +186,8 @@ function Ai({ s, set }: P) {
           checked={s.ai.allowCloud} onChange={(v) => set((x) => { x.ai.allowCloud = v; })} />
         <Toggle label="Stream replies as they're written" hint="Shows text word by word. Off waits for the complete answer."
           checked={s.ai.streamResponses} onChange={(v) => set((x) => { x.ai.streamResponses = v; })} />
+        <Toggle label="Get the local model ready when JARVIS starts" hint="Loads it and lets it read JARVIS's instructions in the background, so your first message is answered sooner. Uses memory while the model is loaded."
+          checked={s.ai.prepareModelAtStartup} onChange={(v) => set((x) => { x.ai.prepareModelAtStartup = v; })} />
         <div className="form-grid">
           <Field label="Local context window" hint="How much conversation local models see. Bigger remembers more but is slower and uses more memory.">
             <select className="input" value={s.ai.localContextTokens} onChange={(e) => set((x) => { x.ai.localContextTokens = Number(e.target.value); })}>
@@ -195,7 +197,7 @@ function Ai({ s, set }: P) {
           <Field label="Max tool steps per request" hint="JARVIS stops and checks in after this many actions.">
             <input className="input" type="number" min={1} max={30} value={s.ai.maxAgentSteps} onChange={(e) => set((x) => { x.ai.maxAgentSteps = Number(e.target.value); })} />
           </Field>
-          <Field label="Model timeout (seconds)" hint="A model that takes longer is treated as failed and the next one is tried.">
+          <Field label="Model timeout (seconds)" hint="How long a model may go without writing anything before JARVIS gives up. Local models also get extra time to load and to read a long request.">
             <input className="input" type="number" min={10} value={s.ai.requestTimeoutSeconds} onChange={(e) => set((x) => { x.ai.requestTimeoutSeconds = Number(e.target.value); })} />
           </Field>
         </div>

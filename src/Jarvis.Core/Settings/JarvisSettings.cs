@@ -208,6 +208,11 @@ public sealed class AiSettings
     public int LocalContextTokens { get; set; } = 8192;
     /// <summary>Show replies word by word as the model writes them.</summary>
     public bool StreamResponses { get; set; } = true;
+    /// <summary>
+    /// When JARVIS starts, load the local model and have it read JARVIS's fixed instructions in the background, so
+    /// the first message doesn't wait for that. Uses the model's memory while it stays loaded (15 minutes idle).
+    /// </summary>
+    public bool PrepareModelAtStartup { get; set; } = true;
     /// <summary>Model used for semantic memory/file search (Ollama). Empty disables embeddings.</summary>
     public string EmbeddingModel { get; set; } = "bge-m3";
 }

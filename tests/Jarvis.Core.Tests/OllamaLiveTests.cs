@@ -248,6 +248,32 @@ public class OllamaLiveTests(ITestOutputHelper output)
     }
 
     [OllamaFact]
+    public async Task Getting_ready_at_startup_makes_the_first_message_quick()
+    {
+        const string ask = "In one short sentence: what is a good habit for a busy week?";
+        // Each host has its own name in the system prompt, so neither can borrow what the other's model read.
+        using var cold = RealHost(s => s.General.UserName = $"Tester {Guid.NewGuid():n}");
+        var coldModel = new Metered(Provider());
+        cold.Get<ProviderRegistry>().Factory = _ => coldModel;
+        cold.Settings.Update(_ => { });
+        var first = await cold.Say(ask);
+
+        using var warm = RealHost(s => s.General.UserName = $"Tester {Guid.NewGuid():n}");
+        var warmModel = new Metered(Provider());
+        warm.Get<ProviderRegistry>().Factory = _ => warmModel;
+        warm.Settings.Update(_ => { });
+        Assert.NotNull(await warm.Agent.PrepareAsync(default)); // what JARVIS does at startup
+        var prepared = await warm.Say(ask);
+
+        var report = $"first message started after {coldModel.FirstChunk[0].TotalSeconds:0.0} s cold, " +
+                     $"{warmModel.FirstChunk[^1].TotalSeconds:0.0} s after getting ready (which took {warmModel.FirstChunk[0].TotalSeconds:0.0} s)";
+        output.WriteLine(report);
+        Assert.True(first.Success, first.Reply);
+        Assert.True(prepared.Success, prepared.Reply);
+        Assert.True(warmModel.FirstChunk[^1] < coldModel.FirstChunk[0] / 2, report);
+    }
+
+    [OllamaFact]
     public async Task Real_model_answers_in_arabic()
     {
         using var host = RealHost();
