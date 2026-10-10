@@ -6,7 +6,14 @@ namespace Jarvis.Core.AI;
 [JsonConverter(typeof(JsonStringEnumConverter<ChatRole>))]
 public enum ChatRole { System, User, Assistant, Tool }
 
-public sealed record ToolCall(string Id, string Name, string ArgumentsJson);
+public sealed record ToolCall(string Id, string Name, string ArgumentsJson)
+{
+    /// <summary>
+    /// Fields a provider attached to the call that must go back with it unchanged, e.g. Gemini's thought signature
+    /// ("extra_content" in its OpenAI-compatible API): without it, Gemini refuses the tool's result.
+    /// </summary>
+    [JsonIgnore] public System.Text.Json.Nodes.JsonNode? Extra { get; init; }
+}
 
 /// <summary>Provider-neutral chat message. Each provider maps this to its own wire format.</summary>
 public sealed record ChatMessage

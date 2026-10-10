@@ -19,13 +19,14 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
     public bool IsLocal => config.IsLocal;
 
     private string BaseUrl => config.BaseUrl.TrimEnd('/');
+    private bool IsGemini => BaseUrl.Contains("generativelanguage.googleapis.com", StringComparison.OrdinalIgnoreCase);
 
     public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct)
     {
         var body = new JsonObject
         {
             ["model"] = request.Model,
-            ["messages"] = BuildMessages(request.Messages),
+            ["messages"] = BuildMessages(request.Messages, IsGemini),
             ["max_tokens"] = request.MaxTokens,
             ["stream"] = request.OnTextDelta is not null,
         };
@@ -79,7 +80,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
     private static async Task<ChatResponse> ReadStreamAsync(HttpResponseMessage resp, ChatRequest request, CancellationToken ct)
     {
         var text = new StringBuilder();
-        var calls = new SortedDictionary<int, (string? Id, string? Name, StringBuilder Args)>();
+        var calls = new SortedDictionary<int, (string? Id, string? Name, StringBuilder Args, JsonNode? Extra)>();
         string? finish = null, model = null;
         ChatUsage? usage = null;
         await using var s = await resp.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -109,8 +110,9 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
                 foreach (var tc in tcs)
                 {
                     var index = tc?["index"]?.GetValue<int>() ?? calls.Count;
-                    if (!calls.TryGetValue(index, out var acc)) acc = (null, null, new StringBuilder());
+                    if (!calls.TryGetValue(index, out var acc)) acc = (null, null, new StringBuilder(), null);
                     acc.Id ??= tc?["id"]?.GetValue<string>();
+                    acc.Extra ??= tc?["extra_content"]?.DeepClone();
                     acc.Name ??= tc?["function"]?["name"]?.GetValue<string>();
                     var argsNode = tc?["function"]?["arguments"];
                     if (argsNode is JsonValue v && v.TryGetValue<string>(out var frag)) acc.Args.Append(frag);
@@ -123,7 +125,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         {
             Content = text.Length > 0 ? text.ToString() : null,
             ToolCalls = calls.Where(c => !string.IsNullOrEmpty(c.Value.Name))
-                .Select(c => new ToolCall(c.Value.Id ?? $"call_{c.Key}", c.Value.Name!, c.Value.Args.Length > 0 ? c.Value.Args.ToString() : "{}"))
+                .Select(c => new ToolCall(c.Value.Id ?? $"call_{c.Key}", c.Value.Name!, c.Value.Args.Length > 0 ? c.Value.Args.ToString() : "{}") { Extra = c.Value.Extra })
                 .ToList(),
             FinishReason = finish,
             Usage = usage,
@@ -195,7 +197,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         catch { return body.Length > 200 ? body[..200] : body; }
     }
 
-    internal static JsonArray BuildMessages(IEnumerable<ChatMessage> messages)
+    internal static JsonArray BuildMessages(IEnumerable<ChatMessage> messages, bool gemini = false)
     {
         var arr = new JsonArray();
         foreach (var m in messages)
@@ -221,11 +223,21 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
             }
             if (m.ToolCalls is { Count: > 0 })
             {
-                o["tool_calls"] = new JsonArray(m.ToolCalls.Select(c => (JsonNode)new JsonObject
+                // Gemini only checks signatures it handed out. Calls it didn't make (an earlier turn on another model)
+                // carry the placeholder Google documents for that case; calls it made carry its own signature back.
+                var signed = m.ToolCalls.Any(c => c.Extra is not null);
+                o["tool_calls"] = new JsonArray(m.ToolCalls.Select(c =>
                 {
-                    ["id"] = c.Id,
-                    ["type"] = "function",
-                    ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = c.ArgumentsJson },
+                    var call = new JsonObject
+                    {
+                        ["id"] = c.Id,
+                        ["type"] = "function",
+                        ["function"] = new JsonObject { ["name"] = c.Name, ["arguments"] = c.ArgumentsJson },
+                    };
+                    if (c.Extra is not null) call["extra_content"] = c.Extra.DeepClone();
+                    else if (gemini && !signed)
+                        call["extra_content"] = new JsonObject { ["google"] = new JsonObject { ["thought_signature"] = "skip_thought_signature_validator" } };
+                    return (JsonNode)call;
                 }).ToArray());
             }
             arr.Add(o);
@@ -251,7 +263,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
                 // Some servers return arguments as an object instead of a JSON string.
                 var args = argsNode is JsonValue v && v.TryGetValue<string>(out var s) ? s : argsNode?.ToJsonString() ?? "{}";
                 var id = c?["id"]?.GetValue<string>() ?? $"call_{i}";
-                calls.Add(new ToolCall(id, name, string.IsNullOrWhiteSpace(args) ? "{}" : args));
+                calls.Add(new ToolCall(id, name, string.IsNullOrWhiteSpace(args) ? "{}" : args) { Extra = c?["extra_content"]?.DeepClone() });
                 i++;
             }
         }
