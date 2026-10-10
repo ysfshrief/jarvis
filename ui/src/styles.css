@@ -646,3 +646,6 @@ progress { width: 100%; accent-color: var(--accent); height: 6px; }
 .completions li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.92rem; color: var(--text); }
 .completions li svg { color: var(--muted); flex: none; }
 .completions li.on, .completions li:hover { background: rgba(var(--accent-rgb), 0.14); color: var(--accent); }
+
+/* A setting that won't take effect until something else is changed. */
+.warn-text { color: var(--warn); }

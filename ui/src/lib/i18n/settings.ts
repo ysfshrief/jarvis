@@ -361,4 +361,6 @@ export const AR_SETTINGS: Record<string, string> = {
   "Remind me before meetings (minutes)": "فكّرني قبل الاجتماعات بـ (دقايق)",
   "0 turns reminders off.": "0 بيقفل التذكيرات.",
   "Refresh subscribed calendars every (minutes)": "حدّث الأجندات المشترك فيها كل (بالدقايق)",
+  "Get a free key at": "خد مفتاح مجاني من",
+  "Turn on “Allow cloud AI” above and save, or this provider won't be used.": "شغّل «اسمح بالذكاء السحابي» اللي فوق واحفظ، وإلا المزوّد ده مش هيتستخدم.",
 };

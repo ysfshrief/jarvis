@@ -165,7 +165,13 @@ public sealed class AiSettings
 {
     /// <summary>Allow requests to leave this machine. Off by default (local-first).</summary>
     public bool AllowCloud { get; set; }
-    public List<ProviderConfig> Providers { get; set; } =
+    public List<ProviderConfig> Providers { get; set; } = BuiltInProviders();
+
+    /// <summary>
+    /// The providers JARVIS knows out of the box. Settings saved by an older version gain any that are missing
+    /// (see SettingsStore), so a newly supported provider shows up without resetting anything.
+    /// </summary>
+    public static List<ProviderConfig> BuiltInProviders() =>
     [
         new()
         {
@@ -187,7 +193,17 @@ public sealed class AiSettings
             Id = "openai-compatible-cloud", Name = "OpenAI-compatible cloud (your API key)", Kind = ProviderKinds.OpenAiCompatible,
             BaseUrl = "https://api.openai.com/v1", IsLocal = false, Enabled = false, ApiKeySecret = "openai_api_key",
         },
+        new()
+        {
+            // Google's OpenAI-compatible endpoint; the key comes from Google AI Studio.
+            Id = GeminiId, Name = "Google Gemini (cloud, your API key)", Kind = ProviderKinds.OpenAiCompatible,
+            BaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai", IsLocal = false, Enabled = false, ApiKeySecret = "gemini_api_key",
+        },
     ];
+
+    public const string GeminiId = "gemini";
+    /// <summary>Google's alias for its current Flash model, so the setting doesn't go stale when a version is retired.</summary>
+    public const string GeminiDefaultModel = "gemini-flash-latest";
 
     /// <summary>
     /// Which provider/model handles each kind of work. An empty model means
@@ -195,7 +211,7 @@ public sealed class AiSettings
     /// </summary>
     public Dictionary<string, List<RoleBinding>> Roles { get; set; } = new()
     {
-        [ModelRoles.General] = [new() { Provider = "ollama" }, new() { Provider = "lmstudio" }, new() { Provider = "anthropic", Model = "claude-opus-5-5" }],
+        [ModelRoles.General] = [new() { Provider = "ollama" }, new() { Provider = "lmstudio" }, new() { Provider = "anthropic", Model = "claude-opus-5-5" }, new() { Provider = GeminiId, Model = GeminiDefaultModel }],
         [ModelRoles.Reasoning] = [new() { Provider = "anthropic", Model = "claude-opus-5-5" }],
         [ModelRoles.Coding] = [new() { Provider = "anthropic", Model = "claude-opus-5-5" }],
         [ModelRoles.Vision] = [],

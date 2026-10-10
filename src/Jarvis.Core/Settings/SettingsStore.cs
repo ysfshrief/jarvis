@@ -162,6 +162,14 @@ public sealed class SettingsStore : ISettingsStore
         s.Ai.RequestTimeoutSeconds = Math.Clamp(s.Ai.RequestTimeoutSeconds, 10, 900);
         s.Ai.LocalContextTokens = Math.Clamp(s.Ai.LocalContextTokens, 2048, 131072);
         s.Ai.EmbeddingModel ??= "";
+        // Providers added in later versions appear in settings saved by older ones (off until the user turns them on).
+        foreach (var builtIn in AiSettings.BuiltInProviders())
+        {
+            if (s.Ai.Providers.Any(p => p.Id == builtIn.Id)) continue;
+            s.Ai.Providers.Add(builtIn);
+            if (builtIn.Id == AiSettings.GeminiId && s.Ai.Roles.TryGetValue(ModelRoles.General, out var general) && general.All(b => b.Provider != builtIn.Id))
+                general.Add(new RoleBinding { Provider = builtIn.Id, Model = AiSettings.GeminiDefaultModel });
+        }
         // v0.1 talked to Ollama through its OpenAI-compatible endpoint; the native API knows more.
         foreach (var p in s.Ai.Providers)
         {

@@ -235,10 +235,21 @@ function Ai({ s, set }: P) {
                   ) : (
                     <>
                       <input className="input grow mono" type="password" placeholder={tr("Paste API key (stored encrypted, never shown again)")} value={keys[p.id] ?? ""} onChange={(e) => setKeys((k) => ({ ...k, [p.id]: e.target.value }))} />
-                      <button className="btn btn-sm" disabled={!keys[p.id]} onClick={async () => { await put(`/secrets/${p.apiKeySecret}`, { value: keys[p.id] }); setKeys((k) => ({ ...k, [p.id]: "" })); void secrets.reload(); }}>{tr("Save key")}</button>
+                      <button className="btn btn-sm" disabled={!keys[p.id]} onClick={async () => {
+                        await put(`/secrets/${p.apiKeySecret}`, { value: keys[p.id] });
+                        setKeys((k) => ({ ...k, [p.id]: "" }));
+                        void secrets.reload();
+                        set((x) => { x.ai.providers[i].enabled = true; }); // a key is pasted to be used
+                      }}>{tr("Save key")}</button>
                     </>
                   )}
                 </div>
+              )}
+              {p.id === "gemini" && !secrets.data?.names.includes(p.apiKeySecret ?? "") && (
+                <div className="small muted">{tr("Get a free key at")} <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a></div>
+              )}
+              {!p.isLocal && p.enabled && !s.ai.allowCloud && (
+                <div className="small warn-text">{tr("Turn on “Allow cloud AI” above and save, or this provider won't be used.")}</div>
               )}
             </div>
           );

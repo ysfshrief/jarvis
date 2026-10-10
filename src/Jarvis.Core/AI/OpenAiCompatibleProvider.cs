@@ -32,15 +32,13 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         if (request.Temperature is { } temp) body["temperature"] = temp;
         if (request.Tools.Count > 0)
         {
-            body["tools"] = new JsonArray(request.Tools.Select(t => (JsonNode)new JsonObject
+            body["tools"] = new JsonArray(request.Tools.Select(t =>
             {
-                ["type"] = "function",
-                ["function"] = new JsonObject
-                {
-                    ["name"] = t.Name,
-                    ["description"] = t.Description,
-                    ["parameters"] = t.ParametersSchema(),
-                },
+                var function = new JsonObject { ["name"] = t.Name, ["description"] = t.Description };
+                // A tool without parameters leaves them out: Gemini rejects an object schema with no properties,
+                // and for OpenAI-style servers leaving them out means the same thing.
+                if (t.Parameters.Count > 0) function["parameters"] = t.ParametersSchema();
+                return (JsonNode)new JsonObject { ["type"] = "function", ["function"] = function };
             }).ToArray());
             body["tool_choice"] = "auto";
         }
@@ -146,7 +144,9 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
 
             var models = new List<string>();
             if (JsonNode.Parse(text)?["data"] is JsonArray data)
-                models.AddRange(data.Select(m => m?["id"]?.GetValue<string>()).OfType<string>());
+                // Gemini lists "models/gemini-…" but expects the bare name in requests.
+                models.AddRange(data.Select(m => m?["id"]?.GetValue<string>()).OfType<string>()
+                    .Select(id => id.StartsWith("models/", StringComparison.Ordinal) ? id["models/".Length..] : id));
             models.Sort(StringComparer.OrdinalIgnoreCase);
             var msg = models.Count > 0 ? $"{models.Count} model(s) available." : "Connected, but no models are installed.";
             return new(Id, models.Count > 0, msg, models, DateTimeOffset.Now);
@@ -167,6 +167,9 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
     private AiProviderException Error(HttpStatusCode status, string body)
     {
         var detail = TryExtractError(body);
+        // Gemini answers a bad key with 400 "API key not valid" rather than 401.
+        if (status == HttpStatusCode.BadRequest && detail.Contains("API key", StringComparison.OrdinalIgnoreCase))
+            status = HttpStatusCode.Unauthorized;
         return status switch
         {
             HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
@@ -186,6 +189,7 @@ public sealed class OpenAiCompatibleProvider(ProviderConfig config, Func<string?
         try
         {
             var node = JsonNode.Parse(body);
+            if (node is JsonArray { Count: > 0 } list) node = list[0]; // Gemini wraps its error in a list
             return node?["error"]?["message"]?.GetValue<string>() ?? node?["error"]?.ToString() ?? "";
         }
         catch { return body.Length > 200 ? body[..200] : body; }
