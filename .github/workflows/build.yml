@@ -74,7 +74,7 @@ jobs:
           JARVIS_OLLAMA_EMBED_MODEL: all-minilm
           JARVIS_OLLAMA_VISION_MODEL: qwen2.5vl
           JARVIS_OLLAMA_ML_EMBED_MODEL: bge-m3
-        run: dotnet test tests/Jarvis.Core.Tests -c Release --filter "FullyQualifiedName~OllamaLiveTests" --logger "console;verbosity=normal"
+        run: dotnet test tests/Jarvis.Core.Tests -c Release --filter "FullyQualifiedName~OllamaLiveTests" --logger "console;verbosity=detailed"
       - name: Ollama log
         if: always()
         run: tail -n 80 /tmp/ollama.log 2>/dev/null || journalctl -u ollama --no-pager -n 80 || true

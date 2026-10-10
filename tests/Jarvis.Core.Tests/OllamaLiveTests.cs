@@ -1,6 +1,7 @@
 using Jarvis.Core.AI;
 using Jarvis.Core.Settings;
 using Jarvis.Core.Tools;
+using Xunit.Abstractions;
 
 namespace Jarvis.Core.Tests;
 
@@ -18,7 +19,7 @@ public sealed class OllamaFactAttribute : FactAttribute
 /// End-to-end checks against a real Ollama install with a small real model — no stubs. These prove the
 /// native API integration (capabilities, streaming, tool calling, embeddings, the full agent loop).
 /// </summary>
-public class OllamaLiveTests
+public class OllamaLiveTests(ITestOutputHelper output)
 {
     private static string Url => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_URL") ?? "http://127.0.0.1:11434";
     private static string Model => Environment.GetEnvironmentVariable("JARVIS_OLLAMA_MODEL") ?? "qwen2.5:3b";
@@ -201,14 +202,19 @@ public class OllamaLiveTests
     private sealed class Metered(OllamaProvider inner) : IChatProvider, IModelCatalog, IModelLoader
     {
         public List<ChatUsage?> Usage { get; } = [];
+        /// <summary>Time until the first streamed chunk: the model has read the whole prompt by then.</summary>
+        public List<TimeSpan> FirstChunk { get; } = [];
         public List<string> Loads { get; } = [];
         public string Id => inner.Id;
         public string Name => inner.Name;
         public bool IsLocal => true;
         public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct)
         {
-            var r = await inner.CompleteAsync(request, ct);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            TimeSpan? first = null;
+            var r = await inner.CompleteAsync(request with { OnProgress = () => { first ??= clock.Elapsed; request.OnProgress?.Invoke(); } }, ct);
             Usage.Add(r.Usage);
+            FirstChunk.Add(first ?? clock.Elapsed);
             return r;
         }
         public Task<ProviderStatus> CheckAsync(CancellationToken ct) => inner.CheckAsync(ct);
@@ -232,11 +238,13 @@ public class OllamaLiveTests
         Assert.True(first.Success, first.Reply);
         Assert.True(second.Success, second.Reply);
         Assert.Equal(2, metered.Usage.Count);
-        var (a, b) = (metered.Usage[0]!.InputTokens, metered.Usage[1]!.InputTokens);
-        // Ollama counts only the prompt tokens it had to process. The second message adds a few dozen tokens to a
-        // conversation of over a thousand; without the stable system prompt and tool list it would process them all again.
-        Assert.True(a > 500, $"first turn processed {a} prompt tokens");
-        Assert.True(b < a / 3, $"second turn processed {b} prompt tokens after {a} on the first — the prefix wasn't reused");
+        var report = $"prompt tokens {metered.Usage[0]!.InputTokens} → {metered.Usage[1]!.InputTokens}; " +
+                     $"first chunk after {metered.FirstChunk[0].TotalSeconds:0.0} s → {metered.FirstChunk[1].TotalSeconds:0.0} s; loads: {string.Join(",", metered.Loads)}";
+        output.WriteLine(report);
+        // Both prompts are about two thousand tokens, but the second only adds the last exchange to what the model has
+        // already read (system prompt, tools, first message). Reading a whole prompt again would take as long as the first.
+        Assert.True(metered.Usage[0]!.InputTokens > 1000, report);
+        Assert.True(metered.FirstChunk[1] < metered.FirstChunk[0] / 2, "the second message wasn't faster to start — the prompt wasn't reused: " + report);
     }
 
     [OllamaFact]
