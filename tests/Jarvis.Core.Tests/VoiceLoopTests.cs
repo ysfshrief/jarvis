@@ -18,7 +18,8 @@ public sealed class FakeMicrophone : IAudioInput
     public void Start(int deviceIndex) => IsCapturing = true;
     public void Stop() => IsCapturing = false;
 
-    public void Utter(double seconds = 0.8)
+    /// <param name="midway">Runs after the speech and before the silence that ends it.</param>
+    public void Utter(double seconds = 0.8, Action? midway = null)
     {
         const int frame = 480;
         void Emit(Func<int, float> sample, double s)
@@ -32,6 +33,7 @@ public sealed class FakeMicrophone : IAudioInput
         }
         Emit(_ => 0.001f, 0.3);
         Emit(i => 0.3f * MathF.Sin(i * 0.12f), seconds);
+        midway?.Invoke();
         Emit(_ => 0.001f, 1.2);
     }
 }
@@ -164,6 +166,21 @@ public sealed class VoiceLoopTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => listen);
         Assert.False(_mic.IsCapturing);
         Assert.Equal(VoiceState.Idle, _voice.Status.State);
+    }
+
+    [Fact]
+    public async Task Saving_settings_while_a_command_is_heard_does_not_lose_it()
+    {
+        _host.Settings.Update(s => s.Voice.WakeWordEnabled = false);
+        await Until(() => _voice.Status.State == VoiceState.Idle);
+        var listen = _voice.ListenOnceAsync(default);
+        await Until(() => _mic.IsCapturing);
+        _stt.Lines.Enqueue("add task call Ahmed");
+        // Someone saves Settings (or JARVIS updates one) while the user is still talking.
+        _mic.Utter(midway: () => _host.Settings.Update(s => s.Voice.FollowUpSeconds = 9));
+        var result = await listen.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.NotNull(result);
+        Assert.Contains(Tasks, t => t.Title.Contains("call Ahmed", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

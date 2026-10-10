@@ -50,6 +50,7 @@ public sealed partial class VoiceService : BackgroundService
     private TaskCompletionSource<AgentTurnResult?>? _pushToTalk;
     private bool _paused;
     private bool _meeting; // a meeting is being recorded: the room isn't talking to JARVIS
+    private bool _settingsPending; // settings changed while a command was being heard: applied once it's done
     private string? _lastTranscript;
 
     public VoiceService(IAudioInput audio, ISpeechToText stt, ITextToSpeech tts, AgentOrchestrator agent,
@@ -285,22 +286,30 @@ public sealed partial class VoiceService : BackgroundService
     {
         lock (_gate)
         {
-            _segmenter = NewSegmenter(_settings.Current.Voice);
-            if (_paused) return;
+            if (_paused) { _segmenter = NewSegmenter(_settings.Current.Voice); return; }
             if (!_audio.IsAvailable || !_stt.IsReady)
             {
+                _segmenter = NewSegmenter(_settings.Current.Voice);
                 StopCapture();
                 _mode = Mode.Off;
                 SetState(VoiceState.Unavailable);
                 return;
             }
-            if (_mode == Mode.Command) return; // finish the current command first
+            // Finish the current command first: the words heard so far are in the segmenter, and replacing it now
+            // would throw them away (any settings save during push-to-talk used to lose the command).
+            if (_mode == Mode.Command) { _settingsPending = true; return; }
+            _segmenter = NewSegmenter(_settings.Current.Voice);
             ReturnToBaseMode();
         }
     }
 
     private void ReturnToBaseMode()
     {
+        if (_settingsPending)
+        {
+            _settingsPending = false;
+            _segmenter = NewSegmenter(_settings.Current.Voice);
+        }
         if (_paused) return;
         if (_settings.Current.Voice.WakeWordEnabled && _audio.IsAvailable && _stt.IsReady)
         {
