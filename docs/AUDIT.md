@@ -37,6 +37,22 @@ Gaps from the table below that have since been closed, each by a test that passe
   `task_create` for a request no deterministic command matches, and JARVIS executed it (run 39). Models below 3B are
   not reliable at this: `qwen2.5:1.5b` asked questions instead of creating the task in runs 37–38.
 
+## Local AI on a PC without a GPU (reported on v0.3.2, fixed in v0.3.3)
+
+Every AI message on the user's PC failed with "timed out" after 120 s. Causes and the measured effect of the fixes
+(CI, CPU-only runner, `qwen2.5:3b`, runs 42–43):
+
+- The system prompt changed every message (time, active window, memories), so Ollama re-read the whole prompt and
+  tool list (~1,900 tokens) each time. Now it stays identical and the changing part travels with the message: the
+  next message started answering after **4.7 s instead of 63.5 s**.
+- The first message after starting still had to read it all. JARVIS now loads the model and has it read the fixed
+  part at startup (Settings → AI, on by default): a first message started after **3.2 s instead of 62.8 s**.
+- Loading a model, and reading a long prompt, no longer count against the silence limit; a timed-out local model no
+  longer falls back to a second local model (which evicted the first and doubled the wait).
+- "set a timer for 3 seconds" and "what's my name" are direct commands now (verified in the packaged app, run 43).
+
+A 7B model on a slow CPU is still roughly 2–3× slower than these figures; `qwen2.5:3b` is the faster choice there.
+
 ## Verdict by area
 
 | Area | Status | Evidence | Gaps found |
