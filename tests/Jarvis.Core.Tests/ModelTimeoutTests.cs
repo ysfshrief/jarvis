@@ -35,7 +35,8 @@ public sealed class ModelTimeoutTests
         }
     }
 
-    private static (TestHost Host, SlowLocalModel Model) Host()
+    /// <param name="unitMs">One "second" of JARVIS's limits, in real milliseconds (the 10-second limit becomes 10 units).</param>
+    private static (TestHost Host, SlowLocalModel Model) Host(int unitMs = 20)
     {
         var model = new SlowLocalModel();
         var host = new TestHost(s =>
@@ -46,23 +47,23 @@ public sealed class ModelTimeoutTests
         });
         host.Get<ProviderRegistry>().Factory = _ => model;
         host.Settings.Update(_ => { });
-        host.Agent.TimeoutUnit = TimeSpan.FromMilliseconds(20); // the 10-second limit becomes 200 ms
+        host.Agent.TimeoutUnit = TimeSpan.FromMilliseconds(unitMs); // by default the 10-second limit becomes 200 ms
         return (host, model);
     }
 
     [Fact]
     public async Task A_slow_model_that_keeps_writing_is_not_cut_off()
     {
-        var (host, model) = Host();
+        var (host, model) = Host(unitMs: 100); // a 1-second limit: ten times the gap between chunks, so timer jitter on a busy machine can't fake a silence
         using var _ = host;
         model.Answer = async (req, ct) =>
         {
             var text = "";
-            for (var i = 0; i < 8; i++) // 800 ms in total, four times the limit, but never 200 ms of silence
+            for (var i = 0; i < 15; i++) // about 1.5 s in total, longer than the limit, but never a second of silence
             {
                 await Task.Delay(100, ct);
                 req.OnProgress?.Invoke();
-                text += $"{i}";
+                text += (char)('a' + i);
             }
             return new ChatResponse { Content = text };
         };
@@ -70,7 +71,7 @@ public sealed class ModelTimeoutTests
         var r = await host.Say("tell me something long");
 
         Assert.True(r.Success, r.Reply);
-        Assert.Equal("01234567", r.Reply);
+        Assert.Equal("abcdefghijklmno", r.Reply);
     }
 
     [Fact]
