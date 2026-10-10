@@ -95,6 +95,10 @@ public sealed class AgentOrchestrator(
 {
     private const int MaxHistoryMessages = 60;
     private const int MaxFallbacks = 2;
+    /// <summary>Extra seconds for a local model to load into memory (several GB from disk) on top of the usual limit.</summary>
+    private const int ModelLoadSeconds = 300;
+    /// <summary>One "second" of the AI time limits; tests shrink it to exercise timeouts quickly.</summary>
+    internal TimeSpan TimeoutUnit { get; set; } = TimeSpan.FromSeconds(1);
     /// <summary>Context assumed for cloud models; they're far larger, this just bounds cost.</summary>
     private const int CloudContextTokens = 100_000;
     private readonly ConcurrentDictionary<string, ConversationContext> _contexts = new();
@@ -197,6 +201,7 @@ public sealed class AgentOrchestrator(
                     "presence" => Persona.Presence(phr),
                     "time" => Persona.Time(phr, now),
                     "date" => Persona.Date(phr, now),
+                    "name" => Persona.Name(phr, s.General.UserName),
                     _ => Persona.Help(phr),
                 };
                 return Remember(conv, text, Result(conv, lang, reply, "deterministic", input.Source));
@@ -245,8 +250,8 @@ public sealed class AgentOrchestrator(
         var relevant = s.Memory.Enabled ? await RelevantMemoriesAsync(text, ct).ConfigureAwait(false) : [];
         if (relevant.Count > 0) memory.MarkUsed(relevant.Select(m => m.Id));
         var used = relevant.Select(m => new UsedMemory(m.Id, m.Kind, m.Source, m.Content.Length > 160 ? m.Content[..159] + "…" : m.Content)).ToList();
-        var system = Persona.SystemPrompt(s, lang, input.Source == InputSource.Voice, connectivity.IsOnline,
-            presence.Current, relevant, tasks.List().Take(8).ToList(), platform.Description);
+        var system = Persona.SystemPrompt(s, platform.Description);
+        var openTasks = tasks.List().Take(8).ToList();
 
         await conv.HistoryLock.WaitAsync(ct).ConfigureAwait(false);
         List<ChatMessage> history;
@@ -284,20 +289,42 @@ public sealed class AgentOrchestrator(
             var model = route.Model!;
             // Models that can't call tools still converse; deterministic commands cover the actions.
             var available = route.SupportsTools ? ToolSelector.Select(text, tools.AvailableFor(s), compact: provider.IsLocal) : [];
-            var sys = route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote + (groundingNote is null ? "" : "\n\n" + groundingNote);
+            var sys = route.SupportsTools ? system : system + "\n" + Persona.NoToolsNote;
+            // What changes every message (time, memories, tasks, language) rides with the user's message, so the
+            // system prompt and tool list stay identical and a local model can reuse its work on them.
+            var context = Persona.TurnContext(lang, spoken, connectivity.IsOnline, presence.Current, relevant, openTasks,
+                route.SupportsTools ? null : groundingNote);
+            var current = history.FindLastIndex(m => m.Role == ChatRole.User);
+            List<ChatMessage> turn = [.. history];
+            if (current >= 0) turn[current] = turn[current] with { Content = Persona.WithContext(context, turn[current].Content ?? "") };
             var contextTokens = provider.IsLocal
                 ? Math.Min(s.Ai.LocalContextTokens, route.Info?.ContextLength ?? int.MaxValue)
                 : CloudContextTokens;
             var maxTokens = provider.IsLocal ? (spoken ? 512 : 2048) : (spoken ? 1024 : 4096);
-            var fitted = ContextBudget.Fit(sys, route.SupportsTools ? [.. history, .. grounded, .. added] : [.. history, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
+            var fitted = ContextBudget.Fit(sys, route.SupportsTools ? [.. turn, .. grounded, .. added] : [.. turn, .. added], available, contextTokens, Math.Min(maxTokens, contextTokens / 4));
             trimmedAny |= fitted.Trimmed;
 
             var stream = s.Ai.StreamResponses ? new DeltaStream(events, toolCtx, rounds) : null;
             ChatResponse response;
+            var limit = TimeoutUnit * s.Ai.RequestTimeoutSeconds;
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(TimeSpan.FromSeconds(s.Ai.RequestTimeoutSeconds));
+            var loading = false;
             try
             {
+                // A model that isn't in memory yet is loaded first, as its own step with its own allowance: reading
+                // gigabytes from disk isn't the model failing to answer.
+                if (provider is IModelLoader loader && !await loader.IsLoadedAsync(model, ct).ConfigureAwait(false))
+                {
+                    loading = true;
+                    Phase(toolCtx, TurnPhases.Analyzing, phr.T($"loading {model} into memory", $"بحمّل {model} في الذاكرة"));
+                    timeout.CancelAfter(TimeoutUnit * (s.Ai.RequestTimeoutSeconds + ModelLoadSeconds));
+                    await loader.LoadAsync(model, contextTokens, timeout.Token).ConfigureAwait(false);
+                    loading = false;
+                    Phase(toolCtx, TurnPhases.Analyzing, route.Label);
+                }
+                // The limit is on silence, not on the whole answer: everything the model streams restarts it, so a slow
+                // PC that is still writing isn't cut off mid-reply.
+                timeout.CancelAfter(limit);
                 response = await provider.CompleteAsync(new ChatRequest
                 {
                     Model = model,
@@ -306,20 +333,24 @@ public sealed class AgentOrchestrator(
                     MaxTokens = maxTokens,
                     ContextTokens = provider.IsLocal ? contextTokens : null,
                     OnTextDelta = stream is null ? null : stream.Add,
+                    OnProgress = () => timeout.CancelAfter(limit),
                 }, timeout.Token).ConfigureAwait(false);
                 stream?.Flush();
             }
             catch (Exception ex) when (ex is AiProviderException || (ex is OperationCanceledException && !ct.IsCancellationRequested))
             {
                 stream?.Reset();
-                var msg = ex is AiProviderException ? ex.Message : "timed out";
-                activity.Record(ActivityKinds.Ai, $"Model call failed: {route.Label}", status: "failed", details: ex.Message, conversationId: conv.Id);
+                var timedOut = ex is OperationCanceledException;
+                var msg = ex is AiProviderException ? ex.Message : loading ? "timed out loading the model" : "timed out";
+                activity.Record(ActivityKinds.Ai, $"Model call failed: {route.Label}", status: "failed", details: timedOut ? msg : ex.Message, conversationId: conv.Id);
                 failed.Add(route.Key);
                 if (failed.Count <= MaxFallbacks)
                 {
                     await router.ReportFailureAsync(route, ct).ConfigureAwait(false);
                     var next = await router.RouteAsync(text, ct, route.Role, failed).ConfigureAwait(false);
-                    if (next.HasModel)
+                    // A local model that ran out of time means this PC is too busy or slow for it: loading another local
+                    // model would push the first out of memory and take even longer. Other providers are still tried.
+                    if (next.HasModel && !(timedOut && provider.IsLocal && next.Provider?.Id == provider.Id))
                     {
                         logger.LogWarning("Model {Failed} failed ({Error}); falling back to {Next}", route.Label, msg, next.Label);
                         activity.Record(ActivityKinds.Ai, $"Switched to {next.Label} after {route.Label} failed", conversationId: conv.Id);
@@ -330,7 +361,11 @@ public sealed class AgentOrchestrator(
                     }
                 }
                 Commit(conv, added);
-                return Result(conv, lang, Persona.ModelFailed(phr, msg), "ai", input.Source, steps, false, route.Label) with
+                var failure = timedOut && provider.IsLocal
+                    ? Persona.ModelTooSlow(phr, model, s.Ai.RequestTimeoutSeconds + (loading ? ModelLoadSeconds : 0), loading,
+                        suggestSmaller: (ModelRouter.ParseBillions(route.Info?.ParameterSize) ?? ModelRouter.ParseBillions(model.Split(':').ElementAtOrDefault(1)) ?? 8) > 4)
+                    : Persona.ModelFailed(phr, msg);
+                return Result(conv, lang, failure, "ai", input.Source, steps, false, route.Label) with
                 {
                     FallbackFrom = fallbackFrom,
                     ContextTrimmed = trimmedAny,

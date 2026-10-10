@@ -180,6 +180,34 @@ public class IntentEngineTests
         Assert.Equal(Now.AddMinutes(minutes), due);
     }
 
+    [Theory]
+    [InlineData("set a timer for 3 seconds", 3, "Timer done (3 seconds)")]
+    [InlineData("Jarvis, set a timer for 10 minutes.", 600, "Timer done (10 minutes)")]
+    [InlineData("timer 2 minutes", 120, "Timer done (2 minutes)")]
+    [InlineData("start a 5 minute timer", 300, "Timer done (5 minute)")]
+    [InlineData("اعمل تايمر ٥ دقايق", 300, "التايمر خلص (٥ دقايق)")]
+    [InlineData("ظبطلي تايمر على ربع ساعة", 900, "التايمر خلص (ربع ساعة)")]
+    public void Timers_are_reminders_without_the_ai(string text, int seconds, string label)
+    {
+        var intent = Assert.IsType<ToolIntent>(IntentEngine.Match(text, Now));
+        Assert.Equal("reminder_create", intent.Tool);
+        Assert.Equal(Now.AddSeconds(seconds), DateTimeOffset.Parse(intent.Args.GetString("due")!));
+        Assert.Equal(label, intent.Args.GetString("text"));
+    }
+
+    [Theory]
+    [InlineData("whats my name")]
+    [InlineData("What's my name?")]
+    [InlineData("انا اسمي ايه؟")]
+    public void Asking_for_my_name_needs_no_ai(string text) =>
+        Assert.Equal("name", Assert.IsType<ReplyIntent>(IntentEngine.Match(text, Now)).Kind);
+
+    [Theory]
+    [InlineData("set a timer")]          // no length: the AI can ask how long
+    [InlineData("the timer on my oven is broken")]
+    public void Not_every_mention_of_a_timer_is_one(string text) =>
+        Assert.False(IntentEngine.Match(text, Now) is ToolIntent { Tool: "reminder_create" });
+
     [Fact]
     public void Parses_clock_reminders()
     {

@@ -8,7 +8,7 @@ using Jarvis.Core.Settings;
 
 namespace Jarvis.Runtime;
 
-/// <summary>Fires due reminders. Wakes at least every 15 seconds, or sooner when one is close.</summary>
+/// <summary>Fires due reminders. Wakes at least every 15 seconds, sooner when one is close, and whenever one is added.</summary>
 public sealed class SchedulerService(ReminderDispatcher dispatcher, ReminderStore reminders, ILogger<SchedulerService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -28,7 +28,7 @@ public sealed class SchedulerService(ReminderDispatcher dispatcher, ReminderStor
             var delay = TimeSpan.FromSeconds(15);
             if (next is { } n && n - DateTimeOffset.Now < delay)
                 delay = n - DateTimeOffset.Now < TimeSpan.FromMilliseconds(200) ? TimeSpan.FromMilliseconds(200) : n - DateTimeOffset.Now;
-            await Task.Delay(delay, stoppingToken);
+            await reminders.WaitForNewAsync(delay, stoppingToken);
         }
     }
 }

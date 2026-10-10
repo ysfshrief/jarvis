@@ -13,7 +13,7 @@ namespace Jarvis.Core.AI;
 /// vision, embeddings), stream tokens, keep the model warm, and download models for the user.
 /// </summary>
 public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int defaultContextTokens = 8192)
-    : IChatProvider, IModelCatalog, IModelPuller, IEmbeddingProvider
+    : IChatProvider, IModelCatalog, IModelPuller, IEmbeddingProvider, IModelLoader
 {
     private readonly ConcurrentDictionary<string, ModelInfo> _details = new(StringComparer.OrdinalIgnoreCase); // by digest
     private readonly ConcurrentDictionary<string, ModelInfo> _byName = new(StringComparer.OrdinalIgnoreCase);
@@ -213,6 +213,7 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
             while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
             {
                 if (line.Length == 0) continue;
+                request.OnProgress?.Invoke();
                 var chunk = JsonNode.Parse(line);
                 if (chunk?["error"] is { } e) throw new AiProviderException($"Ollama: {e}");
                 var delta = chunk?["message"]?["content"]?.GetValue<string>();
@@ -232,6 +233,33 @@ public sealed class OllamaProvider(ProviderConfig config, HttpClient http, int d
                 Usage = Usage(last),
                 Model = request.Model,
             };
+        }
+    }
+
+    public async Task<bool> IsLoadedAsync(string model, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await http.GetAsync($"{BaseUrl}/api/ps", ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode) return true; // an Ollama without /api/ps: let the chat request load it
+            var running = JsonNode.Parse(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false))?["models"]?.AsArray() ?? [];
+            return running.Any(m => (m?["name"]?.GetValue<string>() ?? m?["model"]?.GetValue<string>())?.Equals(model, StringComparison.OrdinalIgnoreCase) == true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException) { return true; }
+    }
+
+    public async Task LoadAsync(string model, int contextTokens, CancellationToken ct)
+    {
+        // A generate request without a prompt only loads the model; the same num_ctx as the chat keeps it from reloading.
+        var body = new JsonObject { ["model"] = model, ["keep_alive"] = "15m", ["options"] = new JsonObject { ["num_ctx"] = contextTokens } };
+        using var content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        HttpResponseMessage resp;
+        try { resp = await http.PostAsync($"{BaseUrl}/api/generate", content, ct).ConfigureAwait(false); }
+        catch (HttpRequestException ex) { throw new AiProviderException($"Ollama is not reachable at {BaseUrl}.", retryable: true, ex); }
+        using (resp)
+        {
+            if (!resp.IsSuccessStatusCode)
+                throw new AiProviderException($"Ollama couldn't load {model}: {TryError(await resp.Content.ReadAsStringAsync(ct).ConfigureAwait(false))}".Trim(), retryable: (int)resp.StatusCode >= 500);
         }
     }
 

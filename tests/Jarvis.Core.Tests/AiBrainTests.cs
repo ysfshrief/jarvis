@@ -18,6 +18,8 @@ internal sealed class FakeOllama : HttpMessageHandler
     public Func<JsonNode, HttpResponseMessage>? Chat { get; set; }
     /// <summary>Tags that are the same model as another tag (like "qwen3:latest" and "qwen3:8b"): name → shared digest.</summary>
     public Dictionary<string, string> SharedDigests { get; } = [];
+    /// <summary>Models currently in memory (what /api/ps reports).</summary>
+    public List<string> Running { get; } = [];
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
@@ -48,6 +50,11 @@ internal sealed class FakeOllama : HttpMessageHandler
                 return Chat?.Invoke(body!) ?? Json("""{"message":{"role":"assistant","content":"hello"},"done":true,"prompt_eval_count":10,"eval_count":2}""");
             case "/api/pull":
                 return Ndjson("""{"status":"pulling manifest"}""", """{"status":"downloading","completed":50,"total":100}""", """{"status":"success"}""");
+            case "/api/ps":
+                return Json(new JsonObject { ["models"] = new JsonArray(Running.Select(m => (JsonNode)new JsonObject { ["name"] = m, ["model"] = m }).ToArray()) }.ToJsonString());
+            case "/api/generate":
+                Running.Add(body!["model"]!.GetValue<string>());
+                return Json("""{"model":"x","response":"","done":true,"done_reason":"load"}""");
             case "/api/embed":
                 return Json("""{"embeddings":[[0.1,0.2],[0.3,0.4]]}""");
             default:
@@ -165,6 +172,28 @@ public class OllamaProviderTests
         var sent = server.Calls.Last(c => c.Path == "/api/chat").Body!;
         Assert.True(sent["stream"]!.GetValue<bool>());
         Assert.False(sent["think"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Reports_streaming_progress_and_loads_models_with_the_chat_context_size()
+    {
+        var server = Server();
+        server.Chat = _ => FakeOllama.Ndjson(
+            """{"message":{"role":"assistant","content":""},"done":false}""",
+            """{"message":{"role":"assistant","content":"Hi."},"done":false}""",
+            """{"message":{"role":"assistant","content":""},"done":true,"done_reason":"stop"}""");
+        var p = new OllamaProvider(Cfg, new HttpClient(server));
+
+        Assert.False(await p.IsLoadedAsync("qwen2.5:7b", default));
+        await p.LoadAsync("qwen2.5:7b", 6000, default);
+        var load = server.Calls.Single(c => c.Path == "/api/generate").Body!;
+        Assert.Equal(6000, load["options"]!["num_ctx"]!.GetValue<int>()); // the same size the chat asks for, or Ollama reloads
+        Assert.Null(load["prompt"]); // loads without generating anything
+        Assert.True(await p.IsLoadedAsync("qwen2.5:7b", default));
+
+        var progress = 0;
+        await p.CompleteAsync(new ChatRequest { Model = "qwen2.5:7b", Messages = [ChatMessage.User("hi")], OnTextDelta = _ => { }, OnProgress = () => progress++ }, default);
+        Assert.Equal(3, progress); // every chunk counts as a sign of life, even one without text (tool calls arrive that way)
     }
 
     [Fact]
@@ -540,7 +569,9 @@ public class AgentBrainTests
 
         var msgs = host.Model.Requests[0].Messages;
         Assert.Contains(msgs, m => m.Role == ChatRole.User && m.Content == "my favourite colour is teal");
-        Assert.Equal("what did I say my colour was?", msgs[^1].Content);
+        // The new message carries JARVIS's context block first; the stored history stays exactly as said.
+        Assert.StartsWith("<context>", msgs[^1].Content);
+        Assert.EndsWith("</context>\n\nwhat did I say my colour was?", msgs[^1].Content);
     }
 
     private sealed class Named(string id, ScriptedChatProvider inner) : IChatProvider

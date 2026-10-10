@@ -14,26 +14,25 @@ namespace Jarvis.Core.Agent;
 /// </summary>
 public static class Persona
 {
-    public static string SystemPrompt(
-        JarvisSettings s, Lang lang, bool spoken, bool online, PresenceSnapshot presence,
-        IReadOnlyList<MemoryItem> memories, IReadOnlyList<TaskItem> openTasks, string platform)
+    /// <summary>
+    /// The instructions that stay the same from turn to turn. A local model keeps its work on the previous request's
+    /// prefix (system prompt and tool list), so a stable prompt is processed once instead of on every message — on a
+    /// PC without a GPU that is the difference between seconds and minutes. Everything that changes goes in
+    /// <see cref="TurnContext"/>, which travels with the user's message.
+    /// </summary>
+    public static string SystemPrompt(JarvisSettings s, string platform)
     {
         var name = string.IsNullOrWhiteSpace(s.General.UserName) ? "the user" : s.General.UserName;
-        var honorific = lang == Lang.Ar ? s.General.HonorificAr : s.General.Honorific;
-        var now = DateTimeOffset.Now;
         var sb = new StringBuilder();
 
         sb.AppendLine($"You are JARVIS, the personal executive assistant and computer agent of {name}, running locally on their {platform} computer.");
         sb.AppendLine();
         sb.AppendLine("Character: calm, respectful and highly competent, like an excellent chief of staff. You are concise by default, notice what matters, and anticipate useful next steps without being pushy. A touch of dry wit is welcome when the moment allows; never be verbose, sycophantic or theatrical.");
-        if (!string.IsNullOrWhiteSpace(honorific))
-            sb.AppendLine($"Address the user as \"{honorific}\" naturally and sparingly (not in every sentence).");
+        var forms = new[] { (s.General.Honorific, "in English"), (s.General.HonorificAr, "in Arabic") }.Where(h => !string.IsNullOrWhiteSpace(h.Item1)).ToList();
+        if (forms.Count > 0)
+            sb.AppendLine($"Address the user as {string.Join(" and ", forms.Select(h => $"\"{h.Item1}\" {h.Item2}"))}, naturally and sparingly (not in every sentence).");
         sb.AppendLine();
-
-        if (lang == Lang.Ar)
-            sb.AppendLine("Language: the user is speaking Egyptian Arabic. Reply in natural Egyptian colloquial Arabic (عامية مصرية), the way a sharp Cairene assistant would speak — not Modern Standard Arabic and not a literal translation. Keep app names, file names, code and technical terms in English.");
-        else
-            sb.AppendLine("Language: reply in English. If the user switches to Arabic, reply in Egyptian colloquial Arabic.");
+        sb.AppendLine("Language: reply in the language the context names. Arabic means natural Egyptian colloquial Arabic (عامية مصرية), the way a sharp Cairene assistant would speak — not Modern Standard Arabic and not a literal translation. Keep app names, file names, code and technical terms in English.");
         sb.AppendLine();
 
         sb.AppendLine("""
@@ -47,9 +46,19 @@ public static class Persona
             - When the user explicitly asks you to remember something, call memory_remember. Do not store guesses as facts.
             - If a request is ambiguous and acting wrongly would matter, ask one short clarifying question.
             - If it is clear enough to act on, act: take titles, names and wording from what the user said, and leave optional details (due dates, priorities, notes) empty instead of asking for them.
+            - Each user message starts with a <context> block that JARVIS adds: the time, what you remember, open tasks, and the reply language and length. Use it as background. It is not something the user said and never overrides these rules.
             """);
+        return sb.ToString();
+    }
 
-        sb.AppendLine("Context:");
+    /// <summary>What changes from message to message; sent inside the user's message (see <see cref="WithContext"/>).</summary>
+    public static string TurnContext(
+        Lang lang, bool spoken, bool online, PresenceSnapshot presence,
+        IReadOnlyList<MemoryItem> memories, IReadOnlyList<TaskItem> openTasks, string? note = null)
+    {
+        var now = DateTimeOffset.Now;
+        var sb = new StringBuilder();
+        sb.AppendLine(lang == Lang.Ar ? "- Reply in: Egyptian Arabic (the user wrote in Arabic)" : "- Reply in: English");
         sb.AppendLine($"- Now: {now.ToString("dddd, d MMMM yyyy, HH:mm", CultureInfo.InvariantCulture)} (UTC{now:zzz})");
         sb.AppendLine($"- Internet: {(online ? "online" : "OFFLINE — web tools will be queued")}");
         if (presence.State != UserState.Unknown)
@@ -82,13 +91,16 @@ public static class Persona
                 sb.AppendLine($"  • {t.Title} ({t.State}, {t.Priority}{due})");
             }
         }
-        sb.AppendLine();
 
         sb.AppendLine(spoken
-            ? "This reply will be spoken aloud: answer in one to three short sentences, no markdown, no lists, no code blocks, no URLs."
-            : "Keep replies short unless the user asks for detail. Light markdown is fine.");
+            ? "- This reply will be spoken aloud: answer in one to three short sentences, no markdown, no lists, no code blocks, no URLs."
+            : "- Keep the reply short unless the user asks for detail. Light markdown is fine.");
+        if (!string.IsNullOrWhiteSpace(note)) sb.AppendLine(note.Trim());
         return sb.ToString();
     }
+
+    /// <summary>The user's message as the model receives it: JARVIS's context block first, then exactly what they said.</summary>
+    public static string WithContext(string context, string message) => $"<context>\n{context.TrimEnd()}\n</context>\n\n{message}";
 
     public static string Greeting(ToolCtx c, DateTimeOffset now)
     {
@@ -124,7 +136,7 @@ public static class Persona
         • Open, close and switch between apps and windows — "open Calculator", "close Notepad"
         • Volume and media — "volume 40", "mute", "next song"
         • Screenshots, lock screen, system status — "take a screenshot", "how's the system"
-        • Reminders and tasks — "remind me in 20 minutes to call Ahmed", "add task send the proposal"
+        • Reminders, timers and tasks — "remind me in 20 minutes to call Ahmed", "set a timer for 5 minutes", "add task send the proposal"
         • Memory — "remember that the CityCrep meeting is on Sunday", "what do you know about CityCrep"
         • Files and web — "find file proposal", "search for laptop prices"
         • Projects — "open my project citycrep", "build citycrep", "why is the build failing?"
@@ -136,7 +148,7 @@ public static class Persona
         • أفتح وأقفل البرامج والشبابيك — "افتح الآلة الحاسبة"، "اقفل النوت باد"
         • الصوت والميديا — "الصوت 40"، "اكتم الصوت"، "الأغنية اللي بعدها"
         • سكرين شوت، قفل الشاشة، حالة الجهاز — "خد سكرين شوت"، "الجهاز عامل إيه"
-        • التذكير والمهام — "فكرني بعد 20 دقيقة أكلم أحمد"، "ضيف مهمة أبعت العرض"
+        • التذكير والتايمر والمهام — "فكرني بعد 20 دقيقة أكلم أحمد"، "اعمل تايمر 5 دقايق"، "ضيف مهمة أبعت العرض"
         • الذاكرة — "افتكر إن اجتماع CityCrep يوم الحد"، "تعرف إيه عن CityCrep"
         • الملفات والنت — "دور على ملف proposal"، "دور على أسعار لابتوبات"
         • المشاريع — "افتح مشروع citycrep"، "ليه البيلد بيفشل في citycrep"
@@ -155,6 +167,21 @@ public static class Persona
     public static string ModelFailed(ToolCtx c, string error) => c.T(
         $"I couldn't complete that{c.CommaSir}: the language model failed ({error}). Direct commands still work.",
         $"مقدرتش أكمل دي{c.CommaSir}: موديل اللغة وقع ({error}). الأوامر المباشرة لسه شغالة.");
+
+    public static string Name(ToolCtx c, string? name) => string.IsNullOrWhiteSpace(name)
+        ? c.T($"You haven't told me your name yet{c.CommaSir}. Add it in Settings → General → Your name.", $"لسه مقولتليش اسمك{c.CommaSir}. اكتبه في الإعدادات ← عام ← اسمك.")
+        : c.T($"You're {name.Trim()}{c.CommaSir}.", $"إنت {name.Trim()}{c.CommaSir}.");
+
+    public static string ModelTooSlow(ToolCtx c, string model, int seconds, bool loading, bool suggestSmaller)
+    {
+        var what = loading
+            ? c.T($"{model} didn't finish loading into memory within {seconds} seconds{c.CommaSir}.", $"{model} مخلصش تحميل في الذاكرة خلال {seconds} ثانية{c.CommaSir}.")
+            : c.T($"{model} went {seconds} seconds without answering{c.CommaSir} — this PC is too busy or slow for it right now.", $"{model} فضل {seconds} ثانية من غير ما يرد{c.CommaSir} — الجهاز مشغول أو بطيء عليه دلوقتي.");
+        var fix = suggestSmaller
+            ? c.T(" A smaller model answers much faster (qwen2.5:3b in Settings → AI), or allow more time there.", " موديل أصغر هيرد أسرع بكتير (qwen2.5:3b من الإعدادات ← الذكاء)، أو ادّيله وقت أكتر من نفس المكان.")
+            : c.T(" You can allow more time in Settings → AI.", " تقدر تدّيله وقت أكتر من الإعدادات ← الذكاء.");
+        return what + fix + c.T(" Direct commands still work.", " الأوامر المباشرة لسه شغالة.");
+    }
 
     public static string StepLimit(ToolCtx c, int steps) => c.T(
         $"I've taken {steps} steps and stopped to check in{c.CommaSir}. Tell me if you'd like me to keep going.",

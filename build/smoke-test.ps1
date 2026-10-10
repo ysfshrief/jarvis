@@ -84,6 +84,8 @@ try {
         if (Get-Process notepad -ErrorAction SilentlyContinue) { throw "notepad still running: $r" }
         $r
     }
+    Check "timer" { Expect "set a timer for 5 seconds" '^deterministic: .*5 seconds' }
+    Check "name" { Expect "whats my name" '^deterministic: .*(?i)name' }
     Check "read-only command" { Expect "run git --version" 'git version \d' }
     Check "no-AI question explains how to enable AI" { $r = Say "summarize my week for me"; if ($r -notmatch "Ollama") { throw $r }; "ok" }
     Check "activity log" { $a = Api GET "/api/activity?limit=5"; "$($a.Count) entries" }

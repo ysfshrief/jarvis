@@ -15,6 +15,11 @@ public sealed record Reminder(string Id, string Text, DateTimeOffset DueAt, stri
 
 public sealed class ReminderStore(JarvisDatabase db, IEventBus events)
 {
+    private readonly SemaphoreSlim _added = new(0, 1);
+
+    /// <summary>Waits up to <paramref name="max"/>, or until a reminder is added — a 3-second timer can't wait for the next regular check.</summary>
+    public async Task WaitForNewAsync(TimeSpan max, CancellationToken ct) => await _added.WaitAsync(max, ct).ConfigureAwait(false);
+
     public Reminder Create(string text, DateTimeOffset dueAt, string? lang = null)
     {
         if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("Reminder text is empty.");
@@ -34,6 +39,7 @@ public sealed class ReminderStore(JarvisDatabase db, IEventBus events)
             cmd.ExecuteNonQuery();
         }
         events.Publish(EventTypes.RemindersChanged, new { action = "created", id });
+        if (_added.CurrentCount == 0) { try { _added.Release(); } catch (SemaphoreFullException) { } }
         return Get(id)!;
     }
 

@@ -119,7 +119,7 @@ public class LearningTests
         var m = new MemoryItem("1", MemoryKinds.Fact, "The fee is 12,000 EGP.", "CityCrep", MemorySources.Derived, 0.25, "research conflict topic:citycrep",
             DateTimeOffset.Now, DateTimeOffset.Now, null, null, 0) { Provenance = new MemoryProvenance("research", Quote: "https://news.example/citycrep") };
         using var host = new TestHost();
-        var prompt = Persona.SystemPrompt(host.Settings.Current, Language.Lang.En, false, true, new Presence.PresenceSnapshot(), [m], [], "Windows");
+        var prompt = Persona.TurnContext(Language.Lang.En, false, true, new Presence.PresenceSnapshot(), [m], []);
         Assert.Contains("unverified, from https://news.example/citycrep; CONTRADICTS another note", prompt);
     }
 

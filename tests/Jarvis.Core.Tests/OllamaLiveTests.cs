@@ -197,6 +197,48 @@ public class OllamaLiveTests
         Assert.Fail("The real model never created the task: " + last);
     }
 
+    /// <summary>The real Ollama provider, recording what each answer cost.</summary>
+    private sealed class Metered(OllamaProvider inner) : IChatProvider, IModelCatalog, IModelLoader
+    {
+        public List<ChatUsage?> Usage { get; } = [];
+        public List<string> Loads { get; } = [];
+        public string Id => inner.Id;
+        public string Name => inner.Name;
+        public bool IsLocal => true;
+        public async Task<ChatResponse> CompleteAsync(ChatRequest request, CancellationToken ct)
+        {
+            var r = await inner.CompleteAsync(request, ct);
+            Usage.Add(r.Usage);
+            return r;
+        }
+        public Task<ProviderStatus> CheckAsync(CancellationToken ct) => inner.CheckAsync(ct);
+        public Task<IReadOnlyList<ModelInfo>> ListModelsAsync(CancellationToken ct) => inner.ListModelsAsync(ct);
+        public Task<bool> IsLoadedAsync(string model, CancellationToken ct) => inner.IsLoadedAsync(model, ct);
+        public Task LoadAsync(string model, int contextTokens, CancellationToken ct) { Loads.Add(model); return inner.LoadAsync(model, contextTokens, ct); }
+    }
+
+    [OllamaFact]
+    public async Task The_next_message_reuses_the_prompt_the_model_already_processed()
+    {
+        // A name no other test uses, so the first turn can't borrow a cached prompt from them.
+        using var host = RealHost(s => s.General.UserName = $"Tester {Guid.NewGuid():n}");
+        var metered = new Metered(Provider());
+        host.Get<ProviderRegistry>().Factory = _ => metered;
+        host.Settings.Update(_ => { });
+
+        var first = await host.Say("In one short sentence: what is a good way to start the day?");
+        var second = await host.Say("And a good way to end it? One short sentence.");
+
+        Assert.True(first.Success, first.Reply);
+        Assert.True(second.Success, second.Reply);
+        Assert.Equal(2, metered.Usage.Count);
+        var (a, b) = (metered.Usage[0]!.InputTokens, metered.Usage[1]!.InputTokens);
+        // Ollama counts only the prompt tokens it had to process. The second message adds a few dozen tokens to a
+        // conversation of over a thousand; without the stable system prompt and tool list it would process them all again.
+        Assert.True(a > 500, $"first turn processed {a} prompt tokens");
+        Assert.True(b < a / 3, $"second turn processed {b} prompt tokens after {a} on the first — the prefix wasn't reused");
+    }
+
     [OllamaFact]
     public async Task Real_model_answers_in_arabic()
     {

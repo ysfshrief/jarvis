@@ -42,6 +42,8 @@ public sealed record ChatRequest
     public int? ContextTokens { get; init; }
     /// <summary>When set, the provider streams and reports text as it is generated.</summary>
     [JsonIgnore] public Action<string>? OnTextDelta { get; init; }
+    /// <summary>Called whenever the server sends anything while streaming — proof the model is still working.</summary>
+    [JsonIgnore] public Action? OnProgress { get; init; }
 }
 
 public sealed record ChatUsage(int InputTokens, int OutputTokens);
@@ -107,6 +109,17 @@ public sealed record PullProgress(string Status, long? Completed, long? Total);
 public interface IModelPuller
 {
     Task PullAsync(string model, IProgress<PullProgress> progress, CancellationToken ct);
+}
+
+/// <summary>
+/// Local servers that load a model into memory on first use (Ollama). JARVIS loads it as its own, visible step so
+/// a slow load isn't mistaken for a model that stopped answering.
+/// </summary>
+public interface IModelLoader
+{
+    Task<bool> IsLoadedAsync(string model, CancellationToken ct);
+    /// <summary>Loads it with the context size the chat will ask for (a different size would make the server reload it).</summary>
+    Task LoadAsync(string model, int contextTokens, CancellationToken ct);
 }
 
 /// <summary>Providers that can turn text into vectors for semantic search.</summary>

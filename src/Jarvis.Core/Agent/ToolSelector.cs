@@ -10,7 +10,8 @@ namespace Jarvis.Core.Agent;
 /// </summary>
 public static class ToolSelector
 {
-    private static readonly HashSet<string> Core =
+    /// <summary>Always offered to small models, always first and in this order (see <see cref="Select"/>).</summary>
+    public static readonly string[] Core =
     [
         "app_open", "app_close", "run_command", "file_search", "file_read", "memory_remember", "memory_search",
         "task_create", "task_list", "reminder_create", "system_info", "project_find", "project_build", "web_search",
@@ -69,6 +70,10 @@ public static class ToolSelector
             var words = (t.Name + " " + t.Description).ToLowerInvariant().Split([' ', '_', '-', '.', ',', '[', ']'], StringSplitOptions.RemoveEmptyEntries).Where(w => w.Length >= 5 && w != "plugin");
             if (words.Any(text.Contains)) wanted.Add(t.Name);
         }
-        return available.Where(t => wanted.Contains(t.Name)).ToList();
+        // Core tools first in a fixed order, then the topic's: the system prompt plus the core tools are then the same
+        // prefix on every request, which a local model processes once and reuses instead of re-reading every time.
+        return available.Where(t => wanted.Contains(t.Name))
+            .OrderBy(t => Array.IndexOf(Core, t.Name) is var i and >= 0 ? i : Core.Length)
+            .ToList();
     }
 }

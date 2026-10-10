@@ -168,6 +168,11 @@ public sealed class ReminderCreateTool(ReminderStore store) : ToolBase
         var now = DateTimeOffset.Now;
         var delta = due - now;
         var local = due.LocalDateTime;
+        if (delta < TimeSpan.FromSeconds(60))
+        {
+            var secs = Math.Max(1, (int)Math.Round(delta.TotalSeconds));
+            return ctx.T($"in {secs} second{(secs == 1 ? "" : "s")}", secs switch { 1 => "بعد ثانية", 2 => "بعد ثانيتين", <= 10 => $"بعد {secs} ثواني", _ => $"بعد {secs} ثانية" });
+        }
         if (delta < TimeSpan.FromMinutes(90))
         {
             var mins = Math.Max(1, (int)Math.Round(delta.TotalMinutes));

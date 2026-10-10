@@ -225,7 +225,36 @@ public class AgentLoopTests
 
         await host.Say("when is the CityCrep meeting?");
 
-        Assert.Contains("CityCrep meeting is every Sunday", host.Model.Requests[0].Messages[0].Content);
+        Assert.Contains("CityCrep meeting is every Sunday", host.Model.Requests[0].Messages[^1].Content);
+    }
+
+    [Fact]
+    public async Task System_prompt_and_tools_stay_identical_between_turns_so_a_local_model_can_reuse_them()
+    {
+        using var host = new TestHost(withModel: true);
+        host.Get<MemoryStore>().Add(new NewMemory("The CityCrep meeting is every Sunday at 11", MemoryKinds.Fact, "CityCrep"));
+        host.Model.Reply("Sunday at 11.").Reply("تمام.").Reply("Done.");
+
+        await host.Say("when is the CityCrep meeting?");
+        await host.Say("فكرني بالاجتماع بتاع سيتي كريب");
+        host.Get<TaskStore>().Create(new NewTask("Prepare the CityCrep briefing"));
+        await host.Say("anything else about CityCrep?", InputSource.Voice);
+
+        var requests = host.Model.Requests;
+        Assert.Equal(3, requests.Count);
+        // Time, memories, tasks, language and voice changed between these turns; the prefix a model caches did not.
+        Assert.All(requests, r => Assert.Equal(requests[0].Messages[0].Content, r.Messages[0].Content));
+        // The tools a message's topic adds come after the core tools, which stay the same and in the same order.
+        var core = requests[0].Tools.Select(t => t.Name).TakeWhile(ToolSelector.Core.Contains).ToList();
+        Assert.True(core.Count >= 8, string.Join(",", core));
+        Assert.All(requests, r => Assert.Equal(core, r.Tools.Select(t => t.Name).Take(core.Count)));
+        Assert.DoesNotContain("CityCrep", requests[0].Messages[0].Content);
+        // The changing part travels with each message instead.
+        Assert.Contains("Reply in: Egyptian Arabic", requests[1].Messages[^1].Content);
+        Assert.Contains("Prepare the CityCrep briefing", requests[2].Messages[^1].Content);
+        Assert.Contains("spoken aloud", requests[2].Messages[^1].Content);
+        // Earlier messages go back exactly as they were said, so the cached prefix also covers the conversation so far.
+        Assert.Contains(requests[2].Messages, m => m.Role == ChatRole.User && m.Content == "when is the CityCrep meeting?");
     }
 
     [Fact]

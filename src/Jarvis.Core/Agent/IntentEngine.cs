@@ -63,6 +63,16 @@ public static partial class IntentEngine
         if (AreYouThere().IsMatch(t)) return new ReplyIntent("presence");
         if (TimeQuery().IsMatch(t)) return new ReplyIntent("time");
         if (DateQuery().IsMatch(t)) return new ReplyIntent("date");
+        if (NameQuery().IsMatch(t)) return new ReplyIntent("name");
+
+        // Timers: "set a timer for 3 seconds", "start a 10 minute timer", "اعمل تايمر ٥ دقايق".
+        if (((m = TimerFor().Match(t)).Success || (m = TimerAdjective().Match(t)).Success) &&
+            TimeExpressionParser.Find((Arabic().IsMatch(t) ? "بعد " : "in ") + m.Groups["x"].Value, now) is { } timer)
+        {
+            var length = Original(rawText, m.Groups["x"].Value).Trim();
+            var label = Arabic().IsMatch(t) ? $"التايمر خلص ({length})" : $"Timer done ({length})";
+            return new ToolIntent("reminder_create", ToolArgs.From(new { text = label, due = timer.When.ToString("O") }));
+        }
 
         // Reminders before anything that starts with a verb like "remind".
         if (RemindPrefix().Match(t) is { Success: true } rp)
@@ -283,6 +293,18 @@ public static partial class IntentEngine
 
     [GeneratedRegex(@"^(?:what(?:'s| is) (?:the |today'?s )?date(?: today)?|what day is (?:it|today)|today'?s date|date|(?:النهارده|انهارده|النهاردة) (?:كام|ايه|يوم ايه|كام في الشهر)|التاريخ(?: النهارده)?|احنا (?:في )?(?:يوم )?(?:كام|ايه))$")]
     private static partial Regex DateQuery();
+
+    [GeneratedRegex(@"^(?:what(?:'s| is) my name|whats my name|do you know my name|who am i|(?:انا )?اسمي (?:ايه|إيه)|(?:انت )?عارف اسمي)$")]
+    private static partial Regex NameQuery();
+
+    [GeneratedRegex(@"^(?:(?:set|start|make|put on)(?: me)?(?: an?)? timer|timer|(?:اعمل|ظبط|شغل|حط)(?:لي|ي)?(?: لي)? (?:تايمر|مؤقت)|تايمر|مؤقت)(?: for| of| on| على| علي| لمده| ل)? (?<x>.+)$")]
+    private static partial Regex TimerFor();
+
+    [GeneratedRegex(@"^(?:set|start)(?: me)? an? (?<x>\S+[ -](?:seconds?|minutes?|hours?)) timer$")]
+    private static partial Regex TimerAdjective();
+
+    [GeneratedRegex(@"[\u0600-\u06FF]")]
+    private static partial Regex Arabic();
 
     [GeneratedRegex(@"^(?:remind me|set (?:a )?reminder|فكرني|ذكرني|فكرني ب)\b")]
     private static partial Regex RemindPrefix();
