@@ -5,7 +5,7 @@
 
 .EXAMPLE
   ./build/package.ps1                 # everything, version from Directory.Build.props
-  ./build/package.ps1 -Version 0.3.4  # explicit version
+  ./build/package.ps1 -Version 0.3.5  # explicit version
   ./build/package.ps1 -SkipInstaller  # no Inno Setup needed
 
   Output: artifacts/JARVIS-Setup-x64.exe, artifacts/JARVIS-Portable-x64.zip, artifacts/app/
@@ -26,7 +26,7 @@ $tfm = "net10.0-windows10.0.19041.0"
 if (-not $Version) {
     $props = [xml](Get-Content (Join-Path $root "Directory.Build.props"))
     $Version = ($props.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).'#text'
-    if (-not $Version) { $Version = "0.3.4" }
+    if (-not $Version) { $Version = "0.3.5" }
 }
 Write-Host "Packaging JARVIS $Version" -ForegroundColor Cyan
 

@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version Condition="'$(Version)' == ''">0.3.4</Version>
+    <Version Condition="'$(Version)' == ''">0.3.5</Version>
     <Authors>JARVIS</Authors>
     <Product>JARVIS</Product>
     <Copyright>JARVIS contributors</Copyright>

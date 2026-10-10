@@ -386,6 +386,23 @@ public class RuntimeApiTests : IClassFixture<RuntimeFixture>
     }
 
     [Fact]
+    public async Task Test_checks_a_provider_as_it_is_on_screen_before_it_is_saved()
+    {
+        var c = _f.Authed();
+        // Saved settings: Gemini is off. On screen: switched on, pointed (for this test) at a port nothing listens on.
+        var saved = await (await c.PostAsync("/api/ai/providers/gemini/check", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("disabled", saved.GetProperty("message").GetString());
+
+        var draft = new StringContent("""{"id":"gemini","name":"Google Gemini","kind":"openai-compatible","baseUrl":"http://127.0.0.1:9/v1","isLocal":false,"enabled":true}""",
+            System.Text.Encoding.UTF8, "application/json");
+        var onScreen = await (await c.PostAsync("/api/ai/providers/gemini/check", draft)).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(onScreen.GetProperty("available").GetBoolean());
+        Assert.Contains("Not reachable at http://127.0.0.1:9/v1", onScreen.GetProperty("message").GetString()); // the on-screen settings were tried
+        var store = _f.Services.GetRequiredService<Jarvis.Core.Settings.ISettingsStore>();
+        Assert.False(store.Current.Ai.Providers.Single(p => p.Id == "gemini").Enabled); // testing saved nothing
+    }
+
+    [Fact]
     public async Task Paired_phone_reaches_only_the_companion_api_over_pinned_tls()
     {
         var c = _f.Authed();

@@ -636,8 +636,17 @@ public static class Api
             config = p,
             status = providers.CachedStatus(p.Id),
         })));
-        api.MapPost("/ai/providers/{id}/check", async (string id, ProviderRegistry providers, CancellationToken ct) =>
-            Results.Ok(await providers.CheckAsync(id, ct)));
+        // With a body: test the provider as configured on screen (Settings may not be saved yet).
+        api.MapPost("/ai/providers/{id}/check", async (string id, HttpRequest request, ProviderRegistry providers, CancellationToken ct) =>
+        {
+            var body = request.ContentLength is > 0 ? await request.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>(ct) : null;
+            if (body?["kind"] is not null && body.Deserialize<ProviderConfig>(System.Text.Json.JsonSerializerOptions.Web) is { } draft)
+            {
+                draft.Id = id;
+                return Results.Ok(await providers.CheckDraftAsync(draft, ct));
+            }
+            return Results.Ok(await providers.CheckAsync(id, ct));
+        });
         api.MapGet("/ai/route", async (string text, ModelRouter router, CancellationToken ct) =>
         {
             var d = await router.RouteAsync(text, ct);

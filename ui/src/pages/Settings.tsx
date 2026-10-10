@@ -168,8 +168,9 @@ function Ai({ s, set }: P) {
   const secrets = useLoad(() => get<{ names: string[]; protection: string }>("/secrets"));
   const [statuses, setStatuses] = useState<Record<string, ProviderStatus>>({});
   const [keys, setKeys] = useState<Record<string, string>>({});
+  // Tests the provider as it is on screen, so "Test" works before the change is saved.
   const check = async (id: string) => {
-    const st = await post<ProviderStatus>(`/ai/providers/${id}/check`);
+    const st = await post<ProviderStatus>(`/ai/providers/${id}/check`, s.ai.providers.find((p) => p.id === id));
     setStatuses((c) => ({ ...c, [id]: st }));
   };
   useEffect(() => {
@@ -214,7 +215,7 @@ function Ai({ s, set }: P) {
                   {st && <Badge tone={st.available ? "good" : "bad"}>{st.available ? tr("{n} models", { n: st.models.length }) : tr("unavailable")}</Badge>}
                 </div>
                 <div className="row">
-                  <button className="btn btn-ghost btn-sm" onClick={() => check(p.id)} disabled={!p.enabled} title={tr("Test connection")}><RefreshCw size={13} /> {tr("Test")}</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => check(p.id)} title={tr("Test connection")}><RefreshCw size={13} /> {tr("Test")}</button>
                   <Toggle label="Enabled" checked={p.enabled} onChange={(v) => set((x) => { x.ai.providers[i].enabled = v; })} />
                 </div>
               </div>

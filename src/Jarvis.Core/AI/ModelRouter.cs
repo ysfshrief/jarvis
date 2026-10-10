@@ -38,6 +38,28 @@ public sealed class ProviderRegistry
 
     public ProviderStatus? CachedStatus(string id) => _status.GetValueOrDefault(id);
 
+    /// <summary>
+    /// Tests a provider as it is on screen in Settings, saved or not, so "Test" answers for what the user sees.
+    /// The API key is always the one stored for that provider; nothing is cached or changed.
+    /// </summary>
+    public async Task<ProviderStatus> CheckDraftAsync(ProviderConfig draft, CancellationToken ct)
+    {
+        var saved = _settings.Current.Ai.Providers.FirstOrDefault(p => p.Id.Equals(draft.Id, StringComparison.OrdinalIgnoreCase));
+        var cfg = new ProviderConfig
+        {
+            Id = draft.Id, Name = saved?.Name ?? draft.Name, Kind = draft.Kind, BaseUrl = draft.BaseUrl, IsLocal = draft.IsLocal,
+            Enabled = true, ApiKeySecret = saved?.ApiKeySecret ?? draft.ApiKeySecret,
+        };
+        var provider = Factory?.Invoke(cfg) ?? Create(cfg);
+        if (provider is null) return new ProviderStatus(cfg.Id, false, $"Unknown provider type '{cfg.Kind}'.", [], DateTimeOffset.Now);
+        try { return await provider.CheckAsync(ct).ConfigureAwait(false); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Provider check failed for {Provider}", cfg.Id);
+            return new ProviderStatus(cfg.Id, false, ex.Message, [], DateTimeOffset.Now);
+        }
+    }
+
     public async Task<ProviderStatus> CheckAsync(string id, CancellationToken ct)
     {
         var p = Get(id);
