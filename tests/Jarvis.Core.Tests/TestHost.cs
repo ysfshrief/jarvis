@@ -58,7 +58,10 @@ public sealed class TestHost : IDisposable
     /// <summary>Waits until an approval is pending, then answers it.</summary>
     public async Task<ApprovalRequest> AnswerNextApproval(bool approve)
     {
-        for (var i = 0; i < 200; i++)
+        // Returns as soon as one appears. The bound is generous because some turns first start a real browser,
+        // which takes many seconds on a busy CI machine (a 5-second bound once failed a test that was working).
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(30))
         {
             var pending = Approvals.Pending.FirstOrDefault();
             if (pending is not null)
@@ -68,7 +71,7 @@ public sealed class TestHost : IDisposable
             }
             await Task.Delay(25);
         }
-        throw new TimeoutException("No approval was requested.");
+        throw new TimeoutException("No approval was requested within 30 seconds.");
     }
 
     public void Dispose()
